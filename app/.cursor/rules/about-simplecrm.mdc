@@ -1,0 +1,48 @@
+---
+description: about the simpleCRM project, tech stack, important files, file structure
+globs: 
+alwaysApply: false
+---
+# About SimpleCRM (Magnetic CRM)
+
+## Overview
+SimpleCRM is a document-based CRM designed for small business owners and solopreneurs. It uses a document-first approach inspired by note-taking apps like Apple Notes or Notion, emphasizing simplicity and intuitive workflow.
+
+## Key Features
+- Document-based interface with clean, distraction-free editor
+- Smart entity detection using `@` symbol (e.g., `@JohnDoe` or `@AcmeCorp`)
+- Task management with `>` prefix (e.g., `> Follow up with client`)
+- Real-time autosave functionality
+- User authentication system
+
+## Architecture
+### Frontend
+- React with TypeScript
+- TanStack Query for data fetching
+- TipTap for rich-text editing
+- Tailwind CSS and Shadcn/UI for styling
+- Wouter for routing
+
+### Backend
+- Node.js with Express
+- PostgreSQL database
+- Drizzle ORM for database operations
+- Zod for schema validation
+- Passport.js for authentication
+
+## Data Model
+- Users: Standard account information
+- Notes: Rich text documents with auto-save
+- Entities: People/companies mentioned with `@` syntax
+- Tasks: Action items created with `>` prefix
+
+## Project Structure
+- `/client`: Frontend React application
+- `/server`: Backend Express server
+- `/shared`: Code shared between frontend and backend
+- Key files:
+  - `server/index.ts`: Main server entry point
+  - `server/routes.ts`: API endpoints
+  - `server/db.ts`: Database connection
+  - `shared/schema.ts`: Database schemas and types
+

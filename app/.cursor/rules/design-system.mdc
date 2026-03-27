@@ -1,0 +1,169 @@
+---
+description: The design system used for this project
+globs: 
+alwaysApply: false
+---
+# Design System Documentation
+
+## Overview
+
+This document outlines the design system for our document-based CRM application. The application uses a clean, minimal aesthetic inspired by modern note-taking apps like Apple Notes, with additional structure to support CRM functionality.
+
+## Design Philosophy
+
+The design emphasizes:
+- **Simplicity**: Clean, distraction-free interface that puts content first
+- **Focus**: Minimal UI elements that disappear when not needed
+- **Hierarchy**: Clear visual hierarchy to distinguish between different types of information
+- **Accessibility**: High contrast text and properly sized interactive elements
+
+## Technology Stack
+
+The application's design system is built using:
+- **Tailwind CSS**: For utility-based styling
+- **shadcn/ui**: Component library built on Radix UI primitives
+- **Radix UI**: For accessible, unstyled components
+- **Lucide React**: For consistent iconography
+
+## Color Palette
+
+The application uses a professional, minimalist color palette:
+
+- **Primary**: `hsl(222.2 47.4% 11.2%)` - A dark slate/black color used for primary buttons and actions
+- **Primary Foreground**: White text on primary backgrounds
+- **Neutral Gray Scale**:
+  - Background: `#FFFFFF` (white)
+  - Subtle backgrounds: `#F9FAFB` (gray-50)
+  - Borders: `#E5E7EB` (gray-200)
+  - Muted text: `#6B7280` (gray-500)
+  - Primary text: `#111827` (gray-900)
+- **Accent/Functional Colors**:
+  - Destructive: `#EF4444` (red-600) - Used for delete actions and warnings
+  - Blue Accent: `#3B82F6` (blue-600) - Used for Magic AI functionality
+
+The theme is configured using the "professional" variant in theme.json with a border radius of 0.5 units.
+
+## Typography
+
+The application uses a system-first approach to typography:
+
+- **Font Family**: System UI fonts (San Francisco on macOS/iOS, Segoe UI on Windows, etc.)
+- **Base Font Size**: 16px (1rem)
+- **Font Weights**:
+  - Regular: 400
+  - Medium: 500
+  - Semibold: 600
+  - Bold: 700
+- **Line Height**: 1.5 for body text, 1.2 for headings
+
+### Type Scale
+
+- **Heading 1**: 2rem (32px), Semibold
+- **Heading 2**: 1.5rem (24px), Semibold
+- **Heading 3**: 1.25rem (20px), Semibold
+- **Heading 4**: 1.125rem (18px), Semibold
+- **Body**: 1rem (16px), Regular
+- **Small/Caption**: 0.875rem (14px), Regular
+
+## Component Library
+
+The application uses shadcn/ui components with customizations to match our design language:
+
+### Button Variants
+
+- **Default**: Black background with white text
+- **Destructive**: Red background (`#EF4444`) with white text
+- **Outline**: Transparent with border, changes on hover
+- **Secondary**: Light gray background with dark text
+- **Ghost**: Transparent background that shows background on hover
+- **Link**: Underlined text with no background
+
+### Button Sizes
+
+- **Default**: Height of 40px (h-10) with horizontal padding of 16px (px-4)
+- **Small**: Height of 36px (h-9) with horizontal padding of 12px (px-3)
+- **Large**: Height of 44px (h-11) with horizontal padding of 32px (px-8)
+- **Icon**: Square button with size of 40px (h-10 w-10)
+
+### Application-Specific Components
+
+- **Note Editor**:
+  - Clean, white background
+  - Rich text capabilities using TipTap editor
+  - Special styling for task items and @mentions
+  - Proper typography using Tailwind's prose utilities
+
+- **Toolbar**:
+  - Light border at the bottom
+  - Icon-based Toggle components with tooltips
+  - Compact layout (h-8 w-8 for buttons) to maximize content area
+
+- **Sidebar**:
+  - List of notes with title and truncated preview
+  - Active item highlighting
+  - Collapsible for more editing space
+
+- **Magic AI Button**:
+  - Wand icon (`Wand2` from Lucide React)
+  - Pulse animation during processing (animate-pulse)
+  - Blue accent color (`text-blue-500`) to highlight AI functionality
+
+- **Dialog Components**:
+  - Alert dialogs for confirmations
+  - Modals for more complex interactions
+  - Clean, white backgrounds with proper spacing
+
+## Icons
+
+The application uses Lucide React icons throughout the interface for consistency. Icons are typically:
+
+- Size: 16px (h-4 w-4) in the toolbar, slightly larger elsewhere
+- Consistent scale and alignment
+- Used with proper accessibility attributes
+
+## Spacing System
+
+The spacing system follows Tailwind's default spacing scale, which is built on a 0.25rem (4px) base unit:
+
+- **0.25rem (p-1)**: Minimum spacing, tight connections
+- **0.5rem (p-2)**: Default spacing between related items
+- **1rem (p-4)**: Standard component padding
+- **1.5rem (p-6)**: Separation between distinct sections
+- **2rem (p-8)**: Major section breaks
+
+## Animation
+
+Animations are subtle and functional:
+
+- Transition durations: 150-200ms with ease-in-out timing
+- Loading indicators: 
+  - Spinning border animation for general loading
+  - Pulse animation (`animate-pulse`) for Magic AI processing
+
+## Responsive Design
+
+The application follows Tailwind's responsive breakpoints:
+- **sm**: 640px
+- **md**: 768px
+- **lg**: 1024px
+- **xl**: 1280px
+- **2xl**: 1536px
+
+The interface is optimized for desktop-first with adaptations for smaller screens.
+
+## Accessibility
+
+The design system prioritizes accessibility through:
+
+- High contrast between text and backgrounds
+- Keyboard navigation support via Radix UI primitives
+- Proper focus states with visible outlines
+- Semantic HTML and ARIA attributes
+- Tooltips for icon-only buttons
+
+## Future Considerations
+
+- Dark mode support
+- Additional theme customization options
+- Enhanced visualizations for sales pipeline
+- Mobile-specific optimizations

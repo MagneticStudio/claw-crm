@@ -1,0 +1,61 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Production builds
+dist
+dist-ssr
+build
+server/public
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Database
+*.sqlite
+*.db
+*.sql
+pgdata/
+
+# TypeScript
+*.tsbuildinfo
+vite.config.ts.*
+
+# Testing
+coverage
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Misc
+*.local
+.vercel
+.output
+.turbo
+*.tar.gz

@@ -1,0 +1,92 @@
+---
+description: AI LLM openai vercel architecture
+globs: 
+alwaysApply: false
+---
+# LLM Implementation
+
+## Overview
+This document explains the Large Language Model (LLM) implementation used in our application.
+
+## Configuration
+- **Model**: GPT-4.1 (newest model as of May 2025)
+- **Temperature**: 0.3 (lower setting for more consistent, predictable outputs)
+- **Store**: true (logging completions for analytical purposes)
+
+## Vercel AI SDK Implementation
+We use the Vercel AI SDK instead of directly interfacing with OpenAI's API. This provides several benefits:
+
+1. **Streaming** - More responsive user experience with real-time results
+2. **Simplified State Management** - Hooks like `useCompletion` handle complex state
+3. **Standardized Interface** - Consistent API across different AI providers
+4. **Optimized Performance** - Built-in performance optimizations
+
+## Backend Implementation
+The backend uses `streamText` from the Vercel AI SDK to create streaming text completions:
+
+```typescript
+import { streamText } from 'ai';
+import { openai } from '@ai-sdk/openai';
+
+export async function processNoteWithAI(content: string) {
+  const systemPrompt = `...`;
+
+  return await streamText({
+    model: openai('gpt-4.1'), // Using GPT-4.1 as specified
+    prompt: content,
+    system: systemPrompt,
+    temperature: 0.3,
+    store: true, // Enable logging as specified
+    _internal: {
+      // Additional parameters to force model version
+      modelOverrideOptions: {
+        model: 'gpt-4.1'
+      }
+    }
+  });
+}
+```
+
+## Frontend Implementation
+The frontend will use the `useCompletion` hook to manage state and handle streaming responses:
+
+```typescript
+import { useCompletion } from '@ai-sdk/react';
+
+function AiComponent() {
+  const { completion, isLoading, complete } = useCompletion({
+    api: '/api/magic-ai',
+  });
+
+  const handleMagicAI = async (content: string) => {
+    try {
+      const result = await complete(content);
+      return result;
+    } catch (error) {
+      console.error('Error processing with AI:', error);
+      throw error;
+    }
+  };
+
+  return (
+    // UI implementation
+  );
+}
+```
+
+## System Prompt Design
+Our system prompt is carefully designed to:
+
+1. Keep the AI focused on the specific task (note reorganization)
+2. Ensure outputs use HTML formatting rather than markdown
+3. Maintain special tags and formatting from the original content
+4. Organize information in a structured way for better readability
+
+## Error Handling
+Implementation includes proper error handling to gracefully manage API failures, timeouts, or unexpected responses. Errors are caught and presented to the user with appropriate feedback.
+
+## Future Enhancements
+- AI diff view to highlight changes
+- Undo functionality for AI modifications
+- Analytics dashboard for AI usage patterns
+- Fine-tuning based on user feedback
