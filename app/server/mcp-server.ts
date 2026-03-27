@@ -235,11 +235,25 @@ server.tool(
 
 server.tool(
   "complete_followup",
-  "Mark a follow-up as completed",
-  { followupId: z.number().describe("Follow-up ID") },
-  async ({ followupId }) => {
+  "Mark a follow-up as completed, optionally logging what happened as an interaction",
+  {
+    followupId: z.number().describe("Follow-up ID"),
+    outcome: z.string().optional().describe("What happened — logged as a new interaction in the timeline"),
+  },
+  async ({ followupId, outcome }) => {
     const followup = await storage.completeFollowup(followupId);
     if (!followup) return { content: [{ type: "text" as const, text: "Follow-up not found" }] };
+
+    if (outcome?.trim()) {
+      await storage.createInteraction({
+        contactId: followup.contactId,
+        content: outcome.trim(),
+        date: new Date(),
+        type: "note",
+      });
+      return { content: [{ type: "text" as const, text: `Completed follow-up and logged: "${outcome.trim()}"` }] };
+    }
+
     return { content: [{ type: "text" as const, text: `Completed follow-up: "${followup.content}"` }] };
   }
 );

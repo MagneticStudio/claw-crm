@@ -44,13 +44,17 @@ export default function AuthPage() {
 
   if (apiKey) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-stone-50">
-        <div className="w-full max-w-sm bg-white rounded-lg shadow-sm border p-8 text-center">
-          <h1 className="text-xl font-semibold text-stone-800 mb-2">Setup Complete</h1>
-          <p className="text-sm text-stone-500 mb-4">Save your API key for agent access:</p>
-          <code className="block bg-stone-100 p-3 rounded text-xs break-all font-mono mb-4">{apiKey}</code>
-          <p className="text-xs text-stone-400 mb-6">This won't be shown again.</p>
-          <button onClick={() => navigate("/")} className="w-full bg-stone-900 text-white py-2 rounded-md text-sm hover:bg-stone-800">
+      <div className="flex flex-col items-center justify-center min-h-screen p-4"
+        style={{ background: "linear-gradient(135deg, #2bbcb3, #30bfb7, #3cc8c0)" }}>
+        <div className="w-full max-w-sm bg-white rounded-xl shadow-lg p-8 text-center">
+          <h1 className="text-lg font-semibold" style={{ color: "#1a2f2f" }}>Setup Complete</h1>
+          <p className="text-sm mt-1" style={{ color: "#5a7a7a" }}>Save your API key for agent access:</p>
+          <code className="block p-3 rounded-lg text-xs break-all font-mono mt-4 mb-4"
+            style={{ backgroundColor: "#e6f7f6", color: "#1a9e96" }}>{apiKey}</code>
+          <p className="text-xs mb-6" style={{ color: "#5a7a7a" }}>This won't be shown again.</p>
+          <button onClick={() => navigate("/")}
+            className="w-full text-white py-2.5 rounded-lg text-sm font-medium transition-colors"
+            style={{ backgroundColor: "#2bbcb3" }}>
             Continue to CRM
           </button>
         </div>
@@ -59,14 +63,17 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-stone-50">
-      <div className="w-full max-w-sm bg-white rounded-lg shadow-sm border p-8">
-        <div className="text-center mb-8">
-          <h1 className="text-xl font-semibold text-stone-800 tracking-tight">MAGNETIC ADVISORS</h1>
-          <p className="text-sm text-stone-400 mt-1">{needsSetup ? "Set your PIN" : "Enter PIN"}</p>
+    <div className="flex flex-col items-center justify-center min-h-screen p-4"
+      style={{ background: "linear-gradient(135deg, #2bbcb3, #30bfb7, #3cc8c0)" }}>
+      <div className="w-full max-w-sm p-8 text-center">
+        <div className="mb-8">
+          <h1 className="text-xl font-semibold tracking-[0.2em] text-white uppercase">Magnetic Advisors</h1>
+          <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.7)" }}>
+            {needsSetup ? "Set your PIN" : "Enter PIN"}
+          </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
           <input
             ref={inputRef}
             type="password"
@@ -76,16 +83,22 @@ export default function AuthPage() {
             value={pin}
             onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
             placeholder="____"
-            className="w-full text-center text-2xl tracking-[0.5em] py-3 border-b-2 border-stone-200 focus:border-stone-900 outline-none bg-transparent font-mono"
+            className="w-full text-center text-2xl tracking-[0.5em] py-3 outline-none font-mono text-white placeholder:text-white/40"
+            style={{
+              backgroundColor: "rgba(255,255,255,0.15)",
+              border: "1px solid rgba(255,255,255,0.4)",
+              borderRadius: "10px",
+            }}
             autoComplete="off"
           />
 
-          {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+          {error && <p className="text-white/90 text-sm bg-white/20 rounded-lg py-1.5 px-3">{error}</p>}
 
           <button
             type="submit"
             disabled={isPending || pin.length < 4}
-            className="w-full bg-stone-900 text-white py-2.5 rounded-md text-sm hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+            className="w-full py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+            style={{ backgroundColor: "rgba(255,255,255,0.95)", color: "#1a9e96" }}
           >
             {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : needsSetup ? "Set PIN" : "Unlock"}
           </button>

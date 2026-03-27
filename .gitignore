@@ -3,3 +3,4 @@ dist/
 .env
 *.jpg
 *.png
+.playwright-mcp/

@@ -14,6 +14,10 @@ import {
 export async function registerRoutes(app: Express): Promise<Server> {
   setupAuth(app);
 
+  // Remote MCP endpoint (no auth — Claude handles its own session)
+  const { registerMcpRoutes } = await import("./mcp-remote");
+  registerMcpRoutes(app);
+
   // --- SSE ---
   app.get("/api/events", requireAuth, (req, res) => {
     res.writeHead(200, {
@@ -143,6 +147,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/followups/:id/complete", requireAuth, async (req, res) => {
     const followup = await storage.completeFollowup(parseInt(req.params.id));
     if (!followup) return res.status(404).json({ message: "Follow-up not found" });
+
+    // If outcome text is provided, log it as an interaction
+    const { outcome } = req.body || {};
+    if (outcome && typeof outcome === "string" && outcome.trim()) {
+      await storage.createInteraction({
+        contactId: followup.contactId,
+        content: outcome.trim(),
+        date: new Date(),
+        type: "note",
+      });
+    }
+
     res.json(followup);
   });
 

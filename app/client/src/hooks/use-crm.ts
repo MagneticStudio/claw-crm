@@ -70,9 +70,17 @@ export function useCrm() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/contacts"] }),
   });
 
-  const completeFollowup = useMutation({
+  const deleteFollowup = useMutation({
     mutationFn: async (id: number) => {
-      const res = await apiRequest("POST", `/api/followups/${id}/complete`);
+      await apiRequest("DELETE", `/api/followups/${id}`);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/contacts"] }),
+  });
+
+  const completeFollowup = useMutation({
+    mutationFn: async ({ id, outcome }: { id: number; outcome?: string }) => {
+      const res = await apiRequest("POST", `/api/followups/${id}/complete`,
+        outcome ? { outcome } : undefined);
       return res.json();
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/contacts"] }),
@@ -90,6 +98,7 @@ export function useCrm() {
     deleteInteraction,
     createFollowup,
     updateFollowup,
+    deleteFollowup,
     completeFollowup,
   };
 }
