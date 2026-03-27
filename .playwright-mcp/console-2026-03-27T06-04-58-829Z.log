@@ -1,0 +1,110 @@
+[26928271ms] [ERROR] Warning: React has detected a change in the order of Hooks called by %s. This will lead to bugs and errors if not fixed. For more information, read the Rules of Hooks: https://reactjs.org/link/rules-of-hooks
+
+   Previous render            Next render
+   ------------------------------------------------------
+%s   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+%s CrmPage 1. useContext                 useContext
+2. useContext                 useContext
+3. useContext                 useContext
+4. useEffect                  useEffect
+5. useState                   useState
+6. useCallback                useCallback
+7. useSyncExternalStore       useSyncExternalStore
+8. useEffect                  useEffect
+9. useContext                 useContext
+10. useState                  useState
+11. useEffect                 useEffect
+12. useCallback               useCallback
+13. useSyncExternalStore      useSyncExternalStore
+14. useCallback               useCallback
+15. useContext                useContext
+16. useState                  useState
+17. useEffect                 useEffect
+18. useCallback               useCallback
+19. useSyncExternalStore      useSyncExternalStore
+20. useCallback               useCallback
+21. useContext                useContext
+22. useState                  useState
+23. useEffect                 useEffect
+24. useCallback               useCallback
+25. useSyncExternalStore      useSyncExternalStore
+26. useCallback               useCallback
+27. useContext                useContext
+28. useState                  useState
+29. useEffect                 useEffect
+30. useCallback               useCallback
+31. useSyncExternalStore      useSyncExternalStore
+32. useCallback               useCallback
+33. useContext                useContext
+34. useState                  useState
+35. useEffect                 useEffect
+36. useCallback               useCallback
+37. useSyncExternalStore      useSyncExternalStore
+38. useCallback               useCallback
+39. useContext                useContext
+40. useState                  useState
+41. useEffect                 useEffect
+42. useCallback               useCallback
+43. useSyncExternalStore      useSyncExternalStore
+44. useCallback               useCallback
+45. useContext                useContext
+46. useState                  useState
+47. useRef                    useEffect
+ 
+    at CrmPage (http://localhost:3000/src/pages/crm-page.tsx?t=1774618427008:48:100)
+    at Route (http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/wouter.js?v=ab214bf9:265:16)
+    at ProtectedRoute (http://localhost:3000/src/lib/protected-route.tsx:22:3)
+    at Switch (http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/wouter.js?v=ab214bf9:321:17)
+    at Router
+    at AuthProvider (http://localhost:3000/src/hooks/use-auth.tsx:22:32)
+    at QueryClientProvider (http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/@tanstack_react-query.js?v=ab214bf9:2805:3)
+    at App @ http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=ab214bf9:520
+[26928281ms] TypeError: observer.getCurrentResult is not a function
+    at http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/@tanstack_react-query.js?v=ab214bf9:3290:20
+    at updateSyncExternalStore (http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=ab214bf9:11918:30)
+    at Object.useSyncExternalStore (http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=ab214bf9:12781:22)
+    at Object.useSyncExternalStore (http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/chunk-QCHXOAYK.js?v=ab214bf9:1120:29)
+    at useMutation (http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/@tanstack_react-query.js?v=ab214bf9:3285:26)
+    at useCrm (http://localhost:3000/src/hooks/use-crm.ts?t=1774618427008:48:26)
+    at CrmPage (http://localhost:3000/src/pages/crm-page.tsx?t=1774618427008:48:100)
+    at renderWithHooks (http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=ab214bf9:11548:26)
+    at updateFunctionComponent (http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=ab214bf9:14582:28)
+    at beginWork (http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=ab214bf9:15924:22)
+[26928281ms] TypeError: observer.getCurrentResult is not a function
+    at http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/@tanstack_react-query.js?v=ab214bf9:3290:20
+    at updateSyncExternalStore (http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=ab214bf9:11918:30)
+    at Object.useSyncExternalStore (http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=ab214bf9:12781:22)
+    at Object.useSyncExternalStore (http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/chunk-QCHXOAYK.js?v=ab214bf9:1120:29)
+    at useMutation (http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/@tanstack_react-query.js?v=ab214bf9:3285:26)
+    at useCrm (http://localhost:3000/src/hooks/use-crm.ts?t=1774618427008:48:26)
+    at CrmPage (http://localhost:3000/src/pages/crm-page.tsx?t=1774618427008:48:100)
+    at renderWithHooks (http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=ab214bf9:11548:26)
+    at updateFunctionComponent (http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=ab214bf9:14582:28)
+    at beginWork (http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=ab214bf9:15924:22)
+[26928279ms] [ERROR] The above error occurred in the <CrmPage> component:
+
+    at CrmPage (http://localhost:3000/src/pages/crm-page.tsx?t=1774618427008:48:100)
+    at Route (http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/wouter.js?v=ab214bf9:265:16)
+    at ProtectedRoute (http://localhost:3000/src/lib/protected-route.tsx:22:3)
+    at Switch (http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/wouter.js?v=ab214bf9:321:17)
+    at Router
+    at AuthProvider (http://localhost:3000/src/hooks/use-auth.tsx:22:32)
+    at QueryClientProvider (http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/@tanstack_react-query.js?v=ab214bf9:2805:3)
+    at App
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=ab214bf9:14031
+[26928287ms] TypeError: observer.getCurrentResult is not a function
+    at http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/@tanstack_react-query.js?v=ab214bf9:3290:20
+    at updateSyncExternalStore (http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=ab214bf9:11918:30)
+    at Object.useSyncExternalStore (http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=ab214bf9:12781:22)
+    at Object.useSyncExternalStore (http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/chunk-QCHXOAYK.js?v=ab214bf9:1120:29)
+    at useMutation (http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/@tanstack_react-query.js?v=ab214bf9:3285:26)
+    at useCrm (http://localhost:3000/src/hooks/use-crm.ts?t=1774618427008:48:26)
+    at CrmPage (http://localhost:3000/src/pages/crm-page.tsx?t=1774618427008:48:100)
+    at renderWithHooks (http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=ab214bf9:11548:26)
+    at updateFunctionComponent (http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=ab214bf9:14582:28)
+    at beginWork (http://localhost:3000/@fs/Users/alexfurmansky/Developer/claw-crm/app/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=ab214bf9:15924:22)
+[27039677ms] [ERROR] WebSocket connection to 'ws://localhost:3000/?token=Z-nB65ql8bEq' failed:  @ http://localhost:3000/@vite/client:535
+[27040693ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
+[27041696ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
