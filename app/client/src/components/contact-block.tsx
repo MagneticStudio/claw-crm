@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { format, isPast, isToday, differenceInDays } from "date-fns";
-import { ChevronDown, ChevronRight, Square, AlertTriangle, Trash2, Info } from "lucide-react";
+import { ChevronDown, ChevronRight, Square, AlertTriangle, Trash2 } from "lucide-react";
 import type { ContactWithRelations } from "@shared/schema";
 
 const STAGE_OPTIONS = ["LEAD", "MEETING", "PROPOSAL", "NEGOTIATION", "LIVE", "HOLD", "PASS", "RELATIONSHIP"] as const;
@@ -174,9 +174,9 @@ export function ContactBlock({
           {/* Collapsible details — contact info + background */}
           {hasDetails && (
             <div className="mb-2">
-              <button onClick={() => setShowDetails(!showDetails)} className="text-[11px] flex items-center gap-1 transition-colors hover:opacity-70" style={{ color: C.muted }}>
-                <Info className="h-3 w-3" />
-                {showDetails ? "Hide details" : "Details"}
+              <button onClick={() => setShowDetails(!showDetails)} className="text-[11px] flex items-center gap-0.5 transition-colors hover:opacity-70" style={{ color: C.muted }}>
+                {showDetails ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                Details
               </button>
 
               {showDetails && (
