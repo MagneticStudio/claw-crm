@@ -3,13 +3,13 @@ import { useCrm } from "@/hooks/use-crm";
 import { useSSE } from "@/hooks/use-sse";
 import { useAuth } from "@/hooks/use-auth";
 import { ContactBlock } from "@/components/contact-block";
-import { Loader2, LogOut, Settings } from "lucide-react";
+import { Loader2, LogOut, Settings, Square } from "lucide-react";
 import { Link } from "wouter";
-import type { ContactWithRelations } from "@shared/schema";
+import { format, isPast, isToday, differenceInDays } from "date-fns";
+import type { ContactWithRelations, Followup } from "@shared/schema";
 
 const STAGES = ["ALL", "NEGOTIATION", "PROPOSAL", "MEETING", "LEAD", "LIVE", "RELATIONSHIP", "HOLD", "PASS"] as const;
 
-// Stage accent colors — teal-family for active stages, muted for inactive
 const STAGE_ACCENT: Record<string, string> = {
   LIVE: "#2e7d32",
   NEGOTIATION: "#d4880f",
@@ -21,13 +21,22 @@ const STAGE_ACCENT: Record<string, string> = {
   RELATIONSHIP: "#1a9e96",
 };
 
-// Sort buckets: pipeline contacts first (sorted by nearest follow-up),
-// then LIVE (already in execution), then HOLD/PASS
 const SORT_BUCKET: Record<string, number> = {
-  NEGOTIATION: 0, PROPOSAL: 0, MEETING: 0, LEAD: 0,  // active pipeline
-  LIVE: 1,                                             // in execution
+  NEGOTIATION: 0, PROPOSAL: 0, MEETING: 0, LEAD: 0,
+  LIVE: 1,
   RELATIONSHIP: 2,
   HOLD: 3, PASS: 4,
+};
+
+const C = {
+  text: "#1a2f2f",
+  muted: "#5a7a7a",
+  border: "#d4e8e8",
+  accent: "#2bbcb3",
+  accentDark: "#1a9e96",
+  accentLight: "#e6f7f6",
+  stale: "#d4880f",
+  red: "#c0392b",
 };
 
 export default function CrmPage() {
@@ -38,28 +47,18 @@ export default function CrmPage() {
 
   const sortedContacts = useMemo(() => {
     const sorted = [...contacts].sort((a, b) => {
-      // ACTIVE before non-active
       const aActive = a.status === "ACTIVE" ? 0 : 1;
       const bActive = b.status === "ACTIVE" ? 0 : 1;
       if (aActive !== bActive) return aActive - bActive;
 
-      // Pipeline contacts before LIVE before HOLD/PASS
       const aBucket = SORT_BUCKET[a.stage] ?? 2;
       const bBucket = SORT_BUCKET[b.stage] ?? 2;
       if (aBucket !== bBucket) return aBucket - bBucket;
 
-      // Within same bucket, sort by nearest upcoming follow-up (soonest first)
-      const aNextFu = a.followups
-        .filter(f => !f.completed)
-        .map(f => new Date(f.dueDate).getTime())
-        .sort((x, y) => x - y)[0] ?? Infinity;
-      const bNextFu = b.followups
-        .filter(f => !f.completed)
-        .map(f => new Date(f.dueDate).getTime())
-        .sort((x, y) => x - y)[0] ?? Infinity;
+      const aNextFu = a.followups.filter(f => !f.completed).map(f => new Date(f.dueDate).getTime()).sort((x, y) => x - y)[0] ?? Infinity;
+      const bNextFu = b.followups.filter(f => !f.completed).map(f => new Date(f.dueDate).getTime()).sort((x, y) => x - y)[0] ?? Infinity;
       if (aNextFu !== bNextFu) return aNextFu - bNextFu;
 
-      // Tie-break: most recently interacted first
       const aLast = a.interactions.length > 0 ? new Date(a.interactions[a.interactions.length - 1].date).getTime() : 0;
       const bLast = b.interactions.length > 0 ? new Date(b.interactions[b.interactions.length - 1].date).getTime() : 0;
       return bLast - aLast;
@@ -80,15 +79,26 @@ export default function CrmPage() {
     return counts;
   }, [contacts]);
 
+  // All upcoming follow-ups across all contacts, sorted by due date
+  const allFollowups = useMemo(() => {
+    const fus: Array<{ followup: Followup; contactName: string; contactId: number }> = [];
+    for (const c of contacts) {
+      for (const fu of c.followups) {
+        if (!fu.completed) {
+          fus.push({ followup: fu, contactName: `${c.firstName} ${c.lastName}`, contactId: c.id });
+        }
+      }
+    }
+    fus.sort((a, b) => new Date(a.followup.dueDate).getTime() - new Date(b.followup.dueDate).getTime());
+    return fus;
+  }, [contacts]);
+
   const activeCount = contacts.filter((c) => c.status === "ACTIVE").length;
-  const overdueCount = contacts.reduce((n, c) => {
-    return n + c.followups.filter((f) => !f.completed && new Date(f.dueDate) < new Date()).length;
-  }, 0);
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen" style={{ backgroundColor: "#f0f8f8" }}>
-        <Loader2 className="h-5 w-5 animate-spin" style={{ color: "#2bbcb3" }} />
+        <Loader2 className="h-5 w-5 animate-spin" style={{ color: C.accent }} />
       </div>
     );
   }
@@ -96,22 +106,21 @@ export default function CrmPage() {
   return (
     <div className="min-h-screen" style={{ backgroundColor: "#f0f8f8" }}>
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: "1px solid #d4e8e8" }}>
+      <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: `1px solid ${C.border}` }}>
         <div className="max-w-[640px] mx-auto px-4 py-3 flex items-center justify-between">
           <div>
-            <h1 className="text-[13px] font-semibold tracking-[0.2em] uppercase" style={{ color: "#1a2f2f" }}>
+            <h1 className="text-[13px] font-semibold tracking-[0.2em] uppercase" style={{ color: C.text }}>
               Magnetic Advisors
             </h1>
-            <p className="text-[11px] font-mono mt-0.5" style={{ color: "#5a7a7a" }}>
-              {activeCount} active
-              {overdueCount > 0 && <span className="ml-2" style={{ color: "#d4880f" }}>{overdueCount} overdue</span>}
+            <p className="text-[11px] font-mono mt-0.5" style={{ color: C.muted }}>
+              {activeCount} active &middot; {allFollowups.length} follow-up{allFollowups.length !== 1 ? "s" : ""}
             </p>
           </div>
           <div className="flex items-center gap-1">
-            <Link href="/rules" className="p-2 transition-colors" style={{ color: "#5a7a7a" }}>
+            <Link href="/rules" className="p-2 transition-colors" style={{ color: C.muted }}>
               <Settings className="h-4 w-4" />
             </Link>
-            <button onClick={() => logoutMutation.mutate()} className="p-2 transition-colors" style={{ color: "#5a7a7a" }}>
+            <button onClick={() => logoutMutation.mutate()} className="p-2 transition-colors" style={{ color: C.muted }}>
               <LogOut className="h-4 w-4" />
             </button>
           </div>
@@ -130,8 +139,8 @@ export default function CrmPage() {
                 className="px-3 py-1 rounded-full text-[11px] font-medium whitespace-nowrap transition-all"
                 style={
                   isActive
-                    ? { backgroundColor: "#2bbcb3", color: "#ffffff" }
-                    : { backgroundColor: "transparent", color: "#5a7a7a", border: "1px solid #d4e8e8" }
+                    ? { backgroundColor: C.accent, color: "#ffffff" }
+                    : { backgroundColor: "transparent", color: C.muted, border: `1px solid ${C.border}` }
                 }
               >
                 {stage === "ALL" ? "All" : stage.charAt(0) + stage.slice(1).toLowerCase()}
@@ -142,8 +151,48 @@ export default function CrmPage() {
         </div>
       </header>
 
-      {/* Document body */}
       <main className="max-w-[640px] mx-auto px-4 py-5">
+        {/* Upcoming tasks */}
+        {allFollowups.length > 0 && (
+          <div className="bg-white mb-5" style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}>
+            <div className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: C.muted }}>
+              Upcoming
+            </div>
+            <div className="space-y-1.5">
+              {allFollowups.map(({ followup: fu, contactName }) => {
+                const due = new Date(fu.dueDate);
+                const isOverdue = isPast(due) && !isToday(due);
+                const isTodayDue = isToday(due);
+                const daysUntil = differenceInDays(due, new Date());
+                const dateColor = isOverdue ? C.red : isTodayDue ? C.stale : C.accentDark;
+
+                return (
+                  <div key={fu.id} className="flex items-start gap-2 text-sm">
+                    <Square className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" style={{ color: dateColor }} />
+                    <span className="font-bold flex-shrink-0" style={{ color: dateColor }}>
+                      {format(due, "M/d")}
+                    </span>
+                    <span style={{ color: C.text }}>{fu.content}</span>
+                    <span className="ml-auto text-xs flex-shrink-0 whitespace-nowrap" style={{ color: C.muted }}>
+                      {contactName}
+                    </span>
+                    {isOverdue && (
+                      <span className="text-xs font-semibold flex-shrink-0" style={{ color: C.red }}>OVERDUE</span>
+                    )}
+                    {isTodayDue && (
+                      <span className="text-xs font-semibold flex-shrink-0" style={{ color: C.stale }}>TODAY</span>
+                    )}
+                    {!isOverdue && !isTodayDue && daysUntil <= 7 && (
+                      <span className="text-xs flex-shrink-0" style={{ color: C.muted }}>{daysUntil}d</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Contact cards */}
         {filteredContacts.map((contact) => (
           <ContactBlock
             key={contact.id}
@@ -165,7 +214,7 @@ export default function CrmPage() {
         ))}
 
         {filteredContacts.length === 0 && (
-          <p className="text-center py-16 text-sm" style={{ color: "#5a7a7a" }}>No contacts in this stage</p>
+          <p className="text-center py-16 text-sm" style={{ color: C.muted }}>No contacts in this stage</p>
         )}
       </main>
     </div>

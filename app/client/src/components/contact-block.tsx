@@ -74,6 +74,7 @@ export function ContactBlock({
 }: ContactBlockProps) {
   const isInactive = contact.status !== "ACTIVE";
   const [isExpanded, setIsExpanded] = useState(!isInactive);
+  const [showAllInteractions, setShowAllInteractions] = useState(false);
   const [newNote, setNewNote] = useState("");
   const [showStageMenu, setShowStageMenu] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
@@ -259,39 +260,67 @@ export function ContactBlock({
           )}
 
           {/* Interactions */}
-          {contact.interactions.length > 0 && (
-            <div className="space-y-1.5 mb-4">
-              {contact.interactions.map((interaction) => {
-                const isEditing = editingInteractionId === interaction.id;
-                if (isEditing) {
+          {contact.interactions.length > 0 && (() => {
+            const VISIBLE_COUNT = 3;
+            const total = contact.interactions.length;
+            const hiddenCount = total - VISIBLE_COUNT;
+            const showToggle = total > VISIBLE_COUNT && !showAllInteractions;
+            const visibleInteractions = showAllInteractions
+              ? contact.interactions
+              : contact.interactions.slice(-VISIBLE_COUNT);
+
+            return (
+              <div className="space-y-1.5 mb-4">
+                {showToggle && (
+                  <button
+                    onClick={() => setShowAllInteractions(true)}
+                    className="text-xs font-medium transition-colors hover:opacity-70"
+                    style={{ color: C.accentDark }}
+                  >
+                    Show {hiddenCount} earlier note{hiddenCount !== 1 ? "s" : ""}...
+                  </button>
+                )}
+                {showAllInteractions && total > VISIBLE_COUNT && (
+                  <button
+                    onClick={() => setShowAllInteractions(false)}
+                    className="text-xs font-medium transition-colors hover:opacity-70"
+                    style={{ color: C.muted }}
+                  >
+                    Hide earlier
+                  </button>
+                )}
+                {visibleInteractions.map((interaction) => {
+                  const isEditing = editingInteractionId === interaction.id;
+                  if (isEditing) {
+                    return (
+                      <div key={interaction.id} className="flex items-start gap-2 text-sm">
+                        <span className="font-bold flex-shrink-0 pt-0.5" style={{ color: C.accentDark }}>
+                          {format(new Date(interaction.date), "M/d")}:
+                        </span>
+                        <input autoFocus value={editingInteractionText} onChange={(e) => setEditingInteractionText(e.target.value)}
+                          onBlur={() => handleInteractionSave(interaction.id)}
+                          onKeyDown={(e) => { if (e.key === "Enter") handleInteractionSave(interaction.id); if (e.key === "Escape") setEditingInteractionId(null); }}
+                          className="flex-1 text-sm rounded px-2 py-0.5 outline-none" style={{ color: C.text, backgroundColor: C.accentLight, border: `1px solid ${C.border}` }} />
+                        <button onMouseDown={(e) => { e.preventDefault(); onDeleteInteraction(interaction.id); setEditingInteractionId(null); showFlash("Deleted"); }}
+                          className="p-0.5 flex-shrink-0 hover:opacity-70" style={{ color: C.red }}><Trash2 className="h-3.5 w-3.5" /></button>
+                      </div>
+                    );
+                  }
                   return (
-                    <div key={interaction.id} className="flex items-start gap-2 text-sm">
+                    <div key={interaction.id} className="flex items-start gap-2 text-sm cursor-text group/line"
+                      onClick={() => { setEditingInteractionId(interaction.id); setEditingInteractionText(interaction.content); }}>
                       <span className="font-bold flex-shrink-0 pt-0.5" style={{ color: C.accentDark }}>
                         {format(new Date(interaction.date), "M/d")}:
                       </span>
-                      <input autoFocus value={editingInteractionText} onChange={(e) => setEditingInteractionText(e.target.value)}
-                        onBlur={() => handleInteractionSave(interaction.id)}
-                        onKeyDown={(e) => { if (e.key === "Enter") handleInteractionSave(interaction.id); if (e.key === "Escape") setEditingInteractionId(null); }}
-                        className="flex-1 text-sm rounded px-2 py-0.5 outline-none" style={{ color: C.text, backgroundColor: C.accentLight, border: `1px solid ${C.border}` }} />
-                      <button onMouseDown={(e) => { e.preventDefault(); onDeleteInteraction(interaction.id); setEditingInteractionId(null); showFlash("Deleted"); }}
-                        className="p-0.5 flex-shrink-0 hover:opacity-70" style={{ color: C.red }}><Trash2 className="h-3.5 w-3.5" /></button>
+                      <span className="group-hover/line:bg-[#e6f7f6] rounded px-0.5 -mx-0.5 transition-colors" style={{ color: C.text }}>
+                        {interaction.content}
+                      </span>
                     </div>
                   );
-                }
-                return (
-                  <div key={interaction.id} className="flex items-start gap-2 text-sm cursor-text group/line"
-                    onClick={() => { setEditingInteractionId(interaction.id); setEditingInteractionText(interaction.content); }}>
-                    <span className="font-bold flex-shrink-0 pt-0.5" style={{ color: C.accentDark }}>
-                      {format(new Date(interaction.date), "M/d")}:
-                    </span>
-                    <span className="group-hover/line:bg-[#e6f7f6] rounded px-0.5 -mx-0.5 transition-colors" style={{ color: C.text }}>
-                      {interaction.content}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                })}
+              </div>
+            );
+          })()}
 
           {/* Follow-ups */}
           {activeFollowups.length > 0 && (
