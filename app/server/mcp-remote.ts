@@ -173,46 +173,58 @@ function checkToken(req: Request, res: Response): boolean {
   return true;
 }
 
+function createTransportAndServer(): StreamableHTTPServerTransport {
+  const transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: () => randomUUID(),
+    onsessioninitialized: (id) => {
+      transports.set(id, transport);
+    },
+  });
+
+  transport.onclose = () => {
+    const id = [...transports.entries()].find(([, t]) => t === transport)?.[0];
+    if (id) transports.delete(id);
+  };
+
+  const server = createMcpServer();
+  server.connect(transport);
+
+  return transport;
+}
+
 export function registerMcpRoutes(app: Express) {
-  // Handle POST /mcp/:token - new messages and new sessions
+  // Handle POST /mcp/:token
+  // If session ID is unknown (e.g. after redeploy), auto-create a new session
+  // so Claude doesn't need manual reconnection
   app.post("/mcp/:token", async (req: Request, res: Response) => {
     if (!checkToken(req, res)) return;
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
 
     if (sessionId && transports.has(sessionId)) {
-      // Existing session
       const transport = transports.get(sessionId)!;
       await transport.handleRequest(req, res, req.body);
       return;
     }
 
-    // New session
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: () => randomUUID(),
-      onsessioninitialized: (id) => {
-        transports.set(id, transport);
-      },
-    });
-
-    transport.onclose = () => {
-      const id = [...transports.entries()].find(([, t]) => t === transport)?.[0];
-      if (id) transports.delete(id);
-    };
-
-    const server = createMcpServer();
-    await server.connect(transport);
+    // New session OR stale session after redeploy — create fresh
+    const transport = createTransportAndServer();
     await transport.handleRequest(req, res, req.body);
   });
 
-  // Handle GET /mcp/:token - SSE stream for server-to-client notifications
+  // Handle GET /mcp/:token - SSE stream
+  // If session is stale, create a new one instead of erroring
   app.get("/mcp/:token", async (req: Request, res: Response) => {
     if (!checkToken(req, res)) return;
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
-    if (!sessionId || !transports.has(sessionId)) {
-      res.status(400).json({ error: "Invalid or missing session ID" });
+
+    if (sessionId && transports.has(sessionId)) {
+      const transport = transports.get(sessionId)!;
+      await transport.handleRequest(req, res);
       return;
     }
-    const transport = transports.get(sessionId)!;
+
+    // Stale or missing session — create new one
+    const transport = createTransportAndServer();
     await transport.handleRequest(req, res);
   });
 
@@ -225,7 +237,8 @@ export function registerMcpRoutes(app: Express) {
       await transport.handleRequest(req, res);
       transports.delete(sessionId);
     } else {
-      res.status(404).json({ error: "Session not found" });
+      // Already gone (redeploy or expired) — just acknowledge
+      res.status(200).json({ ok: true });
     }
   });
 
