@@ -79,12 +79,14 @@ export default function CrmPage() {
     return counts;
   }, [contacts]);
 
-  // All upcoming follow-ups across all contacts, sorted by due date
+  // Follow-ups due within 7 days (including overdue), sorted by due date
   const allFollowups = useMemo(() => {
+    const sevenDaysOut = new Date();
+    sevenDaysOut.setDate(sevenDaysOut.getDate() + 7);
     const fus: Array<{ followup: Followup; contactName: string; contactId: number }> = [];
     for (const c of contacts) {
       for (const fu of c.followups) {
-        if (!fu.completed) {
+        if (!fu.completed && new Date(fu.dueDate) <= sevenDaysOut) {
           fus.push({ followup: fu, contactName: `${c.firstName} ${c.lastName}`, contactId: c.id });
         }
       }
@@ -92,6 +94,9 @@ export default function CrmPage() {
     fus.sort((a, b) => new Date(a.followup.dueDate).getTime() - new Date(b.followup.dueDate).getTime());
     return fus;
   }, [contacts]);
+
+  const [completingUpcomingId, setCompletingUpcomingId] = useState<number | null>(null);
+  const [completingUpcomingText, setCompletingUpcomingText] = useState("");
 
   const activeCount = contacts.filter((c) => c.status === "ACTIVE").length;
 
@@ -152,7 +157,7 @@ export default function CrmPage() {
       </header>
 
       <main className="max-w-[640px] mx-auto px-4 py-5">
-        {/* Upcoming tasks */}
+        {/* Upcoming tasks — next 7 days + overdue */}
         {allFollowups.length > 0 && (
           <div className="bg-white mb-5" style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}>
             <div className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: C.muted }}>
@@ -165,10 +170,58 @@ export default function CrmPage() {
                 const isTodayDue = isToday(due);
                 const daysUntil = differenceInDays(due, new Date());
                 const dateColor = isOverdue ? C.red : isTodayDue ? C.stale : C.accentDark;
+                const isCompleting = completingUpcomingId === fu.id;
+
+                if (isCompleting) {
+                  return (
+                    <div key={fu.id} className="rounded-lg px-3 py-2 space-y-2" style={{ backgroundColor: C.accentLight, border: `1px solid ${C.accent}40` }}>
+                      <div className="text-xs font-medium" style={{ color: C.accentDark }}>
+                        Completing: {format(due, "M/d")} {fu.content} — {contactName}
+                      </div>
+                      <input
+                        autoFocus
+                        value={completingUpcomingText}
+                        onChange={(e) => setCompletingUpcomingText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && completingUpcomingText.trim()) {
+                            completeFollowup.mutate({ id: fu.id, outcome: completingUpcomingText.trim() });
+                            setCompletingUpcomingId(null);
+                          }
+                          if (e.key === "Escape") setCompletingUpcomingId(null);
+                        }}
+                        placeholder="What happened?"
+                        className="w-full text-sm bg-white rounded px-2 py-1 outline-none"
+                        style={{ color: C.text, border: `1px solid ${C.accent}40` }}
+                      />
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            if (completingUpcomingText.trim()) {
+                              completeFollowup.mutate({ id: fu.id, outcome: completingUpcomingText.trim() });
+                              setCompletingUpcomingId(null);
+                            }
+                          }}
+                          className="text-xs font-medium text-white px-2.5 py-1 rounded"
+                          style={{ backgroundColor: C.accentDark }}
+                        >Done</button>
+                        <button onClick={() => { completeFollowup.mutate({ id: fu.id }); setCompletingUpcomingId(null); }}
+                          className="text-xs" style={{ color: C.muted }}>Skip note</button>
+                        <button onClick={() => setCompletingUpcomingId(null)}
+                          className="text-xs" style={{ color: C.muted }}>Cancel</button>
+                      </div>
+                    </div>
+                  );
+                }
 
                 return (
                   <div key={fu.id} className="flex items-start gap-2 text-sm">
-                    <Square className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" style={{ color: dateColor }} />
+                    <button
+                      onClick={() => { setCompletingUpcomingId(fu.id); setCompletingUpcomingText(fu.content); }}
+                      className="flex-shrink-0 mt-0.5 hover:opacity-70 transition-colors"
+                      title="Complete"
+                    >
+                      <Square className="h-3.5 w-3.5" style={{ color: dateColor }} />
+                    </button>
                     <span className="font-bold flex-shrink-0" style={{ color: dateColor }}>
                       {format(due, "M/d")}
                     </span>

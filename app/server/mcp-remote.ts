@@ -52,11 +52,18 @@ function createMcpServer(): McpServer {
   server.tool("create_contact", "Create a new contact", {
     firstName: z.string(), lastName: z.string(), title: z.string().optional(), email: z.string().optional(),
     phone: z.string().optional(), website: z.string().optional(), location: z.string().optional(),
-    background: z.string().optional(), status: z.string().optional().default("ACTIVE"),
-    stage: z.string().optional().default("LEAD"), source: z.string().optional(),
+    background: z.string().optional(), status: z.string().optional(), stage: z.string().optional(),
+    source: z.string().optional(),
   }, async (data) => {
-    const c = await storage.createContact(data);
-    return { content: [{ type: "text" as const, text: `Created: ${c.firstName} ${c.lastName} (ID: ${c.id})` }] };
+    try {
+      const cleaned = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
+      if (!cleaned.status) cleaned.status = "ACTIVE";
+      if (!cleaned.stage) cleaned.stage = "LEAD";
+      const c = await storage.createContact(cleaned as any);
+      return { content: [{ type: "text" as const, text: `Created: ${c.firstName} ${c.lastName} (ID: ${c.id})` }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error creating contact: ${err.message}` }], isError: true };
+    }
   });
 
   server.tool("update_contact", "Update contact fields", {
@@ -65,44 +72,60 @@ function createMcpServer(): McpServer {
     website: z.string().optional(), location: z.string().optional(), background: z.string().optional(),
     status: z.string().optional(), stage: z.string().optional(), source: z.string().optional(),
   }, async ({ contactId, ...data }) => {
-    const filtered = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
-    const c = await storage.updateContact(contactId, filtered);
-    if (!c) return { content: [{ type: "text" as const, text: "Not found" }] };
-    return { content: [{ type: "text" as const, text: `Updated: ${c.firstName} ${c.lastName}` }] };
+    try {
+      const filtered = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
+      const c = await storage.updateContact(contactId, filtered);
+      if (!c) return { content: [{ type: "text" as const, text: `Contact ${contactId} not found` }], isError: true };
+      return { content: [{ type: "text" as const, text: `Updated: ${c.firstName} ${c.lastName}` }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error updating contact: ${err.message}` }], isError: true };
+    }
   });
 
   server.tool("add_interaction", "Log an interaction", {
     contactId: z.number(), content: z.string(),
     date: z.string().optional().describe("ISO date, defaults to now"),
-    type: z.string().optional().default("note"),
+    type: z.string().optional().describe("note, meeting, email, or call"),
   }, async ({ contactId, content, date, type }) => {
-    const i = await storage.createInteraction({ contactId, content, date: date ? new Date(date) : new Date(), type: type || "note" });
-    return { content: [{ type: "text" as const, text: `Logged ${i.type} for contact ${contactId}` }] };
+    try {
+      const i = await storage.createInteraction({ contactId, content, date: date ? new Date(date) : new Date(), type: type || "note" });
+      return { content: [{ type: "text" as const, text: `Logged ${i.type} for contact ${contactId}` }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error logging interaction: ${err.message}` }], isError: true };
+    }
   });
 
   server.tool("set_followup", "Create a follow-up", {
     contactId: z.number(), content: z.string(), dueDate: z.string().describe("ISO or M/D format"),
   }, async ({ contactId, content, dueDate }) => {
-    let d: Date;
-    if (dueDate.includes("/") && !dueDate.includes("T")) {
-      const [m, day] = dueDate.split("/").map(Number);
-      d = new Date(new Date().getFullYear(), m - 1, day);
-      if (d < new Date()) d.setFullYear(d.getFullYear() + 1);
-    } else { d = new Date(dueDate); }
-    await storage.createFollowup({ contactId, content, dueDate: d, completed: false });
-    return { content: [{ type: "text" as const, text: `Follow-up set for ${d.toLocaleDateString()}: "${content}"` }] };
+    try {
+      let d: Date;
+      if (dueDate.includes("/") && !dueDate.includes("T")) {
+        const [m, day] = dueDate.split("/").map(Number);
+        d = new Date(new Date().getFullYear(), m - 1, day);
+        if (d < new Date()) d.setFullYear(d.getFullYear() + 1);
+      } else { d = new Date(dueDate); }
+      await storage.createFollowup({ contactId, content, dueDate: d, completed: false });
+      return { content: [{ type: "text" as const, text: `Follow-up set for ${d.toLocaleDateString()}: "${content}"` }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error creating follow-up: ${err.message}` }], isError: true };
+    }
   });
 
   server.tool("complete_followup", "Complete a follow-up, optionally logging outcome", {
     followupId: z.number(), outcome: z.string().optional(),
   }, async ({ followupId, outcome }) => {
-    const fu = await storage.completeFollowup(followupId);
-    if (!fu) return { content: [{ type: "text" as const, text: "Not found" }] };
-    if (outcome?.trim()) {
-      await storage.createInteraction({ contactId: fu.contactId, content: outcome.trim(), date: new Date(), type: "note" });
-      return { content: [{ type: "text" as const, text: `Completed and logged: "${outcome.trim()}"` }] };
+    try {
+      const fu = await storage.completeFollowup(followupId);
+      if (!fu) return { content: [{ type: "text" as const, text: `Follow-up ${followupId} not found` }], isError: true };
+      if (outcome?.trim()) {
+        await storage.createInteraction({ contactId: fu.contactId, content: outcome.trim(), date: new Date(), type: "note" });
+        return { content: [{ type: "text" as const, text: `Completed and logged: "${outcome.trim()}"` }] };
+      }
+      return { content: [{ type: "text" as const, text: `Completed: "${fu.content}"` }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error completing follow-up: ${err.message}` }], isError: true };
     }
-    return { content: [{ type: "text" as const, text: `Completed: "${fu.content}"` }] };
   });
 
   // --- Rules ---
