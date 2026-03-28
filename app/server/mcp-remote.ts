@@ -269,12 +269,44 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
     return { content: [{ type: "text" as const, text: `Created rule: "${rule.name}" (ID: ${rule.id})` }] };
   });
 
-  server.tool("update_rule", "Update a rule", { ruleId: z.number(), name: z.string().optional(), description: z.string().optional(), enabled: z.boolean().optional() }, async ({ ruleId, ...data }) => {
-    const filtered = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
-    const rule = await storage.updateRule(ruleId, filtered);
-    if (!rule) return { content: [{ type: "text" as const, text: "Not found" }] };
-    return { content: [{ type: "text" as const, text: `Updated rule: "${rule.name}"` }] };
-  });
+  server.tool(
+    "update_rule",
+    `Update a business rule. You can change metadata (name, description, enabled) or the rule logic itself (conditionParams, exceptions).
+
+To add a stage exception to the stale contact rule:
+  update_rule(ruleId: 1, exceptions: [{ type: "has_future_followup" }, { type: "stage_in", params: { stages: ["LIVE", "RELATIONSHIP"] } }])
+
+Available exception types: has_future_followup, stage_in (with params.stages array)`,
+    {
+      ruleId: z.number().describe("Rule ID to update"),
+      name: z.string().optional(),
+      description: z.string().optional(),
+      enabled: z.boolean().optional().describe("Enable or disable the rule"),
+      conditionParams: z.record(z.any()).optional().describe("Update condition parameters, e.g. { days: 7 }"),
+      exceptions: z.array(z.object({ type: z.string(), params: z.record(z.any()).optional() })).optional().describe("Replace the exceptions list"),
+    },
+    async ({ ruleId, conditionParams, exceptions, ...data }) => {
+      try {
+        const updates: Record<string, any> = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
+
+        // If conditionParams or exceptions changed, we need to update the condition jsonb
+        if (conditionParams !== undefined || exceptions !== undefined) {
+          const existing = await storage.getRule(ruleId);
+          if (!existing) return { content: [{ type: "text" as const, text: `Rule ${ruleId} not found` }], isError: true };
+          const condition = existing.condition as any;
+          if (conditionParams) condition.params = conditionParams;
+          if (exceptions) condition.exceptions = exceptions;
+          updates.condition = condition;
+        }
+
+        const rule = await storage.updateRule(ruleId, updates);
+        if (!rule) return { content: [{ type: "text" as const, text: `Rule ${ruleId} not found` }], isError: true };
+        return { content: [{ type: "text" as const, text: `Updated rule: "${rule.name}"` }] };
+      } catch (err: any) {
+        return { content: [{ type: "text" as const, text: `Error updating rule: ${err.message}` }], isError: true };
+      }
+    }
+  );
 
   server.tool("delete_rule", "Delete a rule", { ruleId: z.number() }, async ({ ruleId }) => {
     await storage.deleteRule(ruleId);

@@ -185,6 +185,10 @@ function checkException(
       const now = new Date();
       return contactFollowups.some((f) => !f.completed && new Date(f.dueDate) >= now);
     }
+    case "stage_in": {
+      const stages: string[] = exception.params?.stages || [];
+      return stages.includes(contact.stage);
+    }
     default:
       return false;
   }
