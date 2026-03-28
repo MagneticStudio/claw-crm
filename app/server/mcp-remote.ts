@@ -53,6 +53,8 @@ function createMcpServer(): McpServer {
     "create_contact",
     `Create a new contact in the CRM. This is a personal advisory CRM for a solo consultant.
 
+BEFORE CREATING: Always search_contacts first to check if this person already exists. Do not create duplicates.
+
 IMPORTANT formatting rules:
 - firstName/lastName: The PRIMARY contact person only (one person per contact record)
 - title: Their job title, e.g. "Managing Director of Operations" or "CEO & Founder"
@@ -199,6 +201,54 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
         return { content: [{ type: "text" as const, text: `Completed: "${fu.content}"` }] };
       } catch (err: any) {
         return { content: [{ type: "text" as const, text: `Error completing follow-up: ${err.message}` }], isError: true };
+      }
+    }
+  );
+
+  server.tool(
+    "delete_contact",
+    "Permanently delete a contact and all their interactions, follow-ups, and violations. Use this to clean up duplicates or remove contacts that should not be in the CRM. This cannot be undone.",
+    { contactId: z.number().describe("Contact ID to delete") },
+    async ({ contactId }) => {
+      try {
+        const contact = await storage.getContact(contactId);
+        if (!contact) return { content: [{ type: "text" as const, text: `Contact ${contactId} not found` }], isError: true };
+        const name = `${contact.firstName} ${contact.lastName}`;
+        const deleted = await storage.deleteContact(contactId);
+        if (!deleted) return { content: [{ type: "text" as const, text: `Failed to delete contact ${contactId}` }], isError: true };
+        return { content: [{ type: "text" as const, text: `Deleted contact: ${name} (ID: ${contactId}) and all associated data` }] };
+      } catch (err: any) {
+        return { content: [{ type: "text" as const, text: `Error deleting contact: ${err.message}` }], isError: true };
+      }
+    }
+  );
+
+  server.tool(
+    "delete_followup",
+    "Delete a follow-up task. Use this to remove follow-ups that are no longer relevant without marking them as completed.",
+    { followupId: z.number().describe("Follow-up ID to delete") },
+    async ({ followupId }) => {
+      try {
+        const deleted = await storage.deleteFollowup(followupId);
+        if (!deleted) return { content: [{ type: "text" as const, text: `Follow-up ${followupId} not found` }], isError: true };
+        return { content: [{ type: "text" as const, text: `Deleted follow-up ${followupId}` }] };
+      } catch (err: any) {
+        return { content: [{ type: "text" as const, text: `Error deleting follow-up: ${err.message}` }], isError: true };
+      }
+    }
+  );
+
+  server.tool(
+    "delete_interaction",
+    "Delete an interaction entry from a contact's timeline.",
+    { interactionId: z.number().describe("Interaction ID to delete") },
+    async ({ interactionId }) => {
+      try {
+        const deleted = await storage.deleteInteraction(interactionId);
+        if (!deleted) return { content: [{ type: "text" as const, text: `Interaction ${interactionId} not found` }], isError: true };
+        return { content: [{ type: "text" as const, text: `Deleted interaction ${interactionId}` }] };
+      } catch (err: any) {
+        return { content: [{ type: "text" as const, text: `Error deleting interaction: ${err.message}` }], isError: true };
       }
     }
   );
