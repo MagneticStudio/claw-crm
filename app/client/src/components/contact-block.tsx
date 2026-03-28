@@ -150,7 +150,7 @@ export function ContactBlock({
   return (
     <div
       className={`relative bg-white mb-4 ${isInactive ? "opacity-60 hover:opacity-80" : ""}`}
-      style={{ border: `1px solid ${C.border}`, borderLeft: `4px solid ${accentColor}`, borderRadius: "12px", padding: "1.25rem" }}
+      style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1.25rem" }}
     >
       {flash && (
         <div className="absolute top-3 right-4 text-xs font-medium px-2 py-0.5 rounded-md z-10 animate-pulse"
