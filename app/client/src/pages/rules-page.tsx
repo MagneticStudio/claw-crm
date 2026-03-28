@@ -81,33 +81,6 @@ export default function RulesPage() {
           Business rules that automatically flag issues in your pipeline. Agents can create, edit, and remove rules.
         </p>
 
-        {/* Active violations summary */}
-        {violations.length > 0 && (
-          <div className="bg-white mb-5" style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}>
-            <div className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: C.stale }}>
-              <AlertTriangle className="h-3.5 w-3.5 inline -mt-0.5 mr-1" />
-              Active Violations
-            </div>
-            <div className="space-y-1.5">
-              {violations.map((v) => (
-                <div key={v.id} className="flex items-start gap-2 text-sm">
-                  <span className="flex-1" style={{ color: C.text }}>{v.message}</span>
-                  <span className="text-xs flex-shrink-0 whitespace-nowrap" style={{ color: C.muted }}>
-                    {contactNameMap.get(v.contactId) || `#${v.contactId}`}
-                  </span>
-                  <button
-                    onClick={() => resolveViolation.mutate(v.id)}
-                    className="text-xs flex-shrink-0 hover:opacity-70 transition-colors"
-                    style={{ color: C.accentDark }}
-                  >
-                    Dismiss
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Rules list */}
         <div className="space-y-3">
           {rules.map((rule) => {

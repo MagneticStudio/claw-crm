@@ -11,6 +11,65 @@ function createMcpServer(): McpServer {
     version: "1.0.0",
   });
 
+  // --- Guide ---
+  server.tool(
+    "get_crm_guide",
+    "RECOMMENDED FIRST CALL. Returns instructions on how to use this CRM correctly. Call this before creating or updating contacts to understand the data conventions.",
+    {},
+    async () => {
+      return { content: [{ type: "text" as const, text: `# Magnetic Advisors CRM — Agent Guide
+
+This is a personal advisory CRM for a solo consultant (Alex Furmansky / Magnetic Advisors). It tracks ~15 prospects and clients through a pipeline.
+
+## Key Principles
+- This is a NOTEBOOK, not a database. Keep entries concise and scannable.
+- Always search_contacts BEFORE creating — never create duplicates.
+- One contact record = one PRIMARY person. Use additionalContacts for secondary people at the same company.
+- The background field is 1-2 sentences of company context. Do NOT dump full history there.
+- Use add_interaction for timeline events (past tense, factual, concise).
+- Use set_followup for future action items.
+- When completing a follow-up, ALWAYS provide an outcome describing what happened.
+
+## Pipeline Stages
+LEAD → MEETING → PROPOSAL → NEGOTIATION → LIVE → HOLD / PASS / RELATIONSHIP
+
+- LEAD: Intro made, no meeting yet
+- MEETING: First meeting happened or scheduled
+- PROPOSAL: Proposal sent
+- NEGOTIATION: Active back-and-forth on terms
+- LIVE: Signed, active engagement (moves to execution/project management)
+- HOLD: Paused, not dead
+- PASS: Declined or not a fit
+- RELATIONSHIP: Warm connection, not a sales prospect
+
+## Contact Statuses
+- ACTIVE: In the pipeline, needs attention
+- HOLD: Paused
+- PASS: Dead
+
+## Data Formatting
+- email: direct email address
+- phone: direct phone number
+- website: domain only, no https:// (e.g. "acme.com")
+- location: city or short form (e.g. "LA", "NYC", "Monterrey, Mexico")
+- source: how we connected (e.g. "Ryan Chan (referral)", "Direct", "Met at YPO event")
+- additionalContacts: "Name (Role): email" separated by newlines
+- interaction content: past tense, factual, concise (e.g. "AF had intro call. 30 min, discussed AI strategy.")
+- followup content: action-oriented (e.g. "Check for reply on proposal")
+
+## Rules
+Rules auto-flag issues (stale contacts, overdue follow-ups). You can create, update, and delete rules.
+Available condition types: no_interaction_for_days, followup_past_due, no_followup_after_meeting, status_is, stage_is
+Available exception types: has_future_followup, stage_in (with params.stages array)
+
+## Confidentiality
+- NEVER put pricing or deal terms in the CRM
+- NEVER cross-reference client details between prospects
+- Proposals reference dates only, no dollar amounts
+` }] };
+    }
+  );
+
   // --- Read Tools ---
   server.tool("search_contacts", "Search contacts by name, company, stage, or status", {
     query: z.string().optional().describe("Search term"),
