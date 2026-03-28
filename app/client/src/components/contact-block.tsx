@@ -118,12 +118,8 @@ export function ContactBlock({
         </div>
       )}
 
-      {/* Header — always visible */}
+      {/* Header */}
       <div className="flex items-center gap-1.5">
-        <button onClick={() => setIsExpanded(!isExpanded)} className="flex-shrink-0 transition-colors hover:opacity-70" style={{ color: C.muted }}>
-          {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-        </button>
-
         <h2 className="text-sm font-bold leading-tight" style={{ color: C.text }}>
           {contact.firstName} {contact.lastName}
         </h2>
@@ -132,7 +128,6 @@ export function ContactBlock({
           <span className="text-xs" style={{ color: C.muted }}>{companyName}</span>
         )}
 
-        {/* Stage badge only — clickable */}
         <div className="relative ml-auto">
           <button onClick={(e) => { e.stopPropagation(); setShowStageMenu(!showStageMenu); }}
             className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full transition-colors hover:opacity-80"
@@ -155,7 +150,6 @@ export function ContactBlock({
           )}
         </div>
 
-        {/* Status — only show for non-ACTIVE */}
         {isInactive && (
           <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
             style={{ backgroundColor: contact.status === "HOLD" ? "#f0ecf8" : C.redBg, color: contact.status === "HOLD" ? "#6c5ce7" : C.red }}>
@@ -163,48 +157,64 @@ export function ContactBlock({
           </span>
         )}
 
-        {/* Stale / violations */}
         {isStale && <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" style={{ color: C.stale }} />}
         {hasViolations && !isStale && <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" style={{ color: C.stale }} />}
       </div>
 
-      {/* Expanded content */}
-      {isExpanded && (
-        <div className="mt-2 ml-5">
-          {/* Collapsible details — contact info + background */}
-          {hasDetails && (
-            <div className="mb-2">
-              <button onClick={() => setShowDetails(!showDetails)} className="text-[11px] flex items-center gap-0.5 transition-colors hover:opacity-70" style={{ color: C.muted }}>
-                {showDetails ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                Details
-              </button>
+      {/* Details preview — first two lines, then "more..." */}
+      {hasDetails && (() => {
+        const lines: string[] = [];
+        if (contact.title) lines.push(contact.title + (contact.location ? ` · ${contact.location}` : ""));
+        else if (contact.location) lines.push(contact.location);
+        if (contact.source) lines.push(`Via ${contact.source}`);
+        if (contact.email) lines.push(contact.email);
+        if (contact.cadence) lines.push(contact.cadence);
+        const hasMore = lines.length > 2 || contact.background || contact.additionalContacts || contact.phone || contact.website;
+        const previewLines = lines.slice(0, 2);
 
-              {showDetails && (
-                <div className="mt-1.5 text-xs leading-relaxed space-y-0.5 pl-4" style={{ color: C.muted, borderLeft: `2px solid ${C.border}` }}>
-                  {contact.title && <div>{contact.title}{contact.location ? ` · ${contact.location}` : ""}</div>}
-                  {!contact.title && contact.location && <div>{contact.location}</div>}
-                  {contact.email && <div>{contact.email}</div>}
-                  {contact.phone && <div>{contact.phone}</div>}
-                  {contact.website && <div>{contact.website}</div>}
-                  {contact.source && <div>Via {contact.source}</div>}
-                  {contact.additionalContacts && <div className="italic">{contact.additionalContacts}</div>}
-                  {contact.cadence && <div className="font-medium">{contact.cadence}</div>}
-                  {editingBackground ? (
-                    <textarea autoFocus value={backgroundText} onChange={(e) => setBackgroundText(e.target.value)}
-                      onBlur={handleBackgroundSave}
-                      onKeyDown={(e) => { if (e.key === "Escape") { setEditingBackground(false); setBackgroundText(contact.background || ""); } }}
-                      className="w-full text-xs rounded p-1.5 outline-none resize-none min-h-[40px] mt-1"
-                      style={{ color: C.text, backgroundColor: C.accentLight, border: `1px solid ${C.border}` }} />
-                  ) : contact.background ? (
-                    <div onClick={() => setEditingBackground(true)} className="cursor-text rounded px-1 -mx-1 py-0.5 transition-colors hover:bg-[#e6f7f6] mt-0.5">
-                      {contact.background}
-                    </div>
-                  ) : null}
-                </div>
-              )}
-            </div>
-          )}
+        return (
+          <div className="mt-1 text-[11px]" style={{ color: C.muted }}>
+            {!showDetails ? (
+              <div>
+                {previewLines.join(" · ")}
+                {hasMore && (
+                  <button onClick={() => setShowDetails(true)} className="ml-1 transition-colors hover:opacity-70" style={{ color: C.accentDark }}>
+                    more...
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="leading-relaxed space-y-0.5 pl-3" style={{ borderLeft: `2px solid ${C.border}` }}>
+                {contact.title && <div>{contact.title}{contact.location ? ` · ${contact.location}` : ""}</div>}
+                {!contact.title && contact.location && <div>{contact.location}</div>}
+                {contact.email && <div>{contact.email}</div>}
+                {contact.phone && <div>{contact.phone}</div>}
+                {contact.website && <div>{contact.website}</div>}
+                {contact.source && <div>Via {contact.source}</div>}
+                {contact.additionalContacts && <div className="italic">{contact.additionalContacts}</div>}
+                {contact.cadence && <div className="font-medium">{contact.cadence}</div>}
+                {editingBackground ? (
+                  <textarea autoFocus value={backgroundText} onChange={(e) => setBackgroundText(e.target.value)}
+                    onBlur={handleBackgroundSave}
+                    onKeyDown={(e) => { if (e.key === "Escape") { setEditingBackground(false); setBackgroundText(contact.background || ""); } }}
+                    className="w-full text-xs rounded p-1.5 outline-none resize-none min-h-[40px] mt-1"
+                    style={{ color: C.text, backgroundColor: C.accentLight, border: `1px solid ${C.border}` }} />
+                ) : contact.background ? (
+                  <div onClick={() => setEditingBackground(true)} className="cursor-text rounded px-1 -mx-1 py-0.5 transition-colors hover:bg-[#e6f7f6] mt-0.5">
+                    {contact.background}
+                  </div>
+                ) : null}
+                <button onClick={() => setShowDetails(false)} className="transition-colors hover:opacity-70" style={{ color: C.accentDark }}>
+                  less
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
+      {/* Content — always visible */}
+      <div className="mt-2">
           {/* Interactions — last 3, "show earlier" above */}
           {contact.interactions.length > 0 && (() => {
             const VISIBLE_COUNT = 3;
@@ -355,8 +365,7 @@ export function ContactBlock({
                   fontFamily: command.type !== "none" ? "'JetBrains Mono', monospace" : undefined }} />
             </div>
           </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
