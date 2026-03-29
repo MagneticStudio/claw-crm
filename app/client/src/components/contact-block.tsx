@@ -150,7 +150,7 @@ export function ContactBlock({
           )}
         </div>
 
-        {isInactive && (
+        {isInactive && contact.status !== contact.stage && (
           <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
             style={{ backgroundColor: contact.status === "HOLD" ? "#f0ecf8" : C.redBg, color: contact.status === "HOLD" ? "#6c5ce7" : C.red }}>
             {contact.status}
