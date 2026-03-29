@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ArrowLeft, ToggleLeft, ToggleRight, AlertTriangle } from "lucide-react";
+import { ArrowLeft, AlertTriangle } from "lucide-react";
 import { Link } from "wouter";
 import type { Rule, RuleViolation, Contact } from "@shared/schema";
 
@@ -145,10 +145,18 @@ export default function RulesPage() {
                   </div>
                   <button
                     onClick={() => toggleRule.mutate({ id: rule.id, enabled: !rule.enabled })}
-                    className="flex-shrink-0"
-                    style={{ color: rule.enabled ? C.accentDark : "#ccc" }}
+                    className="flex-shrink-0 rounded-full transition-colors"
+                    style={{
+                      width: 36, height: 20, position: "relative",
+                      backgroundColor: rule.enabled ? C.accentDark : "#d1d5db",
+                    }}
                   >
-                    {rule.enabled ? <ToggleRight className="h-6 w-6" /> : <ToggleLeft className="h-6 w-6" />}
+                    <div style={{
+                      width: 16, height: 16, borderRadius: "50%", backgroundColor: "white",
+                      position: "absolute", top: 2,
+                      left: rule.enabled ? 18 : 2,
+                      transition: "left 0.15s ease",
+                    }} />
                   </button>
                 </div>
               </div>
