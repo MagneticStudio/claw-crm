@@ -75,36 +75,56 @@ Available exception types: has_future_followup, stage_in (with params.stages arr
     query: z.string().optional().describe("Search term"),
     stage: z.string().optional(), status: z.string().optional(),
   }, async ({ query, stage, status }) => {
-    let contacts = await storage.getContactsWithRelations();
-    if (query) { const q = query.toLowerCase(); contacts = contacts.filter(c => `${c.firstName} ${c.lastName}`.toLowerCase().includes(q) || c.company?.name?.toLowerCase().includes(q)); }
-    if (stage) contacts = contacts.filter(c => c.stage === stage);
-    if (status) contacts = contacts.filter(c => c.status === status);
-    const summary = contacts.map(c => ({ id: c.id, name: `${c.firstName} ${c.lastName}`, company: c.company?.name, stage: c.stage, status: c.status, email: c.email, lastInteraction: c.interactions.length > 0 ? { date: c.interactions[c.interactions.length - 1].date, content: c.interactions[c.interactions.length - 1].content } : null, activeFollowups: c.followups.filter(f => !f.completed).length, violations: c.violations.length }));
-    return { content: [{ type: "text" as const, text: JSON.stringify(summary, null, 2) }] };
+    try {
+      let contacts = await storage.getContactsWithRelations();
+      if (query) { const q = query.toLowerCase(); contacts = contacts.filter(c => `${c.firstName} ${c.lastName}`.toLowerCase().includes(q) || c.company?.name?.toLowerCase().includes(q)); }
+      if (stage) contacts = contacts.filter(c => c.stage === stage);
+      if (status) contacts = contacts.filter(c => c.status === status);
+      const summary = contacts.map(c => ({ id: c.id, name: `${c.firstName} ${c.lastName}`, company: c.company?.name, stage: c.stage, status: c.status, email: c.email, lastInteraction: c.interactions.length > 0 ? { date: c.interactions[c.interactions.length - 1].date, content: c.interactions[c.interactions.length - 1].content } : null, activeFollowups: c.followups.filter(f => !f.completed).length, violations: c.violations.length }));
+      return { content: [{ type: "text" as const, text: JSON.stringify(summary, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error searching contacts: ${err.message}` }], isError: true };
+    }
   });
 
   server.tool("get_contact", "Get full contact details", { contactId: z.number() }, async ({ contactId }) => {
-    const contact = await storage.getContactWithRelations(contactId);
-    if (!contact) return { content: [{ type: "text" as const, text: "Not found" }] };
-    return { content: [{ type: "text" as const, text: JSON.stringify(contact, null, 2) }] };
+    try {
+      const contact = await storage.getContactWithRelations(contactId);
+      if (!contact) return { content: [{ type: "text" as const, text: `Contact ${contactId} not found` }], isError: true };
+      return { content: [{ type: "text" as const, text: JSON.stringify(contact, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error reading contact ${contactId}: ${err.message}` }], isError: true };
+    }
   });
 
   server.tool("get_pipeline", "Contacts grouped by stage", {}, async () => {
-    const pipeline = await storage.getPipeline();
-    return { content: [{ type: "text" as const, text: JSON.stringify(pipeline, null, 2) }] };
+    try {
+      const pipeline = await storage.getPipeline();
+      return { content: [{ type: "text" as const, text: JSON.stringify(pipeline, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true };
+    }
   });
 
   server.tool("get_dashboard", "CRM summary", {}, async () => {
-    const [contacts, overdue, violations, pipeline] = await Promise.all([storage.getContacts(), storage.getOverdueFollowups(), storage.getViolations(), storage.getPipeline()]);
-    const stageCounts: Record<string, number> = {};
-    for (const [s, c] of Object.entries(pipeline)) stageCounts[s] = c.length;
-    return { content: [{ type: "text" as const, text: JSON.stringify({ totalContacts: contacts.length, activeContacts: contacts.filter(c => c.status === "ACTIVE").length, overdueFollowups: overdue.length, activeViolations: violations.length, stageCounts }, null, 2) }] };
+    try {
+      const [contacts, overdue, violations, pipeline] = await Promise.all([storage.getContacts(), storage.getOverdueFollowups(), storage.getViolations(), storage.getPipeline()]);
+      const stageCounts: Record<string, number> = {};
+      for (const [s, c] of Object.entries(pipeline)) stageCounts[s] = c.length;
+      return { content: [{ type: "text" as const, text: JSON.stringify({ totalContacts: contacts.length, activeContacts: contacts.filter(c => c.status === "ACTIVE").length, overdueFollowups: overdue.length, activeViolations: violations.length, stageCounts }, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true };
+    }
   });
 
   server.tool("list_violations", "Active rule violations", { severity: z.string().optional() }, async ({ severity }) => {
-    let v = await storage.getViolations();
-    if (severity) v = v.filter(x => x.severity === severity);
-    return { content: [{ type: "text" as const, text: JSON.stringify(v, null, 2) }] };
+    try {
+      let v = await storage.getViolations();
+      if (severity) v = v.filter(x => x.severity === severity);
+      return { content: [{ type: "text" as const, text: JSON.stringify(v, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true };
+    }
   });
 
   // --- Write Tools ---
@@ -314,8 +334,12 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
 
   // --- Rules ---
   server.tool("list_rules", "List business rules", { enabled: z.boolean().optional() }, async ({ enabled }) => {
-    const rules = await storage.getRules(enabled);
-    return { content: [{ type: "text" as const, text: JSON.stringify(rules, null, 2) }] };
+    try {
+      const rules = await storage.getRules(enabled);
+      return { content: [{ type: "text" as const, text: JSON.stringify(rules, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true };
+    }
   });
 
   server.tool("create_rule", "Create a business rule", {
