@@ -41,7 +41,7 @@ export const contacts = pgTable("contacts", {
   location: text("location"),
   background: text("background"), // free text notes
   status: text("status").notNull().default("ACTIVE"), // ACTIVE | HOLD | PASS
-  stage: text("stage").notNull().default("LEAD"), // LEAD | MEETING | PROPOSAL | NEGOTIATION | LIVE | HOLD | PASS | RELATIONSHIP
+  stage: text("stage").notNull().default("LEAD"), // LEAD | MEETING | PROPOSAL | NEGOTIATION | LIVE | PASS | RELATIONSHIP
   companyId: integer("company_id").references(() => companies.id),
   sortOrder: integer("sort_order").notNull().default(0),
   source: text("source"), // referral source

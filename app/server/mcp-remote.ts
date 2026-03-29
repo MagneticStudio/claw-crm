@@ -31,21 +31,21 @@ This is a personal advisory CRM for a solo consultant (Alex Furmansky / Magnetic
 - When completing a follow-up, ALWAYS provide an outcome describing what happened.
 
 ## Pipeline Stages
-LEAD → MEETING → PROPOSAL → NEGOTIATION → LIVE → HOLD / PASS / RELATIONSHIP
+LEAD → MEETING → PROPOSAL → NEGOTIATION → LIVE → PASS, plus RELATIONSHIP (warm contacts)
 
 - LEAD: Intro made, no meeting yet
 - MEETING: First meeting happened or scheduled
 - PROPOSAL: Proposal sent
 - NEGOTIATION: Active back-and-forth on terms
 - LIVE: Signed, active engagement (moves to execution/project management)
-- HOLD: Paused, not dead
+- PASS: Declined or not a fit
 - PASS: Declined or not a fit
 - RELATIONSHIP: Warm connection, not a sales prospect
 
 ## Contact Statuses
 - ACTIVE: In the pipeline, needs attention
-- HOLD: Paused
-- PASS: Dead
+- HOLD: Paused — not dead, just not actively working it right now
+Note: PASS is a STAGE (declined/not a fit), not a status.
 
 ## Data Formatting
 - email: direct email address
@@ -124,8 +124,8 @@ IMPORTANT formatting rules:
 - background: 1-2 sentences about the company and why they're relevant. Keep it SHORT — this is a quick-scan tearsheet, not a full bio. Do NOT dump all context here.
 - source: How we met or who referred them, e.g. "Ryan Chan (referral)" or "Direct" or "Met at YPO event"
 - additionalContacts: Other key people at the company. Format: "Name (Role): email | phone" separated by newlines. e.g. "Lisa Bouyer (VP Enterprise Planning)\\nChris (Full-stack engineer)"
-- stage: Where they are in the pipeline. Use LEAD for new contacts, MEETING if a meeting happened, PROPOSAL if a proposal was sent, NEGOTIATION if actively negotiating, LIVE if signed/active engagement, HOLD if paused, PASS if declined.
-- status: ACTIVE (default), HOLD (paused), or PASS (dead)
+- stage: Pipeline position. LEAD (new), MEETING (met), PROPOSAL (sent), NEGOTIATION (terms), LIVE (signed), PASS (declined), RELATIONSHIP (warm, non-sales). HOLD is NOT a stage — use status: HOLD instead.
+- status: ACTIVE (default) or HOLD (paused). PASS is a stage, not a status.
 
 After creating the contact, use add_interaction to log the key events (meetings, emails, proposals) as separate timeline entries. Do NOT put the full history in the background field.`,
     {
@@ -139,8 +139,8 @@ After creating the contact, use add_interaction to log the key events (meetings,
       background: z.string().optional().describe("1-2 sentences about the company. Keep SHORT — do not dump full history here"),
       source: z.string().optional().describe("How we connected, e.g. 'Ryan Chan (referral)' or 'Direct'"),
       additionalContacts: z.string().optional().describe("Other key people: 'Name (Role): email' separated by newlines"),
-      status: z.string().optional().describe("ACTIVE (default), HOLD, or PASS"),
-      stage: z.string().optional().describe("LEAD, MEETING, PROPOSAL, NEGOTIATION, LIVE, HOLD, PASS, or RELATIONSHIP"),
+      status: z.string().optional().describe("ACTIVE (default) or HOLD"),
+      stage: z.string().optional().describe("LEAD, MEETING, PROPOSAL, NEGOTIATION, LIVE, PASS, or RELATIONSHIP. NOT HOLD (use status for that)"),
     },
     async (data) => {
       try {
@@ -171,7 +171,7 @@ After creating the contact, use add_interaction to log the key events (meetings,
       source: z.string().optional().describe("Referral source"),
       additionalContacts: z.string().optional().describe("Other key people: 'Name (Role): email' per line"),
       status: z.string().optional().describe("ACTIVE, HOLD, or PASS"),
-      stage: z.string().optional().describe("LEAD, MEETING, PROPOSAL, NEGOTIATION, LIVE, HOLD, PASS, or RELATIONSHIP"),
+      stage: z.string().optional().describe("LEAD, MEETING, PROPOSAL, NEGOTIATION, LIVE, PASS, or RELATIONSHIP. NOT HOLD (use status for that)"),
     },
     async ({ contactId, ...data }) => {
       try {

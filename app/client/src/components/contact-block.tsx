@@ -3,15 +3,15 @@ import { format, isPast, isToday, differenceInDays } from "date-fns";
 import { ChevronDown, ChevronRight, Square, AlertTriangle, Trash2 } from "lucide-react";
 import type { ContactWithRelations } from "@shared/schema";
 
-const STAGE_OPTIONS = ["LEAD", "MEETING", "PROPOSAL", "NEGOTIATION", "LIVE", "HOLD", "PASS", "RELATIONSHIP"] as const;
+const STAGE_OPTIONS = ["LEAD", "MEETING", "PROPOSAL", "NEGOTIATION", "LIVE", "PASS", "RELATIONSHIP"] as const;
 
 const FU_PREFIX = /^\/(fu|f|follow|followup|todo|task)\s/i;
 const FU_VALID = /^\/(fu|f|follow|followup|todo|task)\s+\d{1,2}\/\d{1,2}/i;
 
 function detectCommand(text: string): { type: "fu" | "stage" | "status" | "none"; isValid: boolean } {
   if (FU_PREFIX.test(text)) return { type: "fu", isValid: FU_VALID.test(text) };
-  if (/^\/stage\s/i.test(text)) return { type: "stage", isValid: /^\/stage\s+(LEAD|MEETING|PROPOSAL|NEGOTIATION|LIVE|HOLD|PASS|RELATIONSHIP)\s*$/i.test(text) };
-  if (/^\/status\s/i.test(text)) return { type: "status", isValid: /^\/status\s+(ACTIVE|HOLD|PASS)\s*$/i.test(text) };
+  if (/^\/stage\s/i.test(text)) return { type: "stage", isValid: /^\/stage\s+(LEAD|MEETING|PROPOSAL|NEGOTIATION|LIVE|PASS|RELATIONSHIP)\s*$/i.test(text) };
+  if (/^\/status\s/i.test(text)) return { type: "status", isValid: /^\/status\s+(ACTIVE|HOLD)\s*$/i.test(text) };
   return { type: "none", isValid: false };
 }
 
@@ -83,7 +83,7 @@ export function ContactBlock({
         onCreateFollowup(content || "Follow up", dueDate.toISOString());
         setNewNote(""); showFlash(`Follow-up set for ${month}/${day}`); return;
       }
-      const statusMatch = newNote.match(/^\/status\s+(ACTIVE|HOLD|PASS)/i);
+      const statusMatch = newNote.match(/^\/status\s+(ACTIVE|HOLD)/i);
       if (statusMatch) { onUpdateContact({ status: statusMatch[1].toUpperCase() }); setNewNote(""); showFlash(`Status → ${statusMatch[1].toUpperCase()}`); return; }
       const stageMatch = newNote.match(/^\/stage\s+(\w+)/i);
       if (stageMatch) { const s = stageMatch[1].toUpperCase(); if (STAGE_OPTIONS.includes(s as any)) { onUpdateContact({ stage: s }); setNewNote(""); showFlash(`Stage → ${s}`); return; } }

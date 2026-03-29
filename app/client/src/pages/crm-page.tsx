@@ -8,7 +8,7 @@ import { Link } from "wouter";
 import { format, isPast, isToday, differenceInDays } from "date-fns";
 import type { ContactWithRelations, Followup } from "@shared/schema";
 
-const STAGES = ["ALL", "NEGOTIATION", "PROPOSAL", "MEETING", "LEAD", "LIVE", "RELATIONSHIP", "HOLD", "PASS"] as const;
+const STAGES = ["ALL", "NEGOTIATION", "PROPOSAL", "MEETING", "LEAD", "LIVE", "RELATIONSHIP", "PASS"] as const;
 
 const STAGE_ACCENT: Record<string, string> = {
   LIVE: "#2e7d32",
@@ -25,7 +25,7 @@ const SORT_BUCKET: Record<string, number> = {
   NEGOTIATION: 0, PROPOSAL: 0, MEETING: 0, LEAD: 0,
   LIVE: 1,
   RELATIONSHIP: 2,
-  HOLD: 3, PASS: 4,
+  PASS: 3,
 };
 
 const C = {
