@@ -37,9 +37,11 @@ test.describe("Full workflow", () => {
     // Verify follow-up appears
     await expect(page.locator("text=E2E test: send holiday greeting")).toBeVisible({ timeout: 5000 });
 
-    // 5. Complete the follow-up — click the square checkbox
-    const followupCheckbox = page.locator("text=E2E test: send holiday greeting").locator("..").locator("button").first();
-    await followupCheckbox.click();
+    // 5. Complete the follow-up — click the checkbox.
+    // The follow-up is rendered as: <div><button title="Complete">□</button><span>...text...</span></div>
+    // Find the container that has our text, then click its Complete button
+    const followupContainer = page.locator('div:has(> span:text("E2E test: send holiday greeting"))').first();
+    await followupContainer.locator('button[title="Complete"]').click();
 
     // 6. The completion form should appear
     await expect(page.locator("text=Completing")).toBeVisible({ timeout: 3000 });
