@@ -5,7 +5,7 @@ test.describe("Authentication", () => {
     await page.goto("/");
     // Should redirect to auth or show login
     await expect(page.locator("text=MAGNETIC ADVISORS")).toBeVisible();
-    await expect(page.locator("text=Enter PIN").or(page.locator("text=Unlock"))).toBeVisible();
+    await expect(page.locator("text=Enter PIN")).toBeVisible();
   });
 
   test("logs in with correct PIN", async ({ page }) => {
