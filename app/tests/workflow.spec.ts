@@ -1,5 +1,8 @@
 import { test, expect } from "@playwright/test";
 
+const MCP_TOKEN = process.env.MCP_TOKEN || "test-token";
+const MCP_PATH = `/mcp/${MCP_TOKEN}`;
+
 /**
  * End-to-end workflow test.
  * Simulates a real user session: log in, scan pipeline, add a note,
@@ -93,7 +96,7 @@ test.describe("Full workflow", () => {
 
   test("MCP endpoint responds and returns tools", async ({ request }) => {
     // Initialize MCP session
-    const res = await request.post("/mcp/622ed3f5177354c59c67c85b8ad4592e", {
+    const res = await request.post(MCP_PATH, {
       headers: {
         "Content-Type": "application/json",
         "Accept": "application/json, text/event-stream",
@@ -119,7 +122,7 @@ test.describe("Full workflow", () => {
     expect(sessionId).toBeTruthy();
 
     // List tools
-    const toolsRes = await request.post("/mcp/622ed3f5177354c59c67c85b8ad4592e", {
+    const toolsRes = await request.post(MCP_PATH, {
       headers: {
         "Content-Type": "application/json",
         "Accept": "application/json, text/event-stream",
@@ -143,14 +146,14 @@ test.describe("Full workflow", () => {
 
   test("agent workflow: MCP search → get contact → add interaction", async ({ request }) => {
     // Initialize
-    const initRes = await request.post("/mcp/622ed3f5177354c59c67c85b8ad4592e", {
+    const initRes = await request.post(MCP_PATH, {
       headers: { "Content-Type": "application/json", "Accept": "application/json, text/event-stream" },
       data: { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "e2e-agent", version: "1.0" } } },
     });
     const sessionId = initRes.headers()["mcp-session-id"];
 
     const callTool = async (name: string, args: any) => {
-      const res = await request.post("/mcp/622ed3f5177354c59c67c85b8ad4592e", {
+      const res = await request.post(MCP_PATH, {
         headers: { "Content-Type": "application/json", "Accept": "application/json, text/event-stream", "mcp-session-id": sessionId! },
         data: { jsonrpc: "2.0", id: Math.random(), method: "tools/call", params: { name, arguments: args } },
       });

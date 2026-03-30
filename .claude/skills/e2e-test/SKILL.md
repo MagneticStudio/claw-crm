@@ -52,7 +52,7 @@ curl -s http://localhost:3000/api/user  # should return 401 (not authenticated)
 - **Screenshot the updated badge**
 
 ### 7. MCP: Search contacts
-- Call the MCP endpoint POST `/mcp/<token>` with `tools/call` → `search_contacts`
+- Call the MCP endpoint POST `/mcp/{MCP_TOKEN}` with `tools/call` → `search_contacts` (token from .env or server config)
 - Verify it returns contact data with names, stages, statuses
 
 ### 8. MCP: Add interaction via agent

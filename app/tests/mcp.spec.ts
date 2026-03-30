@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 
-const MCP_URL = "http://localhost:3000/mcp/622ed3f5177354c59c67c85b8ad4592e";
+const MCP_TOKEN = process.env.MCP_TOKEN || "test-token";
+const MCP_URL = `http://localhost:3000/mcp/${MCP_TOKEN}`;
 
 test.describe("MCP Endpoint", () => {
   test("responds to initialize request", async ({ request }) => {

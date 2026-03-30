@@ -29,6 +29,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/claw_test
       SESSION_SECRET: ci-test-secret
+      MCP_TOKEN: ci-test-token
 
     steps:
       - uses: actions/checkout@v4
