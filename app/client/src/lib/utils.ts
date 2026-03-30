@@ -4,3 +4,20 @@ import { twMerge } from "tailwind-merge"
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
+
+// UTC date formatters — prevent timezone off-by-one when rendering date-only values
+export function fmtDate(dateStr: string | Date): string {
+  const d = new Date(dateStr);
+  return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+}
+
+export function fmtDateFull(dateStr: string | Date): string {
+  const d = new Date(dateStr);
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${months[d.getUTCMonth()]} ${d.getUTCDate()}`;
+}
+
+export function fmtDateInput(dateStr: string | Date): string {
+  const d = new Date(dateStr);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
+}
