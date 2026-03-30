@@ -2,23 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { format, isPast, isToday, differenceInDays } from "date-fns";
 import { ChevronDown, ChevronRight, Square, AlertTriangle, Trash2 } from "lucide-react";
 import type { ContactWithRelations } from "@shared/schema";
-
-// Format a UTC date as M/D without timezone shift (fixes off-by-one bug)
-function fmtDate(dateStr: string | Date): string {
-  const d = new Date(dateStr);
-  return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
-}
-
-function fmtDateFull(dateStr: string | Date): string {
-  const d = new Date(dateStr);
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  return `${months[d.getUTCMonth()]} ${d.getUTCDate()}`;
-}
-
-function fmtDateInput(dateStr: string | Date): string {
-  const d = new Date(dateStr);
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
-}
+import { fmtDate, fmtDateInput } from "@/lib/utils";
 
 const STAGE_OPTIONS = ["LEAD", "MEETING", "PROPOSAL", "NEGOTIATION", "LIVE", "PASS", "RELATIONSHIP"] as const;
 

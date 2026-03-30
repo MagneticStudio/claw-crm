@@ -8,11 +8,7 @@ import { Loader2, LogOut, Settings, Square, Activity, X, ChevronDown } from "luc
 import { Link } from "wouter";
 import { format, isPast, isToday, differenceInDays } from "date-fns";
 import type { ContactWithRelations, Followup, Meeting, Briefing, ActivityLogEntry } from "@shared/schema";
-
-function fmtDate(dateStr: string | Date): string {
-  const d = new Date(dateStr);
-  return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
-}
+import { fmtDate } from "@/lib/utils";
 
 const STAGES = ["ALL", "NEGOTIATION", "PROPOSAL", "MEETING", "LEAD", "LIVE", "RELATIONSHIP", "PASS"] as const;
 
