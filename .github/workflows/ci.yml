@@ -42,11 +42,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: TypeScript check
-        run: npm run check
-
-      - name: Build
+      - name: Build (includes typecheck)
         run: npm run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
 
       - name: Push schema
         run: npx drizzle-kit push
