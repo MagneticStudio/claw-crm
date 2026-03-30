@@ -9,6 +9,11 @@ import { Link } from "wouter";
 import { format, isPast, isToday, differenceInDays } from "date-fns";
 import type { ContactWithRelations, Followup, Meeting, Briefing, ActivityLogEntry } from "@shared/schema";
 
+function fmtDate(dateStr: string | Date): string {
+  const d = new Date(dateStr);
+  return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+}
+
 const STAGES = ["ALL", "NEGOTIATION", "PROPOSAL", "MEETING", "LEAD", "LIVE", "RELATIONSHIP", "PASS"] as const;
 
 const STAGE_ACCENT: Record<string, string> = {
@@ -287,7 +292,7 @@ export default function CrmPage() {
                   return (
                     <div key={fu.id} className="rounded-lg px-3 py-2 space-y-2" style={{ backgroundColor: C.accentLight, border: `1px solid ${C.accent}40` }}>
                       <div className="text-xs font-medium" style={{ color: C.accentDark }}>
-                        Completing: {format(due, "M/d")} {fu.content} — {contactName}
+                        Completing: {fmtDate(due)} {fu.content} — {contactName}
                       </div>
                       <input
                         autoFocus
@@ -334,7 +339,7 @@ export default function CrmPage() {
                       <Square className="h-3.5 w-3.5" style={{ color: dateColor }} />
                     </button>
                     <span className="font-bold flex-shrink-0" style={{ color: dateColor }}>
-                      {format(due, "M/d")}
+                      {fmtDate(due)}
                     </span>
                     <span style={{ color: C.text }}>{fu.content}</span>
                     <span className="ml-auto text-xs flex-shrink-0 whitespace-nowrap" style={{ color: C.muted }}>

@@ -3,6 +3,23 @@ import { format, isPast, isToday, differenceInDays } from "date-fns";
 import { ChevronDown, ChevronRight, Square, AlertTriangle, Trash2 } from "lucide-react";
 import type { ContactWithRelations } from "@shared/schema";
 
+// Format a UTC date as M/D without timezone shift (fixes off-by-one bug)
+function fmtDate(dateStr: string | Date): string {
+  const d = new Date(dateStr);
+  return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+}
+
+function fmtDateFull(dateStr: string | Date): string {
+  const d = new Date(dateStr);
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${months[d.getUTCMonth()]} ${d.getUTCDate()}`;
+}
+
+function fmtDateInput(dateStr: string | Date): string {
+  const d = new Date(dateStr);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
+}
+
 const STAGE_OPTIONS = ["LEAD", "MEETING", "PROPOSAL", "NEGOTIATION", "LIVE", "PASS", "RELATIONSHIP"] as const;
 
 const FU_PREFIX = /^\/(fu|f|follow|followup|todo|task)\s/i;
@@ -243,7 +260,7 @@ export function ContactBlock({
                     return (
                       <div key={interaction.id} className="flex items-start gap-1.5 text-xs">
                         <span className="font-semibold flex-shrink-0 pt-0.5" style={{ color: C.accentDark }}>
-                          {format(new Date(interaction.date), "M/d")}
+                          {fmtDate(interaction.date)}
                         </span>
                         <input autoFocus value={editingInteractionText} onChange={(e) => setEditingInteractionText(e.target.value)}
                           onBlur={() => handleInteractionSave(interaction.id)}
@@ -258,7 +275,7 @@ export function ContactBlock({
                     <div key={interaction.id} className="flex items-start gap-1.5 text-xs cursor-text group/line"
                       onClick={() => { setEditingInteractionId(interaction.id); setEditingInteractionText(interaction.content); }}>
                       <span className="font-semibold flex-shrink-0 pt-px" style={{ color: C.accentDark }}>
-                        {format(new Date(interaction.date), "M/d")}
+                        {fmtDate(interaction.date)}
                       </span>
                       <span className="group-hover/line:bg-[#e6f7f6] rounded px-0.5 -mx-0.5 transition-colors" style={{ color: C.text }}>
                         {interaction.content}
@@ -326,8 +343,8 @@ export function ContactBlock({
                       <Square className="h-3.5 w-3.5" />
                     </button>
                     <span className="cursor-pointer hover:underline decoration-dotted underline-offset-2"
-                      onClick={() => { setEditingFollowupId(fu.id); setEditingFollowupText(fu.content); setEditingFollowupDate(format(due, "yyyy-MM-dd")); }}>
-                      <span className="font-semibold" style={{ color: fuColor }}>{format(due, "M/d")}</span>
+                      onClick={() => { setEditingFollowupId(fu.id); setEditingFollowupText(fu.content); setEditingFollowupDate(fmtDateInput(due)); }}>
+                      <span className="font-semibold" style={{ color: fuColor }}>{fmtDate(due)}</span>
                       <span style={{ color: isOverdue ? C.red : C.text }}> {fu.content}</span>
                       {isOverdue && <span className="font-semibold" style={{ color: C.red }}> OVERDUE</span>}
                       {isTodayDue && <span className="font-semibold" style={{ color: C.stale }}> TODAY</span>}
