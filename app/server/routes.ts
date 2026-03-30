@@ -8,6 +8,7 @@ import {
   insertCompanySchema,
   insertInteractionSchema,
   insertFollowupSchema,
+  insertMeetingSchema,
   insertRuleSchema,
 } from "@shared/schema";
 
@@ -213,6 +214,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(violation);
   });
 
+  // --- Meetings ---
+  app.get("/api/meetings", requireAuth, async (req, res) => {
+    const contactId = req.query.contactId ? parseInt(req.query.contactId as string) : undefined;
+    const today = req.query.today === "true";
+    if (today) return res.json(await storage.getTodaysMeetings());
+    res.json(await storage.getMeetings(contactId));
+  });
+
+  app.get("/api/meetings/upcoming", requireAuth, async (req, res) => {
+    const hours = req.query.hours ? parseInt(req.query.hours as string) : undefined;
+    res.json(await storage.getUpcomingMeetings(hours));
+  });
+
+  app.post("/api/meetings", requireAuth, async (req, res) => {
+    const data = { ...req.body, date: new Date(req.body.date) };
+    const parsed = insertMeetingSchema.safeParse(data);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const meeting = await storage.createMeeting(parsed.data);
+    res.status(201).json(meeting);
+  });
+
+  app.put("/api/meetings/:id", requireAuth, async (req, res) => {
+    const data = req.body.date ? { ...req.body, date: new Date(req.body.date) } : req.body;
+    const meeting = await storage.updateMeeting(parseInt(req.params.id), data);
+    if (!meeting) return res.status(404).json({ message: "Meeting not found" });
+    res.json(meeting);
+  });
+
+  app.post("/api/meetings/:id/cancel", requireAuth, async (req, res) => {
+    const meeting = await storage.cancelMeeting(parseInt(req.params.id));
+    if (!meeting) return res.status(404).json({ message: "Meeting not found" });
+    res.json(meeting);
+  });
+
+  app.post("/api/meetings/:id/complete", requireAuth, async (req, res) => {
+    const meeting = await storage.completeMeeting(parseInt(req.params.id));
+    if (!meeting) return res.status(404).json({ message: "Meeting not found" });
+    res.json(meeting);
+  });
+
+  // --- Briefings ---
+  app.get("/api/briefings/:contactId", requireAuth, async (req, res) => {
+    const briefing = await storage.getBriefing(parseInt(req.params.contactId));
+    if (!briefing) return res.status(404).json({ message: "No briefing found" });
+    res.json(briefing);
+  });
+
+  app.put("/api/briefings/:contactId", requireAuth, async (req, res) => {
+    const { content } = req.body;
+    if (!content || typeof content !== "string") return res.status(400).json({ message: "content required" });
+    const briefing = await storage.saveBriefing(parseInt(req.params.contactId), content);
+    res.json(briefing);
+  });
+
+  app.delete("/api/briefings/:contactId", requireAuth, async (req, res) => {
+    const deleted = await storage.deleteBriefing(parseInt(req.params.contactId));
+    if (!deleted) return res.status(404).json({ message: "Briefing not found" });
+    res.status(204).send();
+  });
+
+  // --- Activity Log ---
+  app.get("/api/activity", requireAuth, async (req, res) => {
+    const opts: any = {};
+    if (req.query.limit) opts.limit = parseInt(req.query.limit as string);
+    if (req.query.contactId) opts.contactId = parseInt(req.query.contactId as string);
+    if (req.query.event) opts.event = req.query.event;
+    if (req.query.source) opts.source = req.query.source;
+    const log = await storage.getActivityLog(opts);
+    res.json(log);
+  });
+
   // --- Pipeline ---
   app.get("/api/pipeline", requireAuth, async (_req, res) => {
     const pipeline = await storage.getPipeline();
@@ -221,11 +293,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // --- Dashboard ---
   app.get("/api/dashboard", requireAuth, async (_req, res) => {
-    const [contacts, overdueFollowups, violations, pipeline] = await Promise.all([
+    const [contacts, overdueFollowups, violations, pipeline, todaysMeetings] = await Promise.all([
       storage.getContacts(),
       storage.getOverdueFollowups(),
       storage.getViolations(),
       storage.getPipeline(),
+      storage.getTodaysMeetings(),
     ]);
 
     const stageCounts: Record<string, number> = {};
@@ -238,6 +311,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       activeContacts: contacts.filter((c) => c.status === "ACTIVE").length,
       overdueFollowups: overdueFollowups.length,
       activeViolations: violations.length,
+      todaysMeetings: todaysMeetings.length,
       stageCounts,
     });
   });

@@ -1,8 +1,8 @@
 import { storage } from "./storage";
-import type { Contact, Interaction, Followup, Rule } from "@shared/schema";
+import type { Contact, Interaction, Followup, Meeting, Rule } from "@shared/schema";
 import { db } from "./db";
-import { rules, interactions, followups, contacts } from "@shared/schema";
-import { eq, desc, and, asc, isNull, gt } from "drizzle-orm";
+import { rules } from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 interface RuleCondition {
   type: string;
@@ -15,41 +15,43 @@ interface RuleAction {
   params: Record<string, any>;
 }
 
-// Evaluate all rules for a specific contact
 export async function evaluateRulesForContact(contactId: number): Promise<void> {
   const enabledRules = await storage.getRules(true);
   const contact = await storage.getContact(contactId);
   if (!contact) return;
 
-  const contactInteractions = await storage.getInteractions(contactId);
-  const contactFollowups = await storage.getFollowups(contactId);
+  const [contactInteractions, contactFollowups, contactMeetings] = await Promise.all([
+    storage.getInteractions(contactId),
+    storage.getFollowups(contactId),
+    storage.getMeetings(contactId),
+  ]);
 
   for (const rule of enabledRules) {
-    await evaluateRule(rule, contact, contactInteractions, contactFollowups);
+    await evaluateRule(rule, contact, contactInteractions, contactFollowups, contactMeetings);
   }
 
-  // Update rule lastEvaluatedAt
   const now = new Date();
   for (const rule of enabledRules) {
     await db.update(rules).set({ lastEvaluatedAt: now }).where(eq(rules.id, rule.id));
   }
 }
 
-// Evaluate all rules across all contacts (scheduled)
 export async function evaluateAllRules(): Promise<void> {
   const enabledRules = await storage.getRules(true);
   const allContacts = await storage.getContacts();
 
   for (const contact of allContacts) {
-    const contactInteractions = await storage.getInteractions(contact.id);
-    const contactFollowups = await storage.getFollowups(contact.id);
+    const [contactInteractions, contactFollowups, contactMeetings] = await Promise.all([
+      storage.getInteractions(contact.id),
+      storage.getFollowups(contact.id),
+      storage.getMeetings(contact.id),
+    ]);
 
     for (const rule of enabledRules) {
-      await evaluateRule(rule, contact, contactInteractions, contactFollowups);
+      await evaluateRule(rule, contact, contactInteractions, contactFollowups, contactMeetings);
     }
   }
 
-  // Update lastEvaluatedAt for all rules
   const now = new Date();
   for (const rule of enabledRules) {
     await db.update(rules).set({ lastEvaluatedAt: now }).where(eq(rules.id, rule.id));
@@ -57,44 +59,29 @@ export async function evaluateAllRules(): Promise<void> {
 }
 
 async function evaluateRule(
-  rule: Rule,
-  contact: Contact,
-  contactInteractions: Interaction[],
-  contactFollowups: Followup[]
+  rule: Rule, contact: Contact,
+  contactInteractions: Interaction[], contactFollowups: Followup[], contactMeetings: Meeting[]
 ): Promise<void> {
   const condition = rule.condition as RuleCondition;
   const action = rule.action as RuleAction;
-
-  const violated = checkCondition(condition, contact, contactInteractions, contactFollowups);
+  const violated = checkCondition(condition, contact, contactInteractions, contactFollowups, contactMeetings);
 
   if (violated) {
-    // Check if violation already exists
     const hasViolation = await storage.hasActiveViolation(rule.id, contact.id);
     if (!hasViolation) {
-      const message = buildMessage(action.params.message_template || "", contact, contactInteractions, contactFollowups);
-      await storage.createViolation({
-        ruleId: rule.id,
-        contactId: contact.id,
-        message,
-        severity: action.params.severity || "warning",
-      });
+      const message = buildMessage(action.params.message_template || "", contact, contactInteractions, contactFollowups, contactMeetings);
+      await storage.createViolation({ ruleId: rule.id, contactId: contact.id, message, severity: action.params.severity || "warning" });
     }
   } else {
-    // Clear existing violation if condition no longer applies
     await storage.resolveViolationsForRule(rule.id, contact.id);
   }
 }
 
 function checkCondition(
-  condition: RuleCondition,
-  contact: Contact,
-  contactInteractions: Interaction[],
-  contactFollowups: Followup[]
+  condition: RuleCondition, contact: Contact,
+  contactInteractions: Interaction[], contactFollowups: Followup[], contactMeetings: Meeting[]
 ): boolean {
-  // Only evaluate for ACTIVE contacts by default
-  if (contact.status !== "ACTIVE" && condition.type !== "followup_past_due") {
-    return false;
-  }
+  if (contact.status !== "ACTIVE" && condition.type !== "followup_past_due") return false;
 
   let violated = false;
 
@@ -103,23 +90,14 @@ function checkCondition(
       const days = condition.params.days || 14;
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - days);
-
-      const lastInteraction = contactInteractions.length > 0
-        ? contactInteractions[contactInteractions.length - 1]
-        : null;
-
-      if (!lastInteraction || new Date(lastInteraction.date) < cutoff) {
-        violated = true;
-      }
+      const last = contactInteractions.length > 0 ? contactInteractions[contactInteractions.length - 1] : null;
+      if (!last || new Date(last.date) < cutoff) violated = true;
       break;
     }
 
     case "followup_past_due": {
       const now = new Date();
-      const overdueFollowups = contactFollowups.filter(
-        (f) => !f.completed && new Date(f.dueDate) < now
-      );
-      violated = overdueFollowups.length > 0;
+      violated = contactFollowups.some((f) => !f.completed && new Date(f.dueDate) < now);
       break;
     }
 
@@ -127,23 +105,22 @@ function checkCondition(
       const hours = condition.params.hours || 48;
       const cutoff = new Date();
       cutoff.setHours(cutoff.getHours() - hours);
-
-      // Find meetings that happened more than N hours ago
-      const recentMeetings = contactInteractions.filter(
-        (i) => i.type === "meeting" && new Date(i.date) < cutoff
-      );
-
+      const recentMeetings = contactInteractions.filter((i) => i.type === "meeting" && new Date(i.date) < cutoff);
       if (recentMeetings.length > 0) {
         const latestMeeting = recentMeetings[recentMeetings.length - 1];
         const meetingDate = new Date(latestMeeting.date);
-
-        // Check if there's a followup created after the meeting
-        const hasFollowupAfterMeeting = contactFollowups.some(
-          (f) => new Date(f.createdAt) >= meetingDate
-        );
-
-        violated = !hasFollowupAfterMeeting;
+        const hasFollowupAfter = contactFollowups.some((f) => new Date(f.createdAt) >= meetingDate);
+        violated = !hasFollowupAfter;
       }
+      break;
+    }
+
+    case "meeting_within_hours": {
+      const hours = condition.params.hours || 24;
+      const now = new Date();
+      const cutoff = new Date();
+      cutoff.setHours(cutoff.getHours() + hours);
+      violated = contactMeetings.some((m) => !m.completed && !m.cancelledAt && new Date(m.date) >= now && new Date(m.date) <= cutoff);
       break;
     }
 
@@ -161,10 +138,9 @@ function checkCondition(
       break;
   }
 
-  // Check exceptions
   if (violated && condition.exceptions) {
     for (const exception of condition.exceptions) {
-      if (checkException(exception, contact, contactInteractions, contactFollowups)) {
+      if (checkException(exception, contact, contactInteractions, contactFollowups, contactMeetings)) {
         violated = false;
         break;
       }
@@ -176,9 +152,7 @@ function checkCondition(
 
 function checkException(
   exception: { type: string; params?: Record<string, any> },
-  contact: Contact,
-  contactInteractions: Interaction[],
-  contactFollowups: Followup[]
+  contact: Contact, contactInteractions: Interaction[], contactFollowups: Followup[], contactMeetings: Meeting[]
 ): boolean {
   switch (exception.type) {
     case "has_future_followup": {
@@ -195,51 +169,32 @@ function checkException(
 }
 
 function buildMessage(
-  template: string,
-  contact: Contact,
-  contactInteractions: Interaction[],
-  contactFollowups: Followup[]
+  template: string, contact: Contact,
+  contactInteractions: Interaction[], contactFollowups: Followup[], contactMeetings: Meeting[]
 ): string {
   let message = template;
 
-  // Replace template variables
-  const lastInteraction = contactInteractions.length > 0
-    ? contactInteractions[contactInteractions.length - 1]
-    : null;
-
-  if (lastInteraction) {
-    const daysSince = Math.floor(
-      (Date.now() - new Date(lastInteraction.date).getTime()) / (1000 * 60 * 60 * 24)
-    );
+  const last = contactInteractions.length > 0 ? contactInteractions[contactInteractions.length - 1] : null;
+  if (last) {
+    const daysSince = Math.floor((Date.now() - new Date(last.date).getTime()) / (1000 * 60 * 60 * 24));
     message = message.replace("{{days_since_last}}", String(daysSince));
   }
 
-  // Replace followup content
-  const overdueFollowups = contactFollowups.filter(
-    (f) => !f.completed && new Date(f.dueDate) < new Date()
-  );
-  if (overdueFollowups.length > 0) {
-    message = message.replace("{{followup_content}}", overdueFollowups[0].content);
-  }
+  const overdue = contactFollowups.filter((f) => !f.completed && new Date(f.dueDate) < new Date());
+  if (overdue.length > 0) message = message.replace("{{followup_content}}", overdue[0].content);
 
-  // Replace meeting date
-  const meetings = contactInteractions.filter((i) => i.type === "meeting");
-  if (meetings.length > 0) {
-    const lastMeeting = meetings[meetings.length - 1];
-    message = message.replace("{{meeting_date}}", new Date(lastMeeting.date).toLocaleDateString());
-  }
+  const pastMeetings = contactInteractions.filter((i) => i.type === "meeting");
+  if (pastMeetings.length > 0) message = message.replace("{{meeting_date}}", new Date(pastMeetings[pastMeetings.length - 1].date).toLocaleDateString());
+
+  const upcoming = contactMeetings.filter((m) => !m.completed && !m.cancelledAt && new Date(m.date) >= new Date());
+  if (upcoming.length > 0) message = message.replace("{{next_meeting_date}}", new Date(upcoming[0].date).toLocaleString());
 
   return message;
 }
 
-// Start the scheduled evaluation loop
 export function startRulesScheduler(intervalMs: number = 15 * 60 * 1000): NodeJS.Timeout {
   console.log(`Rules engine: scheduled evaluation every ${intervalMs / 1000 / 60} minutes`);
-
-  // Run once immediately
   evaluateAllRules().catch((err) => console.error("Rules evaluation failed:", err));
-
-  // Then on interval
   return setInterval(() => {
     evaluateAllRules().catch((err) => console.error("Rules evaluation failed:", err));
   }, intervalMs);

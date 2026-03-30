@@ -13,12 +13,13 @@ export function useSSE() {
         const data = JSON.parse(event.data);
         if (data.type === "connected") return;
 
-        // Any CRM data change: refetch contacts
         if (
           data.type?.startsWith("contact_") ||
           data.type?.startsWith("interaction_") ||
           data.type?.startsWith("followup_") ||
-          data.type?.startsWith("violation_")
+          data.type?.startsWith("violation_") ||
+          data.type?.startsWith("meeting_") ||
+          data.type?.startsWith("briefing_")
         ) {
           queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
         }
@@ -26,17 +27,17 @@ export function useSSE() {
         if (data.type?.startsWith("violation_")) {
           queryClient.invalidateQueries({ queryKey: ["/api/violations"] });
         }
+
+        if (data.type === "activity_logged") {
+          queryClient.invalidateQueries({ queryKey: ["/api/activity"] });
+        }
       } catch {
-        // ignore parse errors
+        // ignore
       }
     };
 
-    es.onerror = () => {
-      // EventSource auto-reconnects
-    };
+    es.onerror = () => {};
 
-    return () => {
-      es.close();
-    };
+    return () => { es.close(); };
   }, []);
 }
