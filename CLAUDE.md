@@ -28,7 +28,9 @@ npm run test         # Playwright E2E tests
 - Style: Montserrat font, teal palette (#2bbcb3), 640px max-width, 12px border-radius cards.
 
 ## Before submitting a PR
-Run the E2E test skill (`.claude/skills/e2e-test/SKILL.md`): start the dev server, log in via Playwright, add a note, create and complete a follow-up, call MCP tools, verify the UI reflects agent-written data. Screenshot each step. Do not create the PR if any step fails.
+1. Run the E2E test skill (`.claude/skills/e2e-test/SKILL.md`): start dev server, test UI + MCP flows, screenshot each step. Do not create PR if any step fails.
+2. Update README.md if the PR changes architecture, adds tools, or changes how things work.
+3. Add a CHANGELOG.md entry describing what changed.
 
 ## Watch out for
 - Dates render in UTC (fmtDate in `lib/utils.ts`). Using `format()` from date-fns causes off-by-one timezone bugs.
