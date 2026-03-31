@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-03-31
+
+### Documentation
+- README MCP tools section now shows only core tools; plugin tools documented in plugin READMEs
+- Each plugin has its own README with tools, routes, and data model docs
+- CLAUDE.md PR checklist: README update + CHANGELOG entry required
+
 ## 2026-03-30
 
 ### Plugin Architecture
