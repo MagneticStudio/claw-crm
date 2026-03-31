@@ -7,7 +7,7 @@ import { ContactBlock } from "@/components/contact-block";
 import { Loader2, LogOut, Settings, Square, Activity, X, ChevronDown } from "lucide-react";
 import { Link } from "wouter";
 import { format, isPast, isToday, differenceInDays } from "date-fns";
-import type { ContactWithRelations, Followup, Meeting, Briefing, ActivityLogEntry } from "@shared/schema";
+import type { ContactWithRelations, Followup, ActivityLogEntry } from "@shared/schema";
 import { fmtDate } from "@/lib/utils";
 
 const STAGES = ["ALL", "NEGOTIATION", "PROPOSAL", "MEETING", "LEAD", "LIVE", "RELATIONSHIP", "PASS"] as const;
@@ -110,21 +110,23 @@ export default function CrmPage() {
     });
   };
 
-  // Today's meetings across all contacts
+  // Today's meetings — filter followups by type "meeting" and today's date
   const todaysMeetings = useMemo(() => {
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-    const items: Array<{ meeting: Meeting; contactName: string; companyName: string; contactId: number; briefing: Briefing | null }> = [];
+    const items: Array<{ followup: Followup; contactName: string; companyName: string; contactId: number; briefing: any }> = [];
     for (const c of contacts) {
-      for (const m of c.meetings) {
-        const d = new Date(m.date);
-        if (d >= startOfDay && d <= endOfDay && !m.cancelledAt) {
-          items.push({ meeting: m, contactName: `${c.firstName} ${c.lastName}`, companyName: c.company?.name || "", contactId: c.id, briefing: c.briefing });
+      for (const fu of c.followups) {
+        if (fu.type === "meeting" && !fu.completed) {
+          const d = new Date(fu.dueDate);
+          if (d >= startOfDay && d <= endOfDay) {
+            items.push({ followup: fu, contactName: `${c.firstName} ${c.lastName}`, companyName: c.company?.name || "", contactId: c.id, briefing: (c as any).briefing });
+          }
         }
       }
     }
-    items.sort((a, b) => new Date(a.meeting.date).getTime() - new Date(b.meeting.date).getTime());
+    items.sort((a, b) => new Date(a.followup.dueDate).getTime() - new Date(b.followup.dueDate).getTime());
     return items;
   }, [contacts]);
 
@@ -236,18 +238,19 @@ export default function CrmPage() {
               Today
             </div>
             <div className="space-y-1.5">
-              {todaysMeetings.map(({ meeting, contactName, companyName, briefing }) => {
-                const time = format(new Date(meeting.date), "h:mm a");
-                const icon = ({ call: "📞", video: "📹", "in-person": "🤝", coffee: "☕" } as any)[meeting.type] || "📅";
-                const isExp = expandedMeetingIds.has(meeting.id);
+              {todaysMeetings.map(({ followup: fu, contactName, companyName, briefing }) => {
+                const time = fu.time || format(new Date(fu.dueDate), "h:mm a");
+                const meetingType = (fu.metadata as any)?.meetingType;
+                const icon = ({ call: "📞", video: "📹", "in-person": "🤝", coffee: "☕" } as any)[meetingType] || "📅";
+                const isExp = expandedMeetingIds.has(fu.id);
                 return (
-                  <div key={meeting.id}>
-                    <div className="flex items-center gap-2 text-sm cursor-pointer" onClick={() => toggleMeetingExpand(meeting.id)}>
+                  <div key={fu.id}>
+                    <div className="flex items-center gap-2 text-sm cursor-pointer" onClick={() => toggleMeetingExpand(fu.id)}>
                       <span className="flex-shrink-0">{icon}</span>
                       <span className="font-bold flex-shrink-0" style={{ color: C.stale }}>{time}</span>
-                      <span style={{ color: C.text }}>{contactName}</span>
-                      {companyName && <span className="text-xs" style={{ color: C.muted }}>{companyName}</span>}
-                      {meeting.location && <span className="ml-auto text-xs" style={{ color: C.muted }}>{meeting.location}</span>}
+                      <span style={{ color: C.text }}>{fu.content}</span>
+                      {contactName && <span className="text-xs" style={{ color: C.muted }}>{contactName}</span>}
+                      {fu.location && <span className="ml-auto text-xs" style={{ color: C.muted }}>{fu.location}</span>}
                       <ChevronDown className={`h-3 w-3 flex-shrink-0 transition-transform ${isExp ? "rotate-180" : ""}`} style={{ color: C.muted }} />
                     </div>
                     {isExp && briefing && (
@@ -256,10 +259,7 @@ export default function CrmPage() {
                         {briefing.content}
                       </div>
                     )}
-                    {isExp && meeting.notes && !briefing && (
-                      <div className="mt-1.5 ml-6 text-xs" style={{ color: C.muted }}>{meeting.notes}</div>
-                    )}
-                    {isExp && !briefing && !meeting.notes && (
+                    {isExp && !briefing && (
                       <div className="mt-1.5 ml-6 text-[10px] italic" style={{ color: C.muted }}>No briefing yet</div>
                     )}
                   </div>
