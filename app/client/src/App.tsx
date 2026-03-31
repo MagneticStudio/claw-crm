@@ -14,16 +14,23 @@ import BriefingPage from "@/pages/briefing-page";
 import NotFound from "@/pages/not-found";
 
 // App config context — org name from DB
-const ConfigContext = createContext<{ orgName: string }>({ orgName: "Claw CRM" });
+export interface PluginBadge {
+  dataKey: string;
+  icon: string;
+  route: string;
+  tooltip?: string;
+}
+
+const ConfigContext = createContext<{ orgName: string; badges: PluginBadge[] }>({ orgName: "Claw CRM", badges: [] });
 export function useConfig() { return useContext(ConfigContext); }
 
 function ConfigProvider({ children }: { children: React.ReactNode }) {
-  const { data } = useQuery<{ orgName: string }>({
+  const { data } = useQuery<{ orgName: string; badges: PluginBadge[] }>({
     queryKey: ["/api/config"],
     staleTime: 60_000,
   });
   return (
-    <ConfigContext.Provider value={{ orgName: data?.orgName || "Claw CRM" }}>
+    <ConfigContext.Provider value={{ orgName: data?.orgName || "Claw CRM", badges: data?.badges || [] }}>
       {children}
     </ConfigContext.Provider>
   );
