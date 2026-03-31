@@ -36,6 +36,15 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Load plugins before registering routes
+  const { registerPlugin } = await import("../plugins");
+  const meetingsPlugin = (await import("../plugins/meetings")).default;
+  const briefingsPlugin = (await import("../plugins/briefings")).default;
+  const activityLogPlugin = (await import("../plugins/activity-log")).default;
+  registerPlugin(meetingsPlugin);
+  registerPlugin(briefingsPlugin);
+  registerPlugin(activityLogPlugin);
+
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 import { storage } from "./storage";
+import { getPlugins } from "../plugins";
 import type { Express, Request, Response } from "express";
 import { randomUUID } from "crypto";
 
@@ -61,18 +62,9 @@ Note: PASS is a STAGE (declined/not a fit), not a status.
 Rules auto-flag issues (stale contacts, overdue follow-ups). You can create, update, and delete rules.
 Available condition types: no_interaction_for_days, followup_past_due, no_followup_after_meeting, meeting_within_hours, status_is, stage_is
 
-## Meetings
-Use set_meeting to schedule meetings. Types: call, video, in-person, coffee.
-Meetings appear in the "Today" view. After a meeting happens, log it as an interaction with add_interaction.
-
-## Briefings
-Use save_briefing to store prep notes for a contact (one per contact, upsert).
-Good for: talking points, recent news, open items before a meeting.
-
-## Activity Log
-Use get_activity_log to see what the system and agents have been doing.
-Useful for troubleshooting: rule evaluations, agent actions, violations, meeting scheduling.
 Available exception types: has_future_followup, stage_in (with params.stages array)
+
+${getPlugins().map(p => p.guideText || "").filter(Boolean).join("\n\n")}
 
 ## Confidentiality
 - NEVER put pricing or deal terms in the CRM
@@ -344,75 +336,13 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
     }
   );
 
-  // --- Meetings ---
-  server.tool("set_meeting", "Schedule a meeting with a contact. Types: call, video, in-person, coffee.", {
-    contactId: z.number(), date: z.string().describe("Date+time ISO 8601, e.g. '2026-04-01T14:00:00'"),
-    type: z.string().optional().describe("call (default), video, in-person, coffee"),
-    location: z.string().optional(), notes: z.string().optional(),
-  }, async ({ contactId, date, type, location, notes }) => {
-    try {
-      const m = await storage.createMeeting({ contactId, date: new Date(date), type: type || "call", location, notes, completed: false });
-      return { content: [{ type: "text" as const, text: `Meeting scheduled: ${m.type} on ${new Date(date).toLocaleString()} (ID: ${m.id})` }] };
-    } catch (err: any) { return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true }; }
-  });
-
-  server.tool("get_upcoming_meetings", "List upcoming meetings across all contacts.", {
-    withinHours: z.number().optional().describe("How far ahead in hours. Default 168 (7 days)"),
-    contactId: z.number().optional(),
-  }, async ({ withinHours, contactId }) => {
-    try {
-      let result;
-      if (contactId) {
-        result = (await storage.getMeetings(contactId)).filter(m => !m.completed && new Date(m.date) >= new Date());
-      } else {
-        result = await storage.getUpcomingMeetings(withinHours);
-      }
-      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
-    } catch (err: any) { return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true }; }
-  });
-
-  server.tool("cancel_meeting", "Cancel a scheduled meeting (soft-delete).", {
-    meetingId: z.number(),
-  }, async ({ meetingId }) => {
-    try {
-      const m = await storage.cancelMeeting(meetingId);
-      if (!m) return { content: [{ type: "text" as const, text: `Meeting ${meetingId} not found` }], isError: true };
-      return { content: [{ type: "text" as const, text: `Cancelled meeting ${meetingId}` }] };
-    } catch (err: any) { return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true }; }
-  });
-
-  // --- Briefings ---
-  server.tool("save_briefing", "Save a meeting prep briefing for a contact. One per contact (upsert). Use bullet points for scannability.", {
-    contactId: z.number(), content: z.string().describe("Briefing text — talking points, context, prep notes"),
-  }, async ({ contactId, content }) => {
-    try {
-      await storage.saveBriefing(contactId, content);
-      return { content: [{ type: "text" as const, text: `Briefing saved for contact ${contactId} (${content.length} chars)` }] };
-    } catch (err: any) { return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true }; }
-  });
-
-  server.tool("get_briefing", "Get the prep briefing for a contact.", {
-    contactId: z.number(),
-  }, async ({ contactId }) => {
-    try {
-      const b = await storage.getBriefing(contactId);
-      if (!b) return { content: [{ type: "text" as const, text: `No briefing for contact ${contactId}` }] };
-      return { content: [{ type: "text" as const, text: b.content }] };
-    } catch (err: any) { return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true }; }
-  });
-
-  // --- Activity Log ---
-  server.tool("get_activity_log", "View the system activity log. Shows rule evaluations, agent actions, webhooks, and other system events. Useful for troubleshooting.", {
-    limit: z.number().optional().describe("Max entries to return. Default 50"),
-    contactId: z.number().optional().describe("Filter to a specific contact"),
-    event: z.string().optional().describe("Filter by event type: rule.evaluated, meeting.created, contact.updated, violation.created, etc."),
-    source: z.string().optional().describe("Filter by source: system, agent, user, rule:N"),
-  }, async ({ limit, contactId, event, source }) => {
-    try {
-      const log = await storage.getActivityLog({ limit, contactId, event, source });
-      return { content: [{ type: "text" as const, text: JSON.stringify(log, null, 2) }] };
-    } catch (err: any) { return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true }; }
-  });
+  // --- Plugins ---
+  const pluginCtx = storage.getPluginContext();
+  for (const plugin of getPlugins()) {
+    if (plugin.registerTools) {
+      plugin.registerTools(server, pluginCtx);
+    }
+  }
 
   // --- Rules ---
   server.tool("list_rules", "List business rules", { enabled: z.boolean().optional() }, async ({ enabled }) => {

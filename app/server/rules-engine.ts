@@ -1,8 +1,9 @@
 import { storage } from "./storage";
-import type { Contact, Interaction, Followup, Meeting, Rule } from "@shared/schema";
+import type { Contact, Interaction, Followup, Rule } from "@shared/schema";
 import { db } from "./db";
 import { rules } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import { getPlugins } from "../plugins";
 
 interface RuleCondition {
   type: string;
@@ -20,14 +21,22 @@ export async function evaluateRulesForContact(contactId: number): Promise<void> 
   const contact = await storage.getContact(contactId);
   if (!contact) return;
 
-  const [contactInteractions, contactFollowups, contactMeetings] = await Promise.all([
+  const [contactInteractions, contactFollowups] = await Promise.all([
     storage.getInteractions(contactId),
     storage.getFollowups(contactId),
-    storage.getMeetings(contactId),
   ]);
 
+  // Gather plugin data for rule evaluation
+  const pluginData: Record<string, unknown> = {};
+  const pluginCtx = storage.getPluginContext();
+  for (const plugin of getPlugins()) {
+    if (plugin.enrichContact) {
+      Object.assign(pluginData, await plugin.enrichContact(contactId, pluginCtx));
+    }
+  }
+
   for (const rule of enabledRules) {
-    await evaluateRule(rule, contact, contactInteractions, contactFollowups, contactMeetings);
+    await evaluateRule(rule, contact, contactInteractions, contactFollowups, pluginData);
   }
 
   const now = new Date();
@@ -39,16 +48,23 @@ export async function evaluateRulesForContact(contactId: number): Promise<void> 
 export async function evaluateAllRules(): Promise<void> {
   const enabledRules = await storage.getRules(true);
   const allContacts = await storage.getContacts();
+  const pluginCtx = storage.getPluginContext();
 
   for (const contact of allContacts) {
-    const [contactInteractions, contactFollowups, contactMeetings] = await Promise.all([
+    const [contactInteractions, contactFollowups] = await Promise.all([
       storage.getInteractions(contact.id),
       storage.getFollowups(contact.id),
-      storage.getMeetings(contact.id),
     ]);
 
+    const pluginData: Record<string, unknown> = {};
+    for (const plugin of getPlugins()) {
+      if (plugin.enrichContact) {
+        Object.assign(pluginData, await plugin.enrichContact(contact.id, pluginCtx));
+      }
+    }
+
     for (const rule of enabledRules) {
-      await evaluateRule(rule, contact, contactInteractions, contactFollowups, contactMeetings);
+      await evaluateRule(rule, contact, contactInteractions, contactFollowups, pluginData);
     }
   }
 
@@ -60,16 +76,17 @@ export async function evaluateAllRules(): Promise<void> {
 
 async function evaluateRule(
   rule: Rule, contact: Contact,
-  contactInteractions: Interaction[], contactFollowups: Followup[], contactMeetings: Meeting[]
+  contactInteractions: Interaction[], contactFollowups: Followup[],
+  pluginData: Record<string, unknown>
 ): Promise<void> {
   const condition = rule.condition as RuleCondition;
   const action = rule.action as RuleAction;
-  const violated = checkCondition(condition, contact, contactInteractions, contactFollowups, contactMeetings);
+  const violated = checkCondition(condition, contact, contactInteractions, contactFollowups, pluginData);
 
   if (violated) {
     const hasViolation = await storage.hasActiveViolation(rule.id, contact.id);
     if (!hasViolation) {
-      const message = buildMessage(action.params.message_template || "", contact, contactInteractions, contactFollowups, contactMeetings);
+      const message = buildMessage(action.params.message_template || "", contact, contactInteractions, contactFollowups, pluginData);
       await storage.createViolation({ ruleId: rule.id, contactId: contact.id, message, severity: action.params.severity || "warning" });
     }
   } else {
@@ -79,12 +96,14 @@ async function evaluateRule(
 
 function checkCondition(
   condition: RuleCondition, contact: Contact,
-  contactInteractions: Interaction[], contactFollowups: Followup[], contactMeetings: Meeting[]
+  contactInteractions: Interaction[], contactFollowups: Followup[],
+  pluginData: Record<string, unknown>
 ): boolean {
   if (contact.status !== "ACTIVE" && condition.type !== "followup_past_due") return false;
 
   let violated = false;
 
+  // Core conditions
   switch (condition.type) {
     case "no_interaction_for_days": {
       const days = condition.params.days || 14;
@@ -94,13 +113,11 @@ function checkCondition(
       if (!last || new Date(last.date) < cutoff) violated = true;
       break;
     }
-
     case "followup_past_due": {
       const now = new Date();
       violated = contactFollowups.some((f) => !f.completed && new Date(f.dueDate) < now);
       break;
     }
-
     case "no_followup_after_meeting": {
       const hours = condition.params.hours || 48;
       const cutoff = new Date();
@@ -108,39 +125,32 @@ function checkCondition(
       const recentMeetings = contactInteractions.filter((i) => i.type === "meeting" && new Date(i.date) < cutoff);
       if (recentMeetings.length > 0) {
         const latestMeeting = recentMeetings[recentMeetings.length - 1];
-        const meetingDate = new Date(latestMeeting.date);
-        const hasFollowupAfter = contactFollowups.some((f) => new Date(f.createdAt) >= meetingDate);
-        violated = !hasFollowupAfter;
+        violated = !contactFollowups.some((f) => new Date(f.createdAt) >= new Date(latestMeeting.date));
       }
       break;
     }
-
-    case "meeting_within_hours": {
-      const hours = condition.params.hours || 24;
-      const now = new Date();
-      const cutoff = new Date();
-      cutoff.setHours(cutoff.getHours() + hours);
-      violated = contactMeetings.some((m) => !m.completed && !m.cancelledAt && new Date(m.date) >= now && new Date(m.date) <= cutoff);
-      break;
-    }
-
-    case "status_is": {
+    case "status_is":
       violated = contact.status === condition.params.status;
       break;
-    }
-
-    case "stage_is": {
+    case "stage_is":
       violated = contact.stage === condition.params.stage;
       break;
-    }
-
-    default:
+    default: {
+      // Check plugin-provided conditions
+      for (const plugin of getPlugins()) {
+        if (plugin.ruleConditions?.[condition.type]) {
+          violated = plugin.ruleConditions[condition.type](condition.params, contact, pluginData);
+          break;
+        }
+      }
       break;
+    }
   }
 
+  // Check exceptions
   if (violated && condition.exceptions) {
     for (const exception of condition.exceptions) {
-      if (checkException(exception, contact, contactInteractions, contactFollowups, contactMeetings)) {
+      if (checkException(exception, contact, contactInteractions, contactFollowups, pluginData)) {
         violated = false;
         break;
       }
@@ -152,17 +162,14 @@ function checkCondition(
 
 function checkException(
   exception: { type: string; params?: Record<string, any> },
-  contact: Contact, contactInteractions: Interaction[], contactFollowups: Followup[], contactMeetings: Meeting[]
+  contact: Contact, contactInteractions: Interaction[], contactFollowups: Followup[],
+  pluginData: Record<string, unknown>
 ): boolean {
   switch (exception.type) {
-    case "has_future_followup": {
-      const now = new Date();
-      return contactFollowups.some((f) => !f.completed && new Date(f.dueDate) >= now);
-    }
-    case "stage_in": {
-      const stages: string[] = exception.params?.stages || [];
-      return stages.includes(contact.stage);
-    }
+    case "has_future_followup":
+      return contactFollowups.some((f) => !f.completed && new Date(f.dueDate) >= new Date());
+    case "stage_in":
+      return (exception.params?.stages || []).includes(contact.stage);
     default:
       return false;
   }
@@ -170,25 +177,21 @@ function checkException(
 
 function buildMessage(
   template: string, contact: Contact,
-  contactInteractions: Interaction[], contactFollowups: Followup[], contactMeetings: Meeting[]
+  contactInteractions: Interaction[], contactFollowups: Followup[],
+  pluginData: Record<string, unknown>
 ): string {
   let message = template;
-
   const last = contactInteractions.length > 0 ? contactInteractions[contactInteractions.length - 1] : null;
   if (last) {
     const daysSince = Math.floor((Date.now() - new Date(last.date).getTime()) / (1000 * 60 * 60 * 24));
     message = message.replace("{{days_since_last}}", String(daysSince));
   }
-
   const overdue = contactFollowups.filter((f) => !f.completed && new Date(f.dueDate) < new Date());
   if (overdue.length > 0) message = message.replace("{{followup_content}}", overdue[0].content);
-
   const pastMeetings = contactInteractions.filter((i) => i.type === "meeting");
   if (pastMeetings.length > 0) message = message.replace("{{meeting_date}}", new Date(pastMeetings[pastMeetings.length - 1].date).toLocaleDateString());
-
-  const upcoming = contactMeetings.filter((m) => !m.completed && !m.cancelledAt && new Date(m.date) >= new Date());
+  const upcoming = (pluginData.meetings || []) as any[];
   if (upcoming.length > 0) message = message.replace("{{next_meeting_date}}", new Date(upcoming[0].date).toLocaleString());
-
   return message;
 }
 
