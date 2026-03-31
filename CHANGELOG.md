@@ -6,6 +6,9 @@
 - MCP sessions no longer expire after ~30 seconds. Sessions persist for 30 min of inactivity with automatic cleanup. (#9)
 - Dates stored as noon UTC to eliminate timezone off-by-one bugs. Times stored as display strings in user's local timezone. No timezone settings needed. (#10, closes #11)
 
+### Deploy Fix
+- Fixed Railway deploy crash: NIXPACKS builder used Node 18 which lacks `import.meta.dirname`. Simplified railway.json to let Railway auto-detect RAILPACK + Node 22.
+
 ### Header Icons
 - Rules: lightning bolt (Zap), Settings: gear, Activity: pulse, Logout: arrow
 - Rules is no longer a subset of Settings — separate icon and page
