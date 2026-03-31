@@ -9,6 +9,7 @@ import { Link } from "wouter";
 import { format, isPast, isToday, differenceInDays } from "date-fns";
 import type { ContactWithRelations, Followup, ActivityLogEntry } from "@shared/schema";
 import { fmtDate } from "@/lib/utils";
+import { useConfig } from "@/App";
 
 const STAGES = ["ALL", "NEGOTIATION", "PROPOSAL", "MEETING", "LEAD", "LIVE", "RELATIONSHIP", "PASS"] as const;
 
@@ -45,6 +46,7 @@ export default function CrmPage() {
   const { contacts, isLoading, addInteraction, updateInteraction, deleteInteraction, createFollowup, updateFollowup, deleteFollowup, completeFollowup, updateContact } = useCrm();
   const { logoutMutation } = useAuth();
   const [activeStage, setActiveStage] = useState<string>("ALL");
+  const { orgName } = useConfig();
   useSSE();
 
   const sortedContacts = useMemo(() => {
@@ -153,7 +155,7 @@ export default function CrmPage() {
         <div className="max-w-[640px] mx-auto px-4 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-[13px] font-semibold tracking-[0.2em] uppercase" style={{ color: C.text }}>
-              Magnetic Advisors
+              {orgName}
             </h1>
             <p className="text-[11px] font-mono mt-0.5" style={{ color: C.muted }}>
               {activeCount} active
@@ -165,7 +167,7 @@ export default function CrmPage() {
             <button onClick={() => setShowActivityDrawer(!showActivityDrawer)} className="p-2 transition-colors relative" style={{ color: C.muted }}>
               <Activity className="h-4 w-4" />
             </button>
-            <Link href="/rules" className="p-2 transition-colors" style={{ color: C.muted }}>
+            <Link href="/settings" className="p-2 transition-colors" style={{ color: C.muted }}>
               <Settings className="h-4 w-4" />
             </Link>
             <button onClick={() => logoutMutation.mutate()} className="p-2 transition-colors" style={{ color: C.muted }}>

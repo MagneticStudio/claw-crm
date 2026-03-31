@@ -2,11 +2,13 @@ import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizz
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// User model — single user, PIN auth
+// User model — single user, PIN auth + settings
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   pin: text("pin").notNull(),
   apiKey: text("api_key").notNull(),
+  mcpToken: text("mcp_token").notNull().default(""),
+  orgName: text("org_name").notNull().default("Claw CRM"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

@@ -20,6 +20,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const { registerMcpRoutes } = await import("./mcp-remote");
   registerMcpRoutes(app);
 
+  // --- Public config (no auth — needed for login page branding) ---
+  app.get("/api/config", async (_req, res) => {
+    const user = await storage.getFirstUser();
+    res.json({ orgName: user?.orgName || "Claw CRM" });
+  });
+
+  // --- Settings (auth required) ---
+  app.get("/api/settings", requireAuth, async (req, res) => {
+    const user = await storage.getFirstUser();
+    if (!user) return res.status(404).json({ message: "No user" });
+    res.json({
+      orgName: user.orgName,
+      apiKey: user.apiKey,
+      mcpToken: user.mcpToken,
+    });
+  });
+
+  app.put("/api/settings", requireAuth, async (req, res) => {
+    const user = await storage.getFirstUser();
+    if (!user) return res.status(404).json({ message: "No user" });
+    const { orgName } = req.body;
+    const updates: any = {};
+    if (orgName !== undefined) updates.orgName = orgName;
+    const updated = await storage.updateUser(user.id, updates);
+    res.json({ orgName: updated?.orgName });
+  });
+
+  app.post("/api/settings/regenerate-api-key", requireAuth, async (req, res) => {
+    const { randomBytes } = await import("crypto");
+    const user = await storage.getFirstUser();
+    if (!user) return res.status(404).json({ message: "No user" });
+    const apiKey = `claw_${randomBytes(24).toString("hex")}`;
+    await storage.updateUser(user.id, { apiKey });
+    res.json({ apiKey });
+  });
+
+  app.post("/api/settings/regenerate-mcp-token", requireAuth, async (req, res) => {
+    const { randomBytes } = await import("crypto");
+    const user = await storage.getFirstUser();
+    if (!user) return res.status(404).json({ message: "No user" });
+    const mcpToken = randomBytes(16).toString("hex");
+    await storage.updateUser(user.id, { mcpToken });
+    res.json({ mcpToken });
+  });
+
+  app.post("/api/settings/change-pin", requireAuth, async (req, res) => {
+    const { currentPin, newPin } = req.body;
+    if (!currentPin || !newPin || newPin.length < 4 || newPin.length > 6) {
+      return res.status(400).json({ message: "Invalid PIN" });
+    }
+    const user = await storage.getFirstUser();
+    if (!user) return res.status(404).json({ message: "No user" });
+    // Verify current PIN
+    const { hashPin } = await import("./auth");
+    const scrypt = await import("crypto").then(m => m.scrypt);
+    const { timingSafeEqual } = await import("crypto");
+    const { promisify } = await import("util");
+    const scryptAsync = promisify(scrypt);
+    const [hashed, salt] = user.pin.split(".");
+    const hashedBuf = Buffer.from(hashed, "hex");
+    const suppliedBuf = (await scryptAsync(currentPin, salt, 64)) as Buffer;
+    if (!timingSafeEqual(hashedBuf, suppliedBuf)) {
+      return res.status(401).json({ message: "Current PIN is incorrect" });
+    }
+    const newHashedPin = await hashPin(newPin);
+    await storage.updateUser(user.id, { pin: newHashedPin });
+    res.json({ ok: true });
+  });
+
   // --- SSE ---
   app.get("/api/events", requireAuth, (req, res) => {
     res.writeHead(200, {

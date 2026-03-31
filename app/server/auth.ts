@@ -76,10 +76,12 @@ export function setupAuth(app: Express) {
 
     const hashedPin = await hashPin(pin);
     const apiKey = `claw_${randomBytes(24).toString("hex")}`;
-    const user = await storage.createUser(hashedPin, apiKey);
+    const mcpToken = randomBytes(16).toString("hex");
+    const orgName = req.body.orgName || "Claw CRM";
+    const user = await storage.createUser(hashedPin, apiKey, mcpToken, orgName);
 
     (req.session as any).userId = user.id;
-    res.status(201).json({ id: user.id, apiKey: user.apiKey });
+    res.status(201).json({ id: user.id, apiKey: user.apiKey, mcpToken: user.mcpToken });
   });
 
   // POST /api/login - PIN login
