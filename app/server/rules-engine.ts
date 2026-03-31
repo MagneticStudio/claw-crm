@@ -31,7 +31,8 @@ export async function evaluateRulesForContact(contactId: number): Promise<void> 
   const pluginCtx = storage.getPluginContext();
   for (const plugin of getPlugins()) {
     if (plugin.enrichContact) {
-      Object.assign(pluginData, await plugin.enrichContact(contactId, pluginCtx));
+      try { Object.assign(pluginData, await plugin.enrichContact(contactId, pluginCtx)); }
+      catch { /* plugin enrichment failed — skip */ }
     }
   }
 
@@ -59,7 +60,8 @@ export async function evaluateAllRules(): Promise<void> {
     const pluginData: Record<string, unknown> = {};
     for (const plugin of getPlugins()) {
       if (plugin.enrichContact) {
-        Object.assign(pluginData, await plugin.enrichContact(contact.id, pluginCtx));
+        try { Object.assign(pluginData, await plugin.enrichContact(contact.id, pluginCtx)); }
+        catch { /* plugin enrichment failed — skip */ }
       }
     }
 

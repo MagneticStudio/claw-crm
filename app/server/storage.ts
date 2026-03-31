@@ -134,8 +134,12 @@ export class Storage {
     const pluginCtx = this.getPluginContext();
     for (const plugin of getPlugins()) {
       if (plugin.enrichContact) {
-        const extra = await plugin.enrichContact(contact.id, pluginCtx);
-        Object.assign(result, extra);
+        try {
+          const extra = await plugin.enrichContact(contact.id, pluginCtx);
+          Object.assign(result, extra);
+        } catch {
+          // Plugin enrichment failed — skip, don't crash
+        }
       }
     }
 
