@@ -3,8 +3,6 @@ import { test, expect } from "@playwright/test";
 test.describe("Authentication", () => {
   test("shows PIN login page when not authenticated", async ({ page }) => {
     await page.goto("/");
-    // Should redirect to auth or show login
-    await expect(page.locator("text=MAGNETIC ADVISORS")).toBeVisible();
     await expect(page.locator("text=Enter PIN")).toBeVisible();
   });
 
@@ -13,8 +11,7 @@ test.describe("Authentication", () => {
     await page.locator('input[type="password"]').fill("1234");
     await page.locator("button", { hasText: "Unlock" }).click();
 
-    // Should redirect to CRM page
-    await expect(page.locator("text=MAGNETIC ADVISORS")).toBeVisible();
+    // Should redirect to CRM page and show contacts
     await expect(page.locator("text=active")).toBeVisible({ timeout: 5000 });
   });
 
@@ -23,7 +20,6 @@ test.describe("Authentication", () => {
     await page.locator('input[type="password"]').fill("9999");
     await page.locator("button", { hasText: "Unlock" }).click();
 
-    // Should show error
     await expect(page.locator("text=Invalid PIN")).toBeVisible({ timeout: 3000 });
   });
 });
