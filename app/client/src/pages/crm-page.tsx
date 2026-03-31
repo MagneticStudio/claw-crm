@@ -199,8 +199,8 @@ export default function CrmPage() {
 
       {/* Activity drawer */}
       {showActivityDrawer && (
-        <div className="fixed inset-0 z-40" onClick={() => setShowActivityDrawer(false)}>
-          <div className="absolute right-0 top-0 h-full w-80 bg-white shadow-lg" style={{ borderLeft: `1px solid ${C.border}` }}
+        <div className="fixed inset-0 z-[60]" onClick={() => setShowActivityDrawer(false)}>
+          <div className="absolute right-0 top-0 h-full w-80 bg-white shadow-lg pt-14" style={{ borderLeft: `1px solid ${C.border}` }}
             onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${C.border}` }}>
               <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.text }}>Activity Log</span>
@@ -325,19 +325,26 @@ export default function CrmPage() {
                   );
                 }
 
+                const isMeeting = fu.type === "meeting";
+
                 return (
                   <div key={fu.id} className="flex items-start gap-2 text-sm">
-                    <button
-                      onClick={() => { setCompletingUpcomingId(fu.id); setCompletingUpcomingText(fu.content); }}
-                      className="flex-shrink-0 mt-0.5 hover:opacity-70 transition-colors"
-                      title="Complete"
-                    >
-                      <Square className="h-3.5 w-3.5" style={{ color: dateColor }} />
-                    </button>
-                    <span className="font-bold flex-shrink-0" style={{ color: dateColor }}>
-                      {fmtDate(due)}
+                    {isMeeting ? (
+                      <span className="flex-shrink-0 mt-0.5">📅</span>
+                    ) : (
+                      <button
+                        onClick={() => { setCompletingUpcomingId(fu.id); setCompletingUpcomingText(fu.content); }}
+                        className="flex-shrink-0 mt-0.5 hover:opacity-70 transition-colors"
+                        title="Complete"
+                      >
+                        <Square className="h-3.5 w-3.5" style={{ color: dateColor }} />
+                      </button>
+                    )}
+                    <span className="font-bold flex-shrink-0" style={{ color: isMeeting ? "#2563eb" : dateColor }}>
+                      {fmtDate(due)}{fu.time ? ` ${fu.time}` : ""}
                     </span>
                     <span style={{ color: C.text }}>{fu.content}</span>
+                    {fu.location && <span className="text-xs" style={{ color: C.muted }}>— {fu.location}</span>}
                     <span className="ml-auto text-xs flex-shrink-0 whitespace-nowrap" style={{ color: C.muted }}>
                       {contactName}
                     </span>
@@ -368,8 +375,8 @@ export default function CrmPage() {
             }
             onUpdateInteraction={(id, data) => updateInteraction.mutate({ id, ...data })}
             onDeleteInteraction={(id) => deleteInteraction.mutate(id)}
-            onCreateFollowup={(content, dueDate) =>
-              createFollowup.mutate({ contactId: contact.id, content, dueDate })
+            onCreateFollowup={(content, dueDate, opts) =>
+              createFollowup.mutate({ contactId: contact.id, content, dueDate, ...opts })
             }
             onUpdateFollowup={(id, data) => updateFollowup.mutate({ id, ...data })}
             onDeleteFollowup={(id) => deleteFollowup.mutate(id)}

@@ -12,6 +12,21 @@ import type { Contact } from "@shared/schema";
  * - Register rule condition types
  * - Enrich contacts with additional data
  */
+export interface ItemType {
+  /** Type name, e.g. "task", "meeting", "deadline" */
+  name: string;
+  /** Display icon (emoji), e.g. "📅" */
+  icon: string;
+  /** Slash commands that create this type, e.g. ["/mtg", "/meeting"] */
+  slashCommands: string[];
+  /** Whether the item shows a checkbox and can be completed */
+  completable: boolean;
+  /** Whether the item has a time field */
+  hasTime: boolean;
+  /** Whether the item has a location field */
+  hasLocation: boolean;
+}
+
 export interface CrmPlugin {
   /** Unique plugin name */
   name: string;
@@ -27,6 +42,9 @@ export interface CrmPlugin {
 
   /** Register rule condition evaluators. */
   ruleConditions?: Record<string, RuleConditionEvaluator>;
+
+  /** Register new item types (tasks, meetings, etc.) */
+  itemTypes?: ItemType[];
 
   /** Guide text appended to get_crm_guide output. */
   guideText?: string;
@@ -59,4 +77,14 @@ export function registerPlugin(plugin: CrmPlugin): void {
 
 export function getPlugins(): CrmPlugin[] {
   return plugins;
+}
+
+export function getItemTypes(): ItemType[] {
+  const builtIn: ItemType[] = [
+    { name: "task", icon: "□", slashCommands: ["/fu", "/f", "/follow", "/followup", "/todo", "/task"], completable: true, hasTime: false, hasLocation: false },
+  ];
+  for (const plugin of plugins) {
+    if (plugin.itemTypes) builtIn.push(...plugin.itemTypes);
+  }
+  return builtIn;
 }

@@ -65,18 +65,23 @@ export const insertInteractionSchema = createInsertSchema(interactions).omit({ i
 export type InsertInteraction = z.infer<typeof insertInteractionSchema>;
 export type Interaction = typeof interactions.$inferSelect;
 
-// Follow-ups
+// Items (follow-ups, meetings, etc. — unified by type)
 export const followups = pgTable("followups", {
   id: serial("id").primaryKey(),
   contactId: integer("contact_id").notNull().references(() => contacts.id, { onDelete: "cascade" }),
+  type: text("type").notNull().default("task"), // task | meeting | (plugin-defined)
   dueDate: timestamp("due_date").notNull(),
   content: text("content").notNull(),
   completed: boolean("completed").notNull().default(false),
   completedAt: timestamp("completed_at"),
+  time: text("time"), // e.g. "2:00 PM" — for meetings
+  location: text("location"), // e.g. "Century City" — for meetings
+  metadata: jsonb("metadata"), // plugin-specific data
+  cancelledAt: timestamp("cancelled_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const insertFollowupSchema = createInsertSchema(followups).omit({ id: true, completedAt: true, createdAt: true });
+export const insertFollowupSchema = createInsertSchema(followups).omit({ id: true, completedAt: true, cancelledAt: true, createdAt: true });
 export type InsertFollowup = z.infer<typeof insertFollowupSchema>;
 export type Followup = typeof followups.$inferSelect;
 
@@ -113,8 +118,6 @@ export type InsertRuleViolation = z.infer<typeof insertRuleViolationSchema>;
 export type RuleViolation = typeof ruleViolations.$inferSelect;
 
 // Re-export plugin schemas for Drizzle to discover during db:push
-export { meetings } from "../plugins/meetings/schema";
-export type { Meeting } from "../plugins/meetings/schema";
 export { briefings } from "../plugins/briefings/schema";
 export type { Briefing } from "../plugins/briefings/schema";
 export { activityLog } from "../plugins/activity-log/schema";
@@ -126,8 +129,7 @@ export type ContactWithRelations = Contact & {
   interactions: Interaction[];
   followups: Followup[];
   violations: RuleViolation[];
-  // Plugin-contributed fields (optional — present when plugins are loaded)
-  meetings?: any[];
+  // Plugin-contributed fields
   briefing?: any | null;
   [key: string]: unknown;
 };
