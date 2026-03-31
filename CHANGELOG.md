@@ -6,6 +6,10 @@
 - MCP sessions no longer expire after ~30 seconds. Sessions persist for 30 min of inactivity with automatic cleanup. (#9)
 - Dates stored as noon UTC to eliminate timezone off-by-one bugs. Times stored as display strings in user's local timezone. No timezone settings needed. (#10, closes #11)
 
+### Header Icons
+- Rules: lightning bolt (Zap), Settings: gear, Activity: pulse, Logout: arrow
+- Rules is no longer a subset of Settings — separate icon and page
+
 ### Open Source Prep
 - Settings page: org name, MCP token, API key, PIN change — all configurable from the UI
 - App name is dynamic (from DB settings, default "Claw CRM") — no hardcoded branding

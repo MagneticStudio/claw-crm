@@ -4,7 +4,7 @@ import { useCrm } from "@/hooks/use-crm";
 import { useSSE } from "@/hooks/use-sse";
 import { useAuth } from "@/hooks/use-auth";
 import { ContactBlock } from "@/components/contact-block";
-import { Loader2, LogOut, Settings, Square, Activity, X, ChevronDown } from "lucide-react";
+import { Loader2, LogOut, Settings, Square, Activity, X, ChevronDown, Zap } from "lucide-react";
 import { Link } from "wouter";
 import { format, isPast, isToday, differenceInDays } from "date-fns";
 import type { ContactWithRelations, Followup, ActivityLogEntry } from "@shared/schema";
@@ -164,12 +164,15 @@ export default function CrmPage() {
             </p>
           </div>
           <div className="flex items-center gap-1">
-            <button onClick={() => setShowActivityDrawer(!showActivityDrawer)} className="p-2 transition-colors relative" style={{ color: C.muted }}>
-              <Activity className="h-4 w-4" />
-            </button>
-            <Link href="/settings" className="p-2 transition-colors" style={{ color: C.muted }}>
+            <Link href="/rules" className="p-2 transition-colors" style={{ color: C.muted }} title="Rules">
+              <Zap className="h-4 w-4" />
+            </Link>
+            <Link href="/settings" className="p-2 transition-colors" style={{ color: C.muted }} title="Settings">
               <Settings className="h-4 w-4" />
             </Link>
+            <button onClick={() => setShowActivityDrawer(!showActivityDrawer)} className="p-2 transition-colors relative" style={{ color: C.muted }} title="Activity Log">
+              <Activity className="h-4 w-4" />
+            </button>
             <button onClick={() => logoutMutation.mutate()} className="p-2 transition-colors" style={{ color: C.muted }}>
               <LogOut className="h-4 w-4" />
             </button>

@@ -166,11 +166,6 @@ export default function SettingsPage() {
           {pinMessage && <p className="text-xs mt-1" style={{ color: pinMessage === "PIN changed" ? C.accentDark : "#c0392b" }}>{pinMessage}</p>}
         </div>
 
-        {/* Rules link */}
-        <Link href="/rules" className="block bg-white text-sm font-medium py-3 px-4 rounded-xl hover:opacity-70 transition-colors"
-          style={{ border: `1px solid ${C.border}`, color: C.accentDark }}>
-          Manage Rules →
-        </Link>
       </main>
     </div>
   );
