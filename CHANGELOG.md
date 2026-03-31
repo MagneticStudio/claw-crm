@@ -2,6 +2,10 @@
 
 ## 2026-03-31
 
+### UI Fixes
+- Upcoming strip: long meeting text truncates instead of overflowing and breaking layout
+- Contact card items: icons align to top on multi-line items, text truncates at 80 chars with "..."
+
 ### Pre-PR Hook
 - Claude Code hook blocks `gh pr create` unless CHANGELOG is updated and E2E tests were run
 

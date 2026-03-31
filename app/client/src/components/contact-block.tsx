@@ -359,23 +359,27 @@ export function ContactBlock({
                 const isMeeting = fu.type === "meeting";
                 const icon = isMeeting ? "📅" : null;
 
+                // Truncate long content
+                const maxLen = 80;
+                const fullText = fu.content + (fu.location ? ` — ${fu.location}` : "");
+                const truncated = fullText.length > maxLen ? fullText.slice(0, maxLen) + "..." : fullText;
+
                 return (
-                  <div key={fu.id} className="flex items-center gap-1 text-xs">
+                  <div key={fu.id} className="flex items-start gap-1 text-xs">
                     {isMeeting ? (
-                      <span className="flex-shrink-0 text-sm" title="Meeting">{icon}</span>
+                      <span className="flex-shrink-0 text-sm mt-px" title="Meeting">{icon}</span>
                     ) : (
                       <button onClick={() => { setCompletingFollowupId(fu.id); setCompletingFollowupText(fu.content); }}
-                        className="flex-shrink-0 hover:opacity-70" title="Complete" style={{ color: fuColor }}>
+                        className="flex-shrink-0 hover:opacity-70 mt-px" title="Complete" style={{ color: fuColor }}>
                         <Square className="h-3.5 w-3.5" />
                       </button>
                     )}
-                    <span className="cursor-pointer hover:underline decoration-dotted underline-offset-2"
+                    <span className="cursor-pointer hover:underline decoration-dotted underline-offset-2 min-w-0"
                       onClick={() => { setEditingFollowupId(fu.id); setEditingFollowupText(fu.content); setEditingFollowupDate(fmtDateInput(due)); }}>
                       <span className="font-semibold" style={{ color: fuColor }}>
                         {fmtDate(due)}{fu.time ? ` ${fu.time}` : ""}
                       </span>
-                      <span style={{ color: isOverdue ? C.red : C.text }}> {fu.content}</span>
-                      {fu.location && <span style={{ color: C.muted }}> — {fu.location}</span>}
+                      <span style={{ color: isOverdue ? C.red : C.text }}> {truncated}</span>
                       {isOverdue && <span className="font-semibold" style={{ color: C.red }}> OVERDUE</span>}
                       {isTodayDue && <span className="font-semibold" style={{ color: C.stale }}> TODAY</span>}
                       {!isOverdue && !isTodayDue && daysUntil <= 7 && <span style={{ color: C.muted }}> {daysUntil}d</span>}
