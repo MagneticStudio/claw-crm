@@ -2,6 +2,12 @@
 
 ## 2026-03-31
 
+### AI-Led Onboarding Flow
+- Setup wizard (/setup): PIN creation with confirmation + "Connect your AI agent" page with MCP URL
+- Auth redirects to /setup when no user exists (first-time install)
+- get_crm_guide detects empty CRM and includes onboarding instructions for the agent
+- Dynamic org name in guide (reads from DB settings)
+
 ### Bug Fixes
 - MCP sessions no longer expire after ~30 seconds. Sessions persist for 30 min of inactivity with automatic cleanup. (#9)
 - Dates stored as noon UTC to eliminate timezone off-by-one bugs. Times stored as display strings in user's local timezone. No timezone settings needed. (#10, closes #11)

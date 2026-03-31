@@ -11,6 +11,7 @@ import RulesPage from "@/pages/rules-page";
 import SettingsPage from "@/pages/settings-page";
 import AuthPage from "@/pages/auth-page";
 import BriefingPage from "@/pages/briefing-page";
+import SetupPage from "@/pages/setup-page";
 import NotFound from "@/pages/not-found";
 
 // App config context — org name from DB
@@ -72,6 +73,7 @@ function Router() {
       <ProtectedRoute path="/settings" component={SettingsPage} />
       <ProtectedRoute path="/briefings/:contactId" component={BriefingPage} />
       <Route path="/auth" component={AuthPage} />
+      <Route path="/setup" component={SetupPage} />
       <Route component={NotFound} />
     </Switch>
   );
