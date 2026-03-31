@@ -14,11 +14,11 @@ AI-first personal CRM. A single scrollable notebook view of your entire pipeline
                               (primary write path — agents)
 ```
 
-- **Data**: Postgres — contacts, companies, interactions, follow-ups, meetings, briefings, rules, violations, activity log
+- **Core**: Postgres — contacts, companies, interactions, follow-ups, rules, violations
+- **Plugins**: Meetings, briefings, activity log — each in `app/plugins/` with own schema, routes, MCP tools
 - **Frontend**: React notebook-style view. Inline editing, slash commands, SSE real-time updates
-- **Rules**: Business logic stored as data (JSONB). Evaluated reactively on writes + every 15 minutes
-- **MCP**: Remote endpoint for AI agents. Primary interface for data mutation.
-- **Activity Log**: Audit trail for all system, agent, and user actions
+- **Rules**: Business logic stored as data (JSONB). Evaluated reactively on writes + every 15 minutes. Plugin-extensible conditions.
+- **MCP**: Remote endpoint for AI agents. Core + plugin tools auto-registered.
 - **Deploy**: Railway (auto-deploy from GitHub on merge to main)
 
 ---
@@ -238,3 +238,34 @@ Use `complete_followup(followupId, outcome: "what happened")` to do both in one 
 - **Deploy**: Railway (auto-deploy from main)
 - **Desktop**: Pake (Tauri-based native Mac app)
 - **Mobile**: PWA (Add to Home Screen on iOS)
+
+---
+
+## Plugins
+
+The CRM core is thin — contacts, interactions, follow-ups, rules. Everything else is a plugin.
+
+### Included Plugins
+
+| Plugin | What it adds |
+|--------|-------------|
+| **meetings** | Schedule meetings, "Today" view, `meeting_within_hours` rule condition |
+| **briefings** | Per-contact prep notes (upsert), MCP tools |
+| **activity-log** | Audit trail for all system/agent actions, MCP query tool |
+
+### Creating a Plugin
+
+```
+app/plugins/my-plugin/
+├── schema.ts     # Drizzle table definition
+└── index.ts      # Implements CrmPlugin interface
+```
+
+The `CrmPlugin` interface:
+- `registerRoutes(app, ctx)` — add Express API routes
+- `registerTools(server, ctx)` — add MCP tools
+- `enrichContact(contactId, ctx)` — add data to contact responses
+- `ruleConditions` — register custom rule condition evaluators
+- `guideText` — append to the `get_crm_guide` output
+
+Register in `app/server/index.ts` and the plugin auto-integrates with the API, MCP, rules engine, and UI.
