@@ -2,6 +2,9 @@
 
 ## 2026-03-31
 
+### Bug Fixes
+- MCP sessions no longer expire after ~30 seconds. Sessions persist for 30 min of inactivity with automatic cleanup. (#9)
+
 ### UI Fixes
 - Upcoming strip: long meeting text truncates instead of overflowing and breaking layout
 - Contact card items: icons align to top on multi-line items, text truncates at 80 chars with "..."

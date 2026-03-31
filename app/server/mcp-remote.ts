@@ -425,24 +425,42 @@ function checkToken(req: Request, res: Response): boolean {
   return true;
 }
 
+const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const sessionLastUsed = new Map<string, number>();
+
 function createTransportAndServer(): StreamableHTTPServerTransport {
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: () => randomUUID(),
     onsessioninitialized: (id) => {
       transports.set(id, transport);
+      sessionLastUsed.set(id, Date.now());
     },
   });
 
-  transport.onclose = () => {
-    const id = [...transports.entries()].find(([, t]) => t === transport)?.[0];
-    if (id) transports.delete(id);
-  };
+  // Don't delete on close — sessions persist until TTL expires
+  // The transport.onclose fires after each HTTP response, which would
+  // incorrectly destroy the session between sequential tool calls
 
   const server = createMcpServer();
   server.connect(transport);
 
   return transport;
 }
+
+function touchSession(sessionId: string) {
+  sessionLastUsed.set(sessionId, Date.now());
+}
+
+// Cleanup stale sessions every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, lastUsed] of sessionLastUsed.entries()) {
+    if (now - lastUsed > SESSION_TTL_MS) {
+      transports.delete(id);
+      sessionLastUsed.delete(id);
+    }
+  }
+}, 5 * 60 * 1000);
 
 export function registerMcpRoutes(app: Express) {
   // Handle POST /mcp/:token
@@ -453,6 +471,7 @@ export function registerMcpRoutes(app: Express) {
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
 
     if (sessionId && transports.has(sessionId)) {
+      touchSession(sessionId);
       const transport = transports.get(sessionId)!;
       await transport.handleRequest(req, res, req.body);
       return;
@@ -464,12 +483,12 @@ export function registerMcpRoutes(app: Express) {
   });
 
   // Handle GET /mcp/:token - SSE stream
-  // If session is stale, create a new one instead of erroring
   app.get("/mcp/:token", async (req: Request, res: Response) => {
     if (!checkToken(req, res)) return;
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
 
     if (sessionId && transports.has(sessionId)) {
+      touchSession(sessionId);
       const transport = transports.get(sessionId)!;
       await transport.handleRequest(req, res);
       return;
