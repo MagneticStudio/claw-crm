@@ -5,7 +5,7 @@
   },
   "deploy": {
     "startCommand": "node dist/index.js",
-    "healthcheckPath": "/api/user",
+    "healthcheckPath": "/api/config",
     "restartPolicyType": "ON_FAILURE",
     "preDeployCommand": "npx drizzle-kit push"
   }
