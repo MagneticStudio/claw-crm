@@ -73,67 +73,30 @@ curl -H "X-API-Key: <key>" https://your-domain.com/api/contacts
 
 ---
 
-## MCP Tools Reference
+## MCP Tools (Core)
 
-### Guide
 | Tool | Description |
 |------|-------------|
 | `get_crm_guide` | Returns full agent usage guide. Recommended first call. |
-
-### Contacts
-| Tool | Description |
-|------|-------------|
 | `search_contacts` | Find by name, company, stage, or status |
-| `get_contact` | Full contact with interactions, follow-ups, meetings, briefing, violations |
+| `get_contact` | Full contact with all related data |
 | `create_contact` | Add a new contact. Search first to avoid duplicates. |
 | `update_contact` | Modify contact fields |
 | `delete_contact` | Permanently delete a contact and all related data |
-
-### Timeline
-| Tool | Description |
-|------|-------------|
 | `add_interaction` | Log a note, email, meeting, or call |
 | `delete_interaction` | Remove a timeline entry |
-
-### Tasks
-| Tool | Description |
-|------|-------------|
 | `set_followup` | Create a follow-up task with due date |
 | `complete_followup` | Mark done + log outcome to timeline |
 | `delete_followup` | Remove a task without completing it |
-
-### Meetings
-| Tool | Description |
-|------|-------------|
-| `set_meeting` | Schedule a meeting (call, video, in-person, coffee) |
-| `get_upcoming_meetings` | List meetings in next N hours/days |
-| `cancel_meeting` | Soft-cancel a meeting |
-
-### Briefings
-| Tool | Description |
-|------|-------------|
-| `save_briefing` | Save prep notes for a contact (one per contact, upsert) |
-| `get_briefing` | Retrieve a contact's briefing |
-
-### Pipeline
-| Tool | Description |
-|------|-------------|
 | `get_pipeline` | Contacts grouped by stage |
-| `get_dashboard` | Summary: active count, overdue follow-ups, violations, meetings today |
-
-### Rules
-| Tool | Description |
-|------|-------------|
+| `get_dashboard` | Summary: active count, overdue follow-ups, violations |
 | `list_rules` | All business rules |
 | `create_rule` | Add a business rule |
 | `update_rule` | Modify rule logic, params, exceptions, or enable/disable |
 | `delete_rule` | Remove a rule |
 | `list_violations` | Active rule violations |
 
-### Activity Log
-| Tool | Description |
-|------|-------------|
-| `get_activity_log` | View system activity: rule evaluations, agent actions, violations. Filter by contact, event type, or source. |
+Plugins add their own tools — see each plugin's README for details.
 
 ---
 
