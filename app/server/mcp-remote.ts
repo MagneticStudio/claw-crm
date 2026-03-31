@@ -19,9 +19,30 @@ function createMcpServer(): McpServer {
     "RECOMMENDED FIRST CALL. Returns instructions on how to use this CRM correctly. Call this before creating or updating contacts to understand the data conventions.",
     {},
     async () => {
-      return { content: [{ type: "text" as const, text: `# Magnetic Advisors CRM — Agent Guide
+      // Detect if CRM is empty (first-time setup)
+      const allContacts = await storage.getContacts();
+      const user = await storage.getFirstUser();
+      const isEmpty = allContacts.length === 0;
+      const orgName = user?.orgName || "Claw CRM";
 
-This is a personal advisory CRM for a solo consultant (Alex Furmansky / Magnetic Advisors). It tracks ~15 prospects and clients through a pipeline.
+      const onboardingSection = isEmpty ? `
+## FIRST-TIME SETUP — This CRM is empty!
+
+Help the user set up their CRM through conversation:
+1. Ask for their name and organization → call update_contact or just note it
+2. Ask them to describe their pipeline: "Who are your current clients and prospects?"
+3. For each person they mention → create_contact() with the right stage
+4. Ask about recent interactions → add_interaction() for each
+5. Ask about upcoming tasks → set_followup() for each
+6. The default rules (stale detection, overdue follow-ups) are already active
+
+Be conversational. The user says "I have a prospect named Sarah at Acme, we had a call last week" → you create the contact, log the interaction, suggest a follow-up.
+` : "";
+
+      return { content: [{ type: "text" as const, text: `# ${orgName} CRM — Agent Guide
+
+This is a personal CRM. It tracks prospects and clients through a pipeline.
+${onboardingSection}
 
 ## Key Principles
 - This is a NOTEBOOK, not a database. Keep entries concise and scannable.
