@@ -9,6 +9,7 @@ export const users = pgTable("users", {
   apiKey: text("api_key").notNull(),
   mcpToken: text("mcp_token").notNull().default(""),
   orgName: text("org_name").notNull().default("Claw CRM"),
+  primaryColor: text("primary_color").notNull().default("#2bbcb3"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

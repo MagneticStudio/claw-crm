@@ -24,7 +24,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/config", async (_req, res) => {
     const user = await storage.getFirstUser();
     const badges = getPlugins().flatMap(p => p.badges || []);
-    res.json({ orgName: user?.orgName || "Claw CRM", badges });
+    res.json({ orgName: user?.orgName || "Claw CRM", primaryColor: user?.primaryColor || "#2bbcb3", badges });
   });
 
   // --- Settings (auth required) ---
@@ -33,6 +33,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!user) return res.status(404).json({ message: "No user" });
     res.json({
       orgName: user.orgName,
+      primaryColor: user.primaryColor,
       apiKey: user.apiKey,
       mcpToken: user.mcpToken,
     });
@@ -41,9 +42,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/settings", requireAuth, async (req, res) => {
     const user = await storage.getFirstUser();
     if (!user) return res.status(404).json({ message: "No user" });
-    const { orgName } = req.body;
+    const { orgName, primaryColor } = req.body;
     const updates: any = {};
     if (orgName !== undefined) updates.orgName = orgName;
+    if (primaryColor !== undefined) updates.primaryColor = primaryColor;
     const updated = await storage.updateUser(user.id, updates);
     res.json({ orgName: updated?.orgName });
   });

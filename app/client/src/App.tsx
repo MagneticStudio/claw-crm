@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext } from "react";
+import { useState, useEffect, createContext, useContext, useMemo } from "react";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
@@ -21,16 +21,44 @@ export interface PluginBadge {
   tooltip?: string;
 }
 
-const ConfigContext = createContext<{ orgName: string; badges: PluginBadge[] }>({ orgName: "Claw CRM", badges: [] });
+// Derive color variants from a hex primary color
+function deriveColors(hex: string) {
+  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+  const darken = (amt: number) => `#${[r,g,b].map(c => Math.max(0, Math.round(c * (1 - amt))).toString(16).padStart(2, "0")).join("")}`;
+  const lighten = (amt: number) => `#${[r,g,b].map(c => Math.min(255, Math.round(c + (255 - c) * amt)).toString(16).padStart(2, "0")).join("")}`;
+  return {
+    accent: hex,
+    accentDark: darken(0.15),
+    accentLight: lighten(0.9),
+    bg: lighten(0.95),
+  };
+}
+
+interface AppConfig { orgName: string; primaryColor: string; badges: PluginBadge[]; colors: ReturnType<typeof deriveColors> }
+
+const defaultColors = deriveColors("#2bbcb3");
+const ConfigContext = createContext<AppConfig>({ orgName: "Claw CRM", primaryColor: "#2bbcb3", badges: [], colors: defaultColors });
 export function useConfig() { return useContext(ConfigContext); }
 
 function ConfigProvider({ children }: { children: React.ReactNode }) {
-  const { data } = useQuery<{ orgName: string; badges: PluginBadge[] }>({
+  const { data } = useQuery<{ orgName: string; primaryColor: string; badges: PluginBadge[] }>({
     queryKey: ["/api/config"],
     staleTime: 60_000,
   });
+  const primaryColor = data?.primaryColor || "#2bbcb3";
+  const colors = deriveColors(primaryColor);
+
+  // Set CSS custom properties on document root
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty("--accent", colors.accent);
+    root.style.setProperty("--accent-dark", colors.accentDark);
+    root.style.setProperty("--accent-light", colors.accentLight);
+    root.style.setProperty("--bg", colors.bg);
+  }, [colors]);
+
   return (
-    <ConfigContext.Provider value={{ orgName: data?.orgName || "Claw CRM", badges: data?.badges || [] }}>
+    <ConfigContext.Provider value={{ orgName: data?.orgName || "Claw CRM", primaryColor, badges: data?.badges || [], colors }}>
       {children}
     </ConfigContext.Provider>
   );
