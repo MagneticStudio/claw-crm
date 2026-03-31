@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Loader2 } from "lucide-react";
+import { useConfig } from "@/App";
 
 export default function AuthPage() {
   const [pin, setPin] = useState("");
@@ -9,6 +10,7 @@ export default function AuthPage() {
   const [apiKey, setApiKey] = useState("");
   const [, navigate] = useLocation();
   const { user, needsSetup, loginMutation, setupMutation } = useAuth();
+  const { orgName } = useConfig();
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -67,7 +69,7 @@ export default function AuthPage() {
       style={{ background: "linear-gradient(135deg, #2bbcb3, #30bfb7, #3cc8c0)" }}>
       <div className="w-full max-w-sm p-8 text-center">
         <div className="mb-8">
-          <h1 className="text-xl font-semibold tracking-[0.2em] text-white uppercase">Magnetic Advisors</h1>
+          <h1 className="text-xl font-semibold tracking-[0.2em] text-white uppercase">{orgName}</h1>
           <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.7)" }}>
             {needsSetup ? "Set your PIN" : "Enter PIN"}
           </p>

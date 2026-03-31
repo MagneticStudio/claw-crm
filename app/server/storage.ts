@@ -68,8 +68,13 @@ export class Storage {
     return user;
   }
 
-  async createUser(pin: string, apiKey: string): Promise<User> {
-    const [user] = await db.insert(users).values({ pin, apiKey }).returning();
+  async createUser(pin: string, apiKey: string, mcpToken?: string, orgName?: string): Promise<User> {
+    const [user] = await db.insert(users).values({ pin, apiKey, mcpToken: mcpToken || "", orgName: orgName || "Claw CRM" }).returning();
+    return user;
+  }
+
+  async updateUser(id: number, data: Partial<{ pin: string; apiKey: string; mcpToken: string; orgName: string }>): Promise<User | undefined> {
+    const [user] = await db.update(users).set(data).where(eq(users.id, id)).returning();
     return user;
   }
 

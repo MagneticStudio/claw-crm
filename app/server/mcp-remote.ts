@@ -412,15 +412,19 @@ Available exception types: has_future_followup, stage_in (with params.stages arr
 // Session management for stateful connections
 const transports = new Map<string, StreamableHTTPServerTransport>();
 
-// Secret path token — the MCP endpoint is only accessible at /mcp/:token
-const MCP_TOKEN = process.env.MCP_TOKEN || "622ed3f5177354c59c67c85b8ad4592e";
+// MCP token is stored in the DB per user. Check against the stored token.
+async function checkToken(req: Request, res: Response): Promise<boolean> {
+  const token = req.params.token;
+  if (!token) { res.status(404).json({ error: "Not found" }); return false; }
 
-function checkToken(req: Request, res: Response): boolean {
-  if (req.params.token !== MCP_TOKEN) {
-    res.status(404).json({ error: "Not found" });
-    return false;
-  }
-  return true;
+  // Check env var first (backward compat), then DB
+  if (process.env.MCP_TOKEN && token === process.env.MCP_TOKEN) return true;
+
+  const user = await storage.getFirstUser();
+  if (user && user.mcpToken && token === user.mcpToken) return true;
+
+  res.status(404).json({ error: "Not found" });
+  return false;
 }
 
 const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
@@ -465,7 +469,7 @@ export function registerMcpRoutes(app: Express) {
   // If session ID is unknown (e.g. after redeploy), auto-create a new session
   // so Claude doesn't need manual reconnection
   app.post("/mcp/:token", async (req: Request, res: Response) => {
-    if (!checkToken(req, res)) return;
+    if (!(await checkToken(req, res))) return;
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
 
     if (sessionId && transports.has(sessionId)) {
@@ -482,7 +486,7 @@ export function registerMcpRoutes(app: Express) {
 
   // Handle GET /mcp/:token - SSE stream
   app.get("/mcp/:token", async (req: Request, res: Response) => {
-    if (!checkToken(req, res)) return;
+    if (!(await checkToken(req, res))) return;
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
 
     if (sessionId && transports.has(sessionId)) {
@@ -499,7 +503,7 @@ export function registerMcpRoutes(app: Express) {
 
   // Handle DELETE /mcp/:token - session cleanup
   app.delete("/mcp/:token", async (req: Request, res: Response) => {
-    if (!checkToken(req, res)) return;
+    if (!(await checkToken(req, res))) return;
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
     if (sessionId && transports.has(sessionId)) {
       const transport = transports.get(sessionId)!;
