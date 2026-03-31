@@ -2,6 +2,9 @@
 
 ## 2026-03-31
 
+### Pre-PR Hook
+- Claude Code hook blocks `gh pr create` unless CHANGELOG is updated and E2E tests were run
+
 ### Unified Items Model
 - Tasks and meetings are now the same entity: items with a `type` field on the core `followups` table
 - Tasks show □ checkbox, meetings show 📅 icon — both inline in contact cards, sorted by date
