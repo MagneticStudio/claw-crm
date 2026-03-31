@@ -1,13 +1,17 @@
 # Meetings Plugin
 
-Schedule and track meetings with contacts.
+Schedule and track meetings with contacts. Meetings are items with `type: "meeting"` on the core `followups` table.
+
+## Slash Command
+
+`/mtg M/D time description @ location` — e.g. `/mtg 4/3 2pm Coffee with Idan @ Century City`
 
 ## MCP Tools
 
 | Tool | Description |
 |------|-------------|
-| `set_meeting` | Schedule a meeting (call, video, in-person, coffee) |
-| `get_upcoming_meetings` | List meetings in next N hours/days |
+| `set_meeting` | Schedule a meeting (creates item with type "meeting") |
+| `get_upcoming_meetings` | List upcoming meetings |
 | `cancel_meeting` | Soft-cancel a meeting |
 
 ## Rule Conditions
@@ -16,19 +20,8 @@ Schedule and track meetings with contacts.
 |-----------|-------------|--------|
 | `meeting_within_hours` | Contact has a meeting within N hours | `{ hours: 24 }` |
 
-## API Routes
+## Item Type
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/meetings` | List meetings. `?contactId=N`, `?today=true` |
-| GET | `/api/meetings/upcoming` | Upcoming meetings. `?hours=24` |
-| POST | `/api/meetings` | Create meeting |
-| PUT | `/api/meetings/:id` | Update meeting |
-| POST | `/api/meetings/:id/cancel` | Cancel meeting |
-| POST | `/api/meetings/:id/complete` | Mark meeting as completed |
+Registered as: `{ name: "meeting", icon: "📅", completable: false, hasTime: true, hasLocation: true }`
 
-## Data
-
-Meetings are future events — not interactions. After a meeting happens, log it as an interaction with `add_interaction`. Meetings appear in the "Today" section on the CRM page.
-
-Types: `call`, `video`, `in-person`, `coffee`
+Meetings appear alongside tasks in contact cards and the Upcoming strip, sorted by date. After a meeting happens, log it as an interaction with `add_interaction`.

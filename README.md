@@ -171,11 +171,15 @@ Use `complete_followup(followupId, outcome: "what happened")` to do both in one 
 
 | Command | Action | Example |
 |---------|--------|---------|
-| `/fu M/D text` | Create follow-up | `/fu 4/15 check on proposal` |
+| `/fu M/D text` | Create task | `/fu 4/15 check on proposal` |
 | `/f`, `/follow`, `/todo`, `/task` | Same as /fu | `/task 4/1 ping Ari` |
+| `/mtg M/D time text @ location` | Create meeting | `/mtg 4/3 2pm Coffee with Idan @ Century City` |
+| `/meeting` | Same as /mtg | |
 | `/stage STAGE` | Change stage | `/stage PROPOSAL` |
 | `/status STATUS` | Change status | `/status HOLD` |
 | (plain text + Enter) | Add interaction note | `Had coffee with Idan` |
+
+Tasks show □ checkbox (completable). Meetings show 📅 icon. Plugins can register new item types with custom slash commands.
 
 ---
 
