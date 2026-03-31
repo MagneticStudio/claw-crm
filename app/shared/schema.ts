@@ -80,36 +80,6 @@ export const insertFollowupSchema = createInsertSchema(followups).omit({ id: tru
 export type InsertFollowup = z.infer<typeof insertFollowupSchema>;
 export type Followup = typeof followups.$inferSelect;
 
-// Meetings
-export const meetings = pgTable("meetings", {
-  id: serial("id").primaryKey(),
-  contactId: integer("contact_id").notNull().references(() => contacts.id, { onDelete: "cascade" }),
-  date: timestamp("date").notNull(), // date + time combined
-  type: text("type").notNull().default("call"), // call | video | in-person | coffee
-  location: text("location"),
-  notes: text("notes"),
-  completed: boolean("completed").notNull().default(false),
-  cancelledAt: timestamp("cancelled_at"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
-
-export const insertMeetingSchema = createInsertSchema(meetings).omit({ id: true, cancelledAt: true, createdAt: true });
-export type InsertMeeting = z.infer<typeof insertMeetingSchema>;
-export type Meeting = typeof meetings.$inferSelect;
-
-// Briefings — one per contact (upsert)
-export const briefings = pgTable("briefings", {
-  id: serial("id").primaryKey(),
-  contactId: integer("contact_id").notNull().references(() => contacts.id, { onDelete: "cascade" }),
-  content: text("content").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
-
-export const insertBriefingSchema = createInsertSchema(briefings).omit({ id: true, createdAt: true, updatedAt: true });
-export type InsertBriefing = z.infer<typeof insertBriefingSchema>;
-export type Briefing = typeof briefings.$inferSelect;
-
 // Rules
 export const rules = pgTable("rules", {
   id: serial("id").primaryKey(),
@@ -133,7 +103,7 @@ export const ruleViolations = pgTable("rule_violations", {
   ruleId: integer("rule_id").notNull().references(() => rules.id, { onDelete: "cascade" }),
   contactId: integer("contact_id").notNull().references(() => contacts.id, { onDelete: "cascade" }),
   message: text("message").notNull(),
-  severity: text("severity").notNull().default("warning"), // info | warning | critical
+  severity: text("severity").notNull().default("warning"),
   resolvedAt: timestamp("resolved_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -142,25 +112,22 @@ export const insertRuleViolationSchema = createInsertSchema(ruleViolations).omit
 export type InsertRuleViolation = z.infer<typeof insertRuleViolationSchema>;
 export type RuleViolation = typeof ruleViolations.$inferSelect;
 
-// Activity log — audit trail for system, agent, and user actions
-export const activityLog = pgTable("activity_log", {
-  id: serial("id").primaryKey(),
-  event: text("event").notNull(), // "rule.evaluated", "meeting.created", "contact.updated", etc.
-  detail: text("detail").notNull(), // human-readable description
-  contactId: integer("contact_id").references(() => contacts.id, { onDelete: "cascade" }),
-  source: text("source").notNull().default("system"), // "system", "agent", "user", "rule:1"
-  metadata: jsonb("metadata"), // structured data for troubleshooting
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+// Re-export plugin schemas for Drizzle to discover during db:push
+export { meetings } from "../plugins/meetings/schema";
+export type { Meeting } from "../plugins/meetings/schema";
+export { briefings } from "../plugins/briefings/schema";
+export type { Briefing } from "../plugins/briefings/schema";
+export { activityLog } from "../plugins/activity-log/schema";
+export type { ActivityLogEntry } from "../plugins/activity-log/schema";
 
-export type ActivityLogEntry = typeof activityLog.$inferSelect;
-
-// Composite types for API responses
+// Composite type — core fields + plugin fields merged by enrichContact
 export type ContactWithRelations = Contact & {
   company: Company | null;
   interactions: Interaction[];
   followups: Followup[];
   violations: RuleViolation[];
-  meetings: Meeting[];
-  briefing: Briefing | null;
+  // Plugin-contributed fields (optional — present when plugins are loaded)
+  meetings?: any[];
+  briefing?: any | null;
+  [key: string]: unknown;
 };
