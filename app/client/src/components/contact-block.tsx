@@ -196,6 +196,11 @@ export function ContactBlock({
 
         {isStale && <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" style={{ color: C.stale }} />}
         {hasViolations && !isStale && <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" style={{ color: C.stale }} />}
+
+        {/* Plugin badges */}
+        {(contact as any).briefing && (
+          <a href={`/briefings/${contact.id}`} className="flex-shrink-0 hover:opacity-70 transition-colors" title="View briefing" style={{ fontSize: "14px" }}>📋</a>
+        )}
       </div>
 
       {/* Details preview — first two lines, then "more..." */}

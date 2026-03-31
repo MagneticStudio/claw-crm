@@ -46,6 +46,18 @@ export interface CrmPlugin {
   /** Register new item types (tasks, meetings, etc.) */
   itemTypes?: ItemType[];
 
+  /** Badges shown on contact cards when plugin data exists */
+  badges?: Array<{
+    /** Data key to check on enriched contact (e.g., "briefing") */
+    dataKey: string;
+    /** Icon to show when data exists */
+    icon: string;
+    /** Route path to navigate to on click. Use :contactId as placeholder. */
+    route: string;
+    /** Tooltip text */
+    tooltip?: string;
+  }>;
+
   /** Guide text appended to get_crm_guide output. */
   guideText?: string;
 }

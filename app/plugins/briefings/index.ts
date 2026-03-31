@@ -69,6 +69,15 @@ const briefingsPlugin: CrmPlugin = {
     });
   },
 
+  badges: [
+    {
+      dataKey: "briefing",
+      icon: "📋",
+      route: "/briefings/:contactId",
+      tooltip: "View briefing",
+    },
+  ],
+
   async enrichContact(contactId, ctx) {
     const [briefing] = await ctx.db.select().from(briefings).where(eq(briefings.contactId, contactId));
     return { briefing: briefing ?? null };
