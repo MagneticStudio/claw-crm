@@ -10,20 +10,25 @@ const C = {
 };
 
 export default function SettingsPage() {
-  const { data: settings } = useQuery<{ orgName: string; apiKey: string; mcpToken: string }>({
+  const { data: settings } = useQuery<{ orgName: string; primaryColor: string; apiKey: string; mcpToken: string }>({
     queryKey: ["/api/settings"],
   });
 
   const [orgName, setOrgName] = useState("");
   const [orgNameDirty, setOrgNameDirty] = useState(false);
+  const [primaryColor, setPrimaryColor] = useState("#2bbcb3");
+  const [colorDirty, setColorDirty] = useState(false);
   const [currentPin, setCurrentPin] = useState("");
   const [newPin, setNewPin] = useState("");
   const [pinMessage, setPinMessage] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
 
-  // Initialize orgName from settings
+  // Initialize from settings
   if (settings && !orgNameDirty && orgName !== settings.orgName) {
     setOrgName(settings.orgName);
+  }
+  if (settings && !colorDirty && primaryColor !== settings.primaryColor) {
+    setPrimaryColor(settings.primaryColor);
   }
 
   const updateOrgName = useMutation({
@@ -35,6 +40,18 @@ export default function SettingsPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
       queryClient.invalidateQueries({ queryKey: ["/api/config"] });
       setOrgNameDirty(false);
+    },
+  });
+
+  const updateColor = useMutation({
+    mutationFn: async (color: string) => {
+      const res = await apiRequest("PUT", "/api/settings", { primaryColor: color });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/config"] });
+      setColorDirty(false);
     },
   });
 
@@ -100,6 +117,34 @@ export default function SettingsPage() {
             <button
               onClick={() => updateOrgName.mutate(orgName)}
               disabled={!orgNameDirty}
+              className="text-xs font-medium text-white px-3 py-1.5 rounded-lg disabled:opacity-40"
+              style={{ backgroundColor: C.accentDark }}
+            >Save</button>
+          </div>
+        </div>
+
+        {/* Brand Color */}
+        <div className="bg-white" style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}>
+          <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>Brand Color</label>
+          <p className="text-[11px] mt-0.5 mb-2" style={{ color: C.muted }}>Pick a primary color. The UI adapts automatically.</p>
+          <div className="flex items-center gap-3">
+            <input
+              type="color"
+              value={primaryColor}
+              onChange={(e) => { setPrimaryColor(e.target.value); setColorDirty(true); }}
+              className="w-10 h-10 rounded-lg cursor-pointer border-0"
+              style={{ backgroundColor: primaryColor }}
+            />
+            <input
+              value={primaryColor}
+              onChange={(e) => { setPrimaryColor(e.target.value); setColorDirty(true); }}
+              className="text-sm font-mono rounded-lg px-3 py-1.5 outline-none w-24"
+              style={{ border: `1px solid ${C.border}`, color: C.text }}
+            />
+            <div className="flex-1 h-8 rounded-lg" style={{ background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}dd)` }} />
+            <button
+              onClick={() => updateColor.mutate(primaryColor)}
+              disabled={!colorDirty}
               className="text-xs font-medium text-white px-3 py-1.5 rounded-lg disabled:opacity-40"
               style={{ backgroundColor: C.accentDark }}
             >Save</button>

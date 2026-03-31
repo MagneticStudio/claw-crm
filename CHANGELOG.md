@@ -6,6 +6,11 @@
 - MCP sessions no longer expire after ~30 seconds. Sessions persist for 30 min of inactivity with automatic cleanup. (#9)
 - Dates stored as noon UTC to eliminate timezone off-by-one bugs. Times stored as display strings in user's local timezone. No timezone settings needed. (#10, closes #11)
 
+### Customizable Color Scheme
+- Pick one primary color in Settings — UI derives accent dark, accent light, and background automatically
+- CSS custom properties (--accent, --accent-dark, --accent-light, --bg) set at runtime
+- Stored in DB, served via /api/config, persists across sessions
+
 ### Plugin Badges + Briefings Page
 - Plugin `badges` interface: plugins declare data keys, icons, and routes for contact card badges
 - Briefings plugin: 📋 badge on contacts with briefings, links to `/briefings/:contactId`
