@@ -6,6 +6,12 @@
 - MCP sessions no longer expire after ~30 seconds. Sessions persist for 30 min of inactivity with automatic cleanup. (#9)
 - Dates stored as noon UTC to eliminate timezone off-by-one bugs. Times stored as display strings in user's local timezone. No timezone settings needed. (#10, closes #11)
 
+### Plugin Badges + Briefings Page
+- Plugin `badges` interface: plugins declare data keys, icons, and routes for contact card badges
+- Briefings plugin: 📋 badge on contacts with briefings, links to `/briefings/:contactId`
+- Briefings page: full-page view with upcoming meetings, editable content, create/edit flow
+- Keeps main notebook view clean — badges are small, content lives on its own page
+
 ### Deploy Fix
 - Fixed Railway deploy crash: NIXPACKS builder used Node 18 which lacks `import.meta.dirname`. Simplified railway.json to let Railway auto-detect RAILPACK + Node 22.
 

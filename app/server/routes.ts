@@ -23,7 +23,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // --- Public config (no auth — needed for login page branding) ---
   app.get("/api/config", async (_req, res) => {
     const user = await storage.getFirstUser();
-    res.json({ orgName: user?.orgName || "Claw CRM" });
+    const badges = getPlugins().flatMap(p => p.badges || []);
+    res.json({ orgName: user?.orgName || "Claw CRM", badges });
   });
 
   // --- Settings (auth required) ---
