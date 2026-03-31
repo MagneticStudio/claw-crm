@@ -1,6 +1,7 @@
 import type { CrmPlugin } from "../index";
 import { z } from "zod";
 import { followups } from "@shared/schema";
+import { toNoonUTC } from "@shared/dates";
 import { eq, and, isNull, gte, lte, asc } from "drizzle-orm";
 
 const meetingsPlugin: CrmPlugin = {
@@ -62,7 +63,7 @@ const meetingsPlugin: CrmPlugin = {
       time: z.string().optional().describe("Display time, e.g. '2:00 PM'. Auto-parsed from date if not provided."),
     }, async ({ contactId, date, content, type: meetingType, location, time }) => {
       try {
-        const d = new Date(date);
+        const d = toNoonUTC(date);
         const displayTime = time || d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
         const [item] = await db.insert(followups).values({
           contactId, type: "meeting", dueDate: d, content,

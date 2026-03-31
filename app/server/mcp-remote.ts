@@ -3,6 +3,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { z } from "zod";
 import { storage } from "./storage";
 import { getPlugins } from "../plugins";
+import { toNoonUTC, parseDateToNoonUTC } from "@shared/dates";
 import type { Express, Request, Response } from "express";
 import { randomUUID } from "crypto";
 
@@ -57,6 +58,8 @@ Note: PASS is a STAGE (declined/not a fit), not a status.
 - additionalContacts: "Name (Role): email" separated by newlines
 - interaction content: past tense, factual, concise (e.g. "AF had intro call. 30 min, discussed AI strategy.")
 - followup content: action-oriented (e.g. "Check for reply on proposal")
+- dates: use YYYY-MM-DD or M/D format. The CRM stores dates only, not datetimes. No timezone conversion.
+- times: for meetings, store as a display string in the user's local timezone (e.g. "2:30 PM"). Don't convert timezones.
 
 ## Rules
 Rules auto-flag issues (stale contacts, overdue follow-ups). You can create, update, and delete rules.
@@ -229,7 +232,7 @@ Do NOT log follow-up tasks here — use set_followup for those.`,
     },
     async ({ contactId, content, date, type }) => {
       try {
-        const i = await storage.createInteraction({ contactId, content, date: date ? new Date(date) : new Date(), type: type || "note" });
+        const i = await storage.createInteraction({ contactId, content, date: date ? toNoonUTC(date) : toNoonUTC(new Date()), type: type || "note" });
         return { content: [{ type: "text" as const, text: `Logged ${i.type} for contact ${contactId}` }] };
       } catch (err: any) {
         return { content: [{ type: "text" as const, text: `Error logging interaction: ${err.message}` }], isError: true };
@@ -250,14 +253,9 @@ Examples: "Check for reply on proposal", "Send intro email", "Prep agenda for ki
     },
     async ({ contactId, content, dueDate }) => {
       try {
-        let d: Date;
-        if (dueDate.includes("/") && !dueDate.includes("T")) {
-          const [m, day] = dueDate.split("/").map(Number);
-          d = new Date(new Date().getFullYear(), m - 1, day);
-          if (d < new Date()) d.setFullYear(d.getFullYear() + 1);
-        } else { d = new Date(dueDate); }
+        const d = parseDateToNoonUTC(dueDate);
         await storage.createFollowup({ contactId, content, dueDate: d, completed: false });
-        return { content: [{ type: "text" as const, text: `Follow-up set for ${d.toLocaleDateString()}: "${content}"` }] };
+        return { content: [{ type: "text" as const, text: `Follow-up set for ${d.getUTCMonth()+1}/${d.getUTCDate()}: "${content}"` }] };
       } catch (err: any) {
         return { content: [{ type: "text" as const, text: `Error creating follow-up: ${err.message}` }], isError: true };
       }
@@ -278,7 +276,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
         const fu = await storage.completeFollowup(followupId);
         if (!fu) return { content: [{ type: "text" as const, text: `Follow-up ${followupId} not found` }], isError: true };
         if (outcome?.trim()) {
-          await storage.createInteraction({ contactId: fu.contactId, content: outcome.trim(), date: new Date(), type: "note" });
+          await storage.createInteraction({ contactId: fu.contactId, content: outcome.trim(), date: toNoonUTC(new Date()), type: "note" });
           return { content: [{ type: "text" as const, text: `Completed and logged: "${outcome.trim()}"` }] };
         }
         return { content: [{ type: "text" as const, text: `Completed: "${fu.content}"` }] };
