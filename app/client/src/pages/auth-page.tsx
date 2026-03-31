@@ -15,7 +15,8 @@ export default function AuthPage() {
 
   useEffect(() => {
     if (user) navigate("/");
-  }, [user, navigate]);
+    if (needsSetup) navigate("/setup");
+  }, [user, needsSetup, navigate]);
 
   useEffect(() => {
     inputRef.current?.focus();
