@@ -11,6 +11,7 @@ import {
   insertRuleSchema,
 } from "@shared/schema";
 import { getPlugins } from "../plugins";
+import { toNoonUTC } from "@shared/dates";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   setupAuth(app);
@@ -98,7 +99,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/interactions", requireAuth, async (req, res) => {
-    const data = { ...req.body, date: new Date(req.body.date) };
+    const data = { ...req.body, date: toNoonUTC(req.body.date) };
     const parsed = insertInteractionSchema.safeParse(data);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const interaction = await storage.createInteraction(parsed.data);
@@ -106,7 +107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.put("/api/interactions/:id", requireAuth, async (req, res) => {
-    const data = req.body.date ? { ...req.body, date: new Date(req.body.date) } : req.body;
+    const data = req.body.date ? { ...req.body, date: toNoonUTC(req.body.date) } : req.body;
     const interaction = await storage.updateInteraction(parseInt(req.params.id), data);
     if (!interaction) return res.status(404).json({ message: "Interaction not found" });
     res.json(interaction);
@@ -131,7 +132,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/followups", requireAuth, async (req, res) => {
-    const data = { ...req.body, dueDate: new Date(req.body.dueDate) };
+    const data = { ...req.body, dueDate: toNoonUTC(req.body.dueDate) };
     const parsed = insertFollowupSchema.safeParse(data);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const followup = await storage.createFollowup(parsed.data);
@@ -139,7 +140,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.put("/api/followups/:id", requireAuth, async (req, res) => {
-    const data = req.body.dueDate ? { ...req.body, dueDate: new Date(req.body.dueDate) } : req.body;
+    const data = req.body.dueDate ? { ...req.body, dueDate: toNoonUTC(req.body.dueDate) } : req.body;
     const followup = await storage.updateFollowup(parseInt(req.params.id), data);
     if (!followup) return res.status(404).json({ message: "Follow-up not found" });
     res.json(followup);
@@ -155,7 +156,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.createInteraction({
         contactId: followup.contactId,
         content: outcome.trim(),
-        date: new Date(),
+        date: toNoonUTC(new Date()),
         type: "note",
       });
     }

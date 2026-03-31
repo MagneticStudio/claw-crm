@@ -27,6 +27,11 @@ if [ -z "$RECENT_SCREENSHOTS" ]; then
   ERRORS="$ERRORS No recent E2E test screenshots — run the E2E test skill first."
 fi
 
+# 3. Check PR is assigned to Parker
+if ! echo "$COMMAND" | grep -q "parkervoss"; then
+  ERRORS="$ERRORS PR must be assigned to parkervoss (add --assignee parkervoss)."
+fi
+
 if [ -n "$ERRORS" ]; then
   cat <<EOF
 {
