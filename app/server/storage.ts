@@ -118,7 +118,7 @@ export class Storage {
     const [company, contactInteractions, contactFollowups, contactViolations] = await Promise.all([
       contact.companyId ? this.getCompany(contact.companyId) : Promise.resolve(null),
       db.select().from(interactions).where(eq(interactions.contactId, contact.id)).orderBy(asc(interactions.date)),
-      db.select().from(followups).where(eq(followups.contactId, contact.id)).orderBy(asc(followups.dueDate)),
+      db.select().from(followups).where(and(eq(followups.contactId, contact.id), isNull(followups.cancelledAt))).orderBy(asc(followups.dueDate)),
       db.select().from(ruleViolations).where(and(eq(ruleViolations.contactId, contact.id), isNull(ruleViolations.resolvedAt))),
     ]);
 
@@ -134,8 +134,12 @@ export class Storage {
     const pluginCtx = this.getPluginContext();
     for (const plugin of getPlugins()) {
       if (plugin.enrichContact) {
-        const extra = await plugin.enrichContact(contact.id, pluginCtx);
-        Object.assign(result, extra);
+        try {
+          const extra = await plugin.enrichContact(contact.id, pluginCtx);
+          Object.assign(result, extra);
+        } catch {
+          // Plugin enrichment failed — skip, don't crash
+        }
       }
     }
 
@@ -205,14 +209,14 @@ export class Storage {
     return !!deleted;
   }
 
-  // --- Follow-ups ---
+  // --- Items (follow-ups, meetings, etc.) ---
   async getFollowups(contactId?: number): Promise<Followup[]> {
-    if (contactId) return db.select().from(followups).where(eq(followups.contactId, contactId)).orderBy(asc(followups.dueDate));
-    return db.select().from(followups).orderBy(asc(followups.dueDate));
+    if (contactId) return db.select().from(followups).where(and(eq(followups.contactId, contactId), isNull(followups.cancelledAt))).orderBy(asc(followups.dueDate));
+    return db.select().from(followups).where(isNull(followups.cancelledAt)).orderBy(asc(followups.dueDate));
   }
 
   async getOverdueFollowups(): Promise<Followup[]> {
-    return db.select().from(followups).where(and(eq(followups.completed, false), lte(followups.dueDate, new Date()))).orderBy(asc(followups.dueDate));
+    return db.select().from(followups).where(and(eq(followups.completed, false), isNull(followups.cancelledAt), lte(followups.dueDate, new Date()))).orderBy(asc(followups.dueDate));
   }
 
   async createFollowup(data: InsertFollowup): Promise<Followup> {

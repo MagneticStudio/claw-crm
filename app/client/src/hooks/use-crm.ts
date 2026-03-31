@@ -55,7 +55,7 @@ export function useCrm() {
   });
 
   const createFollowup = useMutation({
-    mutationFn: async (data: { contactId: number; content: string; dueDate: string }) => {
+    mutationFn: async (data: { contactId: number; content: string; dueDate: string; type?: string; time?: string; location?: string }) => {
       const res = await apiRequest("POST", "/api/followups", data);
       return res.json();
     },

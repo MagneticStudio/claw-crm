@@ -2,6 +2,15 @@
 
 ## 2026-03-31
 
+### Unified Items Model
+- Tasks and meetings are now the same entity: items with a `type` field on the core `followups` table
+- Tasks show □ checkbox, meetings show 📅 icon — both inline in contact cards, sorted by date
+- `/mtg M/D time description @ location` slash command creates meetings
+- Upcoming strip shows both tasks and meetings interleaved
+- Plugins can register new item types via `itemTypes` on the CrmPlugin interface
+- Meetings plugin simplified: no own schema, just type registration + MCP aliases
+- Plugin `enrichContact` failures are now caught — won't crash the server
+
 ### Documentation
 - README MCP tools section now shows only core tools; plugin tools documented in plugin READMEs
 - Each plugin has its own README with tools, routes, and data model docs

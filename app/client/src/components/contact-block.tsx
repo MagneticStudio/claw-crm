@@ -6,17 +6,20 @@ import { fmtDate, fmtDateInput } from "@/lib/utils";
 
 const STAGE_OPTIONS = ["LEAD", "MEETING", "PROPOSAL", "NEGOTIATION", "LIVE", "PASS", "RELATIONSHIP"] as const;
 
-const FU_PREFIX = /^\/(fu|f|follow|followup|todo|task)\s/i;
-const FU_VALID = /^\/(fu|f|follow|followup|todo|task)\s+\d{1,2}\/\d{1,2}/i;
+const TASK_PREFIX = /^\/(fu|f|follow|followup|todo|task)\s/i;
+const TASK_VALID = /^\/(fu|f|follow|followup|todo|task)\s+\d{1,2}\/\d{1,2}/i;
+const MTG_PREFIX = /^\/(mtg|meeting)\s/i;
+const MTG_VALID = /^\/(mtg|meeting)\s+\d{1,2}\/\d{1,2}/i;
 
-function detectCommand(text: string): { type: "fu" | "stage" | "status" | "none"; isValid: boolean } {
-  if (FU_PREFIX.test(text)) return { type: "fu", isValid: FU_VALID.test(text) };
+function detectCommand(text: string): { type: "fu" | "mtg" | "stage" | "status" | "none"; isValid: boolean } {
+  if (TASK_PREFIX.test(text)) return { type: "fu", isValid: TASK_VALID.test(text) };
+  if (MTG_PREFIX.test(text)) return { type: "mtg", isValid: MTG_VALID.test(text) };
   if (/^\/stage\s/i.test(text)) return { type: "stage", isValid: /^\/stage\s+(LEAD|MEETING|PROPOSAL|NEGOTIATION|LIVE|PASS|RELATIONSHIP)\s*$/i.test(text) };
   if (/^\/status\s/i.test(text)) return { type: "status", isValid: /^\/status\s+(ACTIVE|HOLD)\s*$/i.test(text) };
   return { type: "none", isValid: false };
 }
 
-const COMMAND_COLORS: Record<string, string> = { fu: "#1a9e96", stage: "#2e7d32", status: "#d4880f" };
+const COMMAND_COLORS: Record<string, string> = { fu: "#1a9e96", mtg: "#2563eb", stage: "#2e7d32", status: "#d4880f" };
 
 const C = {
   text: "#1a2f2f", muted: "#5a7a7a", border: "#d4e8e8",
@@ -30,7 +33,7 @@ interface ContactBlockProps {
   onAddInteraction: (content: string, date: string, type?: string) => void;
   onUpdateInteraction: (id: number, data: { content?: string; type?: string }) => void;
   onDeleteInteraction: (id: number) => void;
-  onCreateFollowup: (content: string, dueDate: string) => void;
+  onCreateFollowup: (content: string, dueDate: string, opts?: { type?: string; time?: string; location?: string }) => void;
   onUpdateFollowup: (id: number, data: { content?: string; dueDate?: string }) => void;
   onDeleteFollowup: (id: number) => void;
   onCompleteFollowup: (id: number, outcome?: string) => void;
@@ -82,8 +85,41 @@ export function ContactBlock({
         const dueDate = new Date(year, month - 1, day);
         if (dueDate < new Date()) dueDate.setFullYear(year + 1);
         onCreateFollowup(content || "Follow up", dueDate.toISOString());
-        setNewNote(""); showFlash(`Follow-up set for ${month}/${day}`); return;
+        setNewNote(""); showFlash(`Task set for ${month}/${day}`); return;
       }
+
+      // Meeting command: /mtg 4/3 2pm Coffee with Idan @ Century City
+      const mtgMatch = newNote.match(/^\/(mtg|meeting)\s+(\d{1,2}\/\d{1,2})\s*(.*)/i);
+      if (mtgMatch) {
+        const [, , dateStr, rest] = mtgMatch;
+        const [month, day] = dateStr.split("/").map(Number);
+        const year = new Date().getFullYear();
+        const dueDate = new Date(year, month - 1, day);
+        if (dueDate < new Date()) dueDate.setFullYear(year + 1);
+
+        // Parse optional time and location: "2pm Coffee with Idan @ Century City"
+        let time = "";
+        let content = rest.trim();
+        let location = "";
+
+        // Extract time (e.g., "2pm", "2:00pm", "14:00")
+        const timeMatch = content.match(/^(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\s+/i);
+        if (timeMatch) {
+          time = timeMatch[1].trim();
+          content = content.slice(timeMatch[0].length);
+        }
+
+        // Extract location after @
+        const locMatch = content.match(/\s*@\s*(.+)$/);
+        if (locMatch) {
+          location = locMatch[1].trim();
+          content = content.slice(0, -locMatch[0].length).trim();
+        }
+
+        onCreateFollowup(content || "Meeting", dueDate.toISOString(), { type: "meeting", time, location });
+        setNewNote(""); showFlash(`Meeting set for ${month}/${day}`); return;
+      }
+
       const statusMatch = newNote.match(/^\/status\s+(ACTIVE|HOLD)/i);
       if (statusMatch) { onUpdateContact({ status: statusMatch[1].toUpperCase() }); setNewNote(""); showFlash(`Status → ${statusMatch[1].toUpperCase()}`); return; }
       const stageMatch = newNote.match(/^\/stage\s+(\w+)/i);
@@ -319,17 +355,27 @@ export function ContactBlock({
                   );
                 }
 
-                const fuColor = isOverdue ? C.red : C.accentDark;
+                const fuColor = isOverdue ? C.red : fu.type === "meeting" ? "#2563eb" : C.accentDark;
+                const isMeeting = fu.type === "meeting";
+                const icon = isMeeting ? "📅" : null;
+
                 return (
                   <div key={fu.id} className="flex items-center gap-1 text-xs">
-                    <button onClick={() => { setCompletingFollowupId(fu.id); setCompletingFollowupText(fu.content); }}
-                      className="flex-shrink-0 hover:opacity-70" title="Complete" style={{ color: fuColor }}>
-                      <Square className="h-3.5 w-3.5" />
-                    </button>
+                    {isMeeting ? (
+                      <span className="flex-shrink-0 text-sm" title="Meeting">{icon}</span>
+                    ) : (
+                      <button onClick={() => { setCompletingFollowupId(fu.id); setCompletingFollowupText(fu.content); }}
+                        className="flex-shrink-0 hover:opacity-70" title="Complete" style={{ color: fuColor }}>
+                        <Square className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                     <span className="cursor-pointer hover:underline decoration-dotted underline-offset-2"
                       onClick={() => { setEditingFollowupId(fu.id); setEditingFollowupText(fu.content); setEditingFollowupDate(fmtDateInput(due)); }}>
-                      <span className="font-semibold" style={{ color: fuColor }}>{fmtDate(due)}</span>
+                      <span className="font-semibold" style={{ color: fuColor }}>
+                        {fmtDate(due)}{fu.time ? ` ${fu.time}` : ""}
+                      </span>
                       <span style={{ color: isOverdue ? C.red : C.text }}> {fu.content}</span>
+                      {fu.location && <span style={{ color: C.muted }}> — {fu.location}</span>}
                       {isOverdue && <span className="font-semibold" style={{ color: C.red }}> OVERDUE</span>}
                       {isTodayDue && <span className="font-semibold" style={{ color: C.stale }}> TODAY</span>}
                       {!isOverdue && !isTodayDue && daysUntil <= 7 && <span style={{ color: C.muted }}> {daysUntil}d</span>}
@@ -354,13 +400,14 @@ export function ContactBlock({
               {command.type !== "none" && (
                 <div className="absolute -top-4 left-0 text-[9px] font-mono px-1 py-px rounded"
                   style={{ color: COMMAND_COLORS[command.type], backgroundColor: `${COMMAND_COLORS[command.type]}10` }}>
-                  {command.type === "fu" && (command.isValid ? "ready — Enter" : "/fu M/D action")}
+                  {command.type === "fu" && (command.isValid ? "task ready — Enter" : "/fu M/D action")}
+                  {command.type === "mtg" && (command.isValid ? "meeting ready — Enter" : "/mtg M/D time description @ location")}
                   {command.type === "stage" && (command.isValid ? "ready — Enter" : "/stage ...")}
                   {command.type === "status" && (command.isValid ? "ready — Enter" : "/status ...")}
                 </div>
               )}
               <input type="text" value={newNote} onChange={(e) => setNewNote(e.target.value)} onKeyDown={handleNoteSubmit}
-                placeholder="+ note, /fu 4/15 task, /stage LIVE"
+                placeholder="+ note, /fu 4/15 task, /mtg 4/3 2pm meeting"
                 className="w-full text-xs bg-transparent border-none outline-none transition-colors"
                 style={{ color: inputColor || C.muted, fontWeight: command.type !== "none" ? 500 : undefined,
                   fontFamily: command.type !== "none" ? "'JetBrains Mono', monospace" : undefined }} />

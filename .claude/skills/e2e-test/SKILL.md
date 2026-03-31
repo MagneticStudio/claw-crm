@@ -30,14 +30,21 @@ curl -s http://localhost:3000/api/user  # should return 401 (not authenticated)
 - Verify the note appears in the contact's timeline with today's date
 - **Screenshot the contact showing the new note**
 
-### 4. UI: Create a follow-up
-- In the same input, type: `/fu 12/31 E2E test follow-up`
-- Verify the command hint appears (purple "follow-up ready")
+### 4. UI: Create a task (follow-up)
+- In the same input, type: `/fu 12/31 E2E test task`
+- Verify the command hint appears ("task ready")
 - Press Enter
-- Verify a follow-up card appears with `12/31` and the text
-- **Screenshot the follow-up**
+- Verify a task item appears with □ checkbox, `12/31`, and the text
+- **Screenshot the task**
 
-### 5. UI: Complete the follow-up
+### 4b. UI: Create a meeting
+- Type: `/mtg 12/25 2pm E2E test meeting @ Test Location`
+- Verify the command hint appears in blue ("meeting ready")
+- Press Enter
+- Verify a meeting item appears with 📅 icon, `12/25 2:00 PM`, content, and location
+- **Screenshot the meeting**
+
+### 5. UI: Complete the task
 - Click the square checkbox on the follow-up
 - Verify the completion form appears ("Completing: ...")
 - Type an outcome: `E2E test: follow-up completed successfully`
