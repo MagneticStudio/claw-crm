@@ -35,10 +35,10 @@ function deriveColors(hex: string) {
   };
 }
 
-interface AppConfig { orgName: string; primaryColor: string; badges: PluginBadge[]; colors: ReturnType<typeof deriveColors> }
+interface AppConfig { orgName: string; primaryColor: string; upcomingDays: number; badges: PluginBadge[]; colors: ReturnType<typeof deriveColors> }
 
 const defaultColors = deriveColors("#2bbcb3");
-const ConfigContext = createContext<AppConfig>({ orgName: "Claw CRM", primaryColor: "#2bbcb3", badges: [], colors: defaultColors });
+const ConfigContext = createContext<AppConfig>({ orgName: "Claw CRM", primaryColor: "#2bbcb3", upcomingDays: 7, badges: [], colors: defaultColors });
 export function useConfig() { return useContext(ConfigContext); }
 
 // Static palette colors that don't change with the primary color
@@ -54,7 +54,7 @@ export function useColors() {
 }
 
 function ConfigProvider({ children }: { children: React.ReactNode }) {
-  const { data } = useQuery<{ orgName: string; primaryColor: string; badges: PluginBadge[] }>({
+  const { data } = useQuery<{ orgName: string; primaryColor: string; upcomingDays: number; badges: PluginBadge[] }>({
     queryKey: ["/api/config"],
     staleTime: 60_000,
   });
@@ -71,7 +71,7 @@ function ConfigProvider({ children }: { children: React.ReactNode }) {
   }, [colors]);
 
   return (
-    <ConfigContext.Provider value={{ orgName: data?.orgName || "Claw CRM", primaryColor, badges: data?.badges || [], colors }}>
+    <ConfigContext.Provider value={{ orgName: data?.orgName || "Claw CRM", primaryColor, upcomingDays: data?.upcomingDays ?? 7, badges: data?.badges || [], colors }}>
       {children}
     </ConfigContext.Provider>
   );

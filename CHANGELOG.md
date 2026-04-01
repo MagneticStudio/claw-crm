@@ -2,6 +2,11 @@
 
 ## 2026-04-01
 
+### Configurable Upcoming Window (#28)
+- Inline day toggle (1d / 2d / 3d / 7d / 14d) in the Upcoming section header
+- Preference saved to DB via `/api/settings` and served via `/api/config`
+- Defaults to 7 days; switching filters upcoming items instantly
+
 ### Claw Icon + Dynamic Color Cleanup (#22)
 - Added Claw mark icon (three diagonal slashes): SVG favicon, PWA icons (192px, 512px), Apple touch icon
 - All hardcoded color constants (`C = {...}`) replaced with `useColors()` hook — UI now fully adapts to the user's chosen primary color

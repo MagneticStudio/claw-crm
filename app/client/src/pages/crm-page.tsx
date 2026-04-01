@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useCrm } from "@/hooks/use-crm";
 import { useSSE } from "@/hooks/use-sse";
 import { useAuth } from "@/hooks/use-auth";
@@ -36,8 +37,17 @@ export default function CrmPage() {
   const { contacts, isLoading, addInteraction, updateInteraction, deleteInteraction, createFollowup, updateFollowup, deleteFollowup, completeFollowup, updateContact } = useCrm();
   const { logoutMutation } = useAuth();
   const [activeStage, setActiveStage] = useState<string>("ALL");
-  const { orgName } = useConfig();
+  const { orgName, upcomingDays: configDays } = useConfig();
+  const [localDays, setLocalDays] = useState<number | null>(null);
+  const days = localDays ?? configDays;
   useSSE();
+
+  const saveDays = useMutation({
+    mutationFn: async (d: number) => {
+      await apiRequest("PUT", "/api/settings", { upcomingDays: d });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/config"] }),
+  });
 
   const sortedContacts = useMemo(() => {
     const sorted = [...contacts].sort((a, b) => {
@@ -73,21 +83,21 @@ export default function CrmPage() {
     return counts;
   }, [contacts]);
 
-  // Follow-ups due within 7 days (including overdue), sorted by due date
+  // Follow-ups due within N days (including overdue), sorted by due date
   const allFollowups = useMemo(() => {
-    const sevenDaysOut = new Date();
-    sevenDaysOut.setDate(sevenDaysOut.getDate() + 7);
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() + days);
     const fus: Array<{ followup: Followup; contactName: string; contactId: number }> = [];
     for (const c of contacts) {
       for (const fu of c.followups) {
-        if (!fu.completed && new Date(fu.dueDate) <= sevenDaysOut) {
+        if (!fu.completed && new Date(fu.dueDate) <= cutoff) {
           fus.push({ followup: fu, contactName: `${c.firstName} ${c.lastName}`, contactId: c.id });
         }
       }
     }
     fus.sort((a, b) => new Date(a.followup.dueDate).getTime() - new Date(b.followup.dueDate).getTime());
     return fus;
-  }, [contacts]);
+  }, [contacts, days]);
 
   const [completingUpcomingId, setCompletingUpcomingId] = useState<number | null>(null);
   const [completingUpcomingText, setCompletingUpcomingText] = useState("");
@@ -264,11 +274,26 @@ export default function CrmPage() {
           </div>
         )}
 
-        {/* Upcoming tasks — next 7 days + overdue */}
+        {/* Upcoming tasks — configurable window + overdue */}
         {allFollowups.length > 0 && (
           <div className="bg-white mb-5" style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}>
-            <div className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: C.muted }}>
-              Upcoming
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>Upcoming</span>
+              <div className="flex items-center gap-0.5">
+                {[1, 2, 3, 7, 14].map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => { setLocalDays(d); saveDays.mutate(d); }}
+                    className="px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors"
+                    style={{
+                      backgroundColor: days === d ? C.accent : "transparent",
+                      color: days === d ? "white" : C.muted,
+                    }}
+                  >
+                    {d}d
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="space-y-1.5">
               {allFollowups.map(({ followup: fu, contactName }) => {

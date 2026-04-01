@@ -10,6 +10,7 @@ export const users = pgTable("users", {
   mcpToken: text("mcp_token").notNull().default(""),
   orgName: text("org_name").notNull().default("Claw CRM"),
   primaryColor: text("primary_color").notNull().default("#2bbcb3"),
+  upcomingDays: integer("upcoming_days").notNull().default(7),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
