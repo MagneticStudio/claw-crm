@@ -3,13 +3,10 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ArrowLeft, Copy, RefreshCw, Check } from "lucide-react";
 import { Link } from "wouter";
-
-const C = {
-  text: "#1a2f2f", muted: "#5a7a7a", border: "#d4e8e8",
-  accent: "#2bbcb3", accentDark: "#1a9e96", accentLight: "#e6f7f6",
-};
+import { useColors } from "@/App";
 
 export default function SettingsPage() {
+  const C = useColors();
   const { data: settings } = useQuery<{ orgName: string; primaryColor: string; apiKey: string; mcpToken: string }>({
     queryKey: ["/api/settings"],
   });

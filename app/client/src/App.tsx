@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext, useMemo } from "react";
+import { useState, useEffect, createContext, useContext } from "react";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
@@ -40,6 +40,18 @@ interface AppConfig { orgName: string; primaryColor: string; badges: PluginBadge
 const defaultColors = deriveColors("#2bbcb3");
 const ConfigContext = createContext<AppConfig>({ orgName: "Claw CRM", primaryColor: "#2bbcb3", badges: [], colors: defaultColors });
 export function useConfig() { return useContext(ConfigContext); }
+
+// Static palette colors that don't change with the primary color
+const STATIC_COLORS = {
+  text: "#1a2f2f", muted: "#5a7a7a", border: "#d4e8e8",
+  stale: "#d4880f", staleBg: "#fef7ec", red: "#c0392b", redBg: "#fde8e8",
+} as const;
+
+/** Dynamic accent colors + static palette. Use instead of hardcoded C = {...} objects. */
+export function useColors() {
+  const { colors } = useContext(ConfigContext);
+  return { ...STATIC_COLORS, ...colors };
+}
 
 function ConfigProvider({ children }: { children: React.ReactNode }) {
   const { data } = useQuery<{ orgName: string; primaryColor: string; badges: PluginBadge[] }>({

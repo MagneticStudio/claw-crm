@@ -3,7 +3,7 @@ import { format, isPast, isToday, differenceInDays } from "date-fns";
 import { ChevronDown, ChevronRight, Square, AlertTriangle, Trash2 } from "lucide-react";
 import type { ContactWithRelations } from "@shared/schema";
 import { fmtDate, fmtDateInput } from "@/lib/utils";
-import { useConfig } from "@/App";
+import { useConfig, useColors } from "@/App";
 
 const STAGE_OPTIONS = ["LEAD", "MEETING", "PROPOSAL", "NEGOTIATION", "LIVE", "PASS", "RELATIONSHIP"] as const;
 
@@ -21,12 +21,6 @@ function detectCommand(text: string): { type: "fu" | "mtg" | "stage" | "status" 
 }
 
 const COMMAND_COLORS: Record<string, string> = { fu: "#1a9e96", mtg: "#2563eb", stage: "#2e7d32", status: "#d4880f" };
-
-const C = {
-  text: "#1a2f2f", muted: "#5a7a7a", border: "#d4e8e8",
-  accent: "#2bbcb3", accentDark: "#1a9e96", accentLight: "#e6f7f6",
-  stale: "#d4880f", staleBg: "#fef7ec", red: "#c0392b", redBg: "#fde8e8",
-};
 
 interface ContactBlockProps {
   contact: ContactWithRelations;
@@ -47,6 +41,7 @@ export function ContactBlock({
   onCreateFollowup, onUpdateFollowup, onDeleteFollowup, onCompleteFollowup,
   onUpdateContact,
 }: ContactBlockProps) {
+  const C = useColors();
   const { badges: pluginBadges } = useConfig();
   const isInactive = contact.status !== "ACTIVE";
   const [isExpanded, setIsExpanded] = useState(!isInactive);
