@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-04-01
+
+### Claw Icon + Dynamic Color Cleanup (#22)
+- Added Claw mark icon (three diagonal slashes): SVG favicon, PWA icons (192px, 512px), Apple touch icon
+- All hardcoded color constants (`C = {...}`) replaced with `useColors()` hook — UI now fully adapts to the user's chosen primary color
+- Removed unused `useMemo` import from App.tsx
+
 ## 2026-03-31
 
 ### AI-Led Onboarding Flow

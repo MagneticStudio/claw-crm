@@ -2,13 +2,10 @@ import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Loader2, Copy, Check } from "lucide-react";
-
-const C = {
-  text: "#1a2f2f", muted: "#5a7a7a", border: "#d4e8e8",
-  accent: "#2bbcb3", accentDark: "#1a9e96", accentLight: "#e6f7f6",
-};
+import { useColors } from "@/App";
 
 export default function SetupPage() {
+  const C = useColors();
   const [step, setStep] = useState<"pin" | "connect">("pin");
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");

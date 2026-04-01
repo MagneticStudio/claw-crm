@@ -2,24 +2,13 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ArrowLeft, AlertTriangle } from "lucide-react";
 import { Link } from "wouter";
+import { useColors } from "@/App";
 import type { Rule, RuleViolation, Contact } from "@shared/schema";
-
-const C = {
-  text: "#1a2f2f",
-  muted: "#5a7a7a",
-  border: "#d4e8e8",
-  accent: "#2bbcb3",
-  accentDark: "#1a9e96",
-  accentLight: "#e6f7f6",
-  stale: "#d4880f",
-  staleBg: "#fef7ec",
-  red: "#c0392b",
-  redBg: "#fde8e8",
-};
 
 type ViolationWithContact = RuleViolation & { contactName?: string };
 
 export default function RulesPage() {
+  const C = useColors();
   const { data: rules = [] } = useQuery<Rule[]>({
     queryKey: ["/api/rules"],
   });

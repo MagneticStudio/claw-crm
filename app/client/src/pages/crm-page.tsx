@@ -9,7 +9,7 @@ import { Link } from "wouter";
 import { format, isPast, isToday, differenceInDays } from "date-fns";
 import type { ContactWithRelations, Followup, ActivityLogEntry } from "@shared/schema";
 import { fmtDate } from "@/lib/utils";
-import { useConfig } from "@/App";
+import { useConfig, useColors } from "@/App";
 
 const STAGES = ["ALL", "NEGOTIATION", "PROPOSAL", "MEETING", "LEAD", "LIVE", "RELATIONSHIP", "PASS"] as const;
 
@@ -31,18 +31,8 @@ const SORT_BUCKET: Record<string, number> = {
   PASS: 3,
 };
 
-const C = {
-  text: "#1a2f2f",
-  muted: "#5a7a7a",
-  border: "#d4e8e8",
-  accent: "#2bbcb3",
-  accentDark: "#1a9e96",
-  accentLight: "#e6f7f6",
-  stale: "#d4880f",
-  red: "#c0392b",
-};
-
 export default function CrmPage() {
+  const C = useColors();
   const { contacts, isLoading, addInteraction, updateInteraction, deleteInteraction, createFollowup, updateFollowup, deleteFollowup, completeFollowup, updateContact } = useCrm();
   const { logoutMutation } = useAuth();
   const [activeStage, setActiveStage] = useState<string>("ALL");
