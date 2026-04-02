@@ -87,11 +87,11 @@ export default function CrmPage() {
   const allFollowups = useMemo(() => {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() + days);
-    const fus: Array<{ followup: Followup; contactName: string; contactId: number }> = [];
+    const fus: Array<{ followup: Followup; contactName: string; companyName: string; contactId: number; briefing: any }> = [];
     for (const c of contacts) {
       for (const fu of c.followups) {
         if (!fu.completed && new Date(fu.dueDate) <= cutoff) {
-          fus.push({ followup: fu, contactName: `${c.firstName} ${c.lastName}`, contactId: c.id });
+          fus.push({ followup: fu, contactName: `${c.firstName} ${c.lastName}`, companyName: c.company?.name || "", contactId: c.id, briefing: (c as any).briefing });
         }
       }
     }
@@ -112,25 +112,10 @@ export default function CrmPage() {
     });
   };
 
-  // Today's meetings — filter followups by type "meeting" and today's date
-  const todaysMeetings = useMemo(() => {
-    const now = new Date();
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-    const items: Array<{ followup: Followup; contactName: string; companyName: string; contactId: number; briefing: any }> = [];
-    for (const c of contacts) {
-      for (const fu of c.followups) {
-        if (fu.type === "meeting" && !fu.completed) {
-          const d = new Date(fu.dueDate);
-          if (d >= startOfDay && d <= endOfDay) {
-            items.push({ followup: fu, contactName: `${c.firstName} ${c.lastName}`, companyName: c.company?.name || "", contactId: c.id, briefing: (c as any).briefing });
-          }
-        }
-      }
-    }
-    items.sort((a, b) => new Date(a.followup.dueDate).getTime() - new Date(b.followup.dueDate).getTime());
-    return items;
-  }, [contacts]);
+  // Today's meetings count for header
+  const todayMeetingCount = useMemo(() => {
+    return allFollowups.filter(({ followup: fu }) => fu.type === "meeting" && isToday(new Date(fu.dueDate))).length;
+  }, [allFollowups]);
 
   // Activity log
   const { data: activityLog = [] } = useQuery<ActivityLogEntry[]>({
@@ -159,7 +144,7 @@ export default function CrmPage() {
             </h1>
             <p className="text-[11px] font-mono mt-0.5" style={{ color: C.muted }}>
               {activeCount} active
-              {todaysMeetings.length > 0 && ` · ${todaysMeetings.length} meeting${todaysMeetings.length !== 1 ? "s" : ""} today`}
+              {todayMeetingCount > 0 && ` · ${todayMeetingCount} meeting${todayMeetingCount !== 1 ? "s" : ""} today`}
               {allFollowups.length > 0 && ` · ${allFollowups.length} follow-up${allFollowups.length !== 1 ? "s" : ""}`}
             </p>
           </div>
@@ -236,45 +221,7 @@ export default function CrmPage() {
       )}
 
       <main className="max-w-[640px] mx-auto px-4 py-5">
-        {/* Today's meetings */}
-        {todaysMeetings.length > 0 && (
-          <div className="bg-white mb-3" style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}>
-            <div className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: C.stale }}>
-              Today
-            </div>
-            <div className="space-y-1.5">
-              {todaysMeetings.map(({ followup: fu, contactName, companyName, briefing }) => {
-                const time = fu.time || format(new Date(fu.dueDate), "h:mm a");
-                const meetingType = (fu.metadata as any)?.meetingType;
-                const icon = ({ call: "📞", video: "📹", "in-person": "🤝", coffee: "☕" } as any)[meetingType] || "📅";
-                const isExp = expandedMeetingIds.has(fu.id);
-                return (
-                  <div key={fu.id}>
-                    <div className="flex items-center gap-2 text-sm cursor-pointer" onClick={() => toggleMeetingExpand(fu.id)}>
-                      <span className="flex-shrink-0">{icon}</span>
-                      <span className="font-bold flex-shrink-0" style={{ color: C.stale }}>{time}</span>
-                      <span style={{ color: C.text }}>{fu.content}</span>
-                      {contactName && <span className="text-xs" style={{ color: C.muted }}>{contactName}</span>}
-                      {fu.location && <span className="ml-auto text-xs" style={{ color: C.muted }}>{fu.location}</span>}
-                      <ChevronDown className={`h-3 w-3 flex-shrink-0 transition-transform ${isExp ? "rotate-180" : ""}`} style={{ color: C.muted }} />
-                    </div>
-                    {isExp && briefing && (
-                      <div className="mt-1.5 ml-6 text-xs rounded-lg px-3 py-2 whitespace-pre-wrap" style={{ backgroundColor: C.accentLight, color: C.text }}>
-                        <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: C.accentDark }}>Briefing</div>
-                        {briefing.content}
-                      </div>
-                    )}
-                    {isExp && !briefing && (
-                      <div className="mt-1.5 ml-6 text-[10px] italic" style={{ color: C.muted }}>No briefing yet</div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Upcoming tasks — configurable window + overdue */}
+        {/* Upcoming — all follow-ups and meetings in one list */}
         {allFollowups.length > 0 && (
           <div className="bg-white mb-5" style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}>
             <div className="flex items-center justify-between mb-2">
@@ -296,7 +243,7 @@ export default function CrmPage() {
               </div>
             </div>
             <div className="space-y-1.5">
-              {allFollowups.map(({ followup: fu, contactName }) => {
+              {allFollowups.map(({ followup: fu, contactName, briefing }) => {
                 const due = new Date(fu.dueDate);
                 const isOverdue = isPast(due) && !isToday(due);
                 const isTodayDue = isToday(due);
@@ -346,37 +293,60 @@ export default function CrmPage() {
                 }
 
                 const isMeeting = fu.type === "meeting";
+                const meetingType = (fu.metadata as any)?.meetingType;
+                const meetingIcon = isMeeting
+                  ? ({ call: "📞", video: "📹", "in-person": "🤝", coffee: "☕" } as any)[meetingType] || "📅"
+                  : null;
+                const isTodayMeeting = isMeeting && isTodayDue;
+                const isExp = isTodayMeeting && expandedMeetingIds.has(fu.id);
 
                 return (
-                  <div key={fu.id} className="flex items-center gap-2 text-sm">
-                    {isMeeting ? (
-                      <span className="flex-shrink-0">📅</span>
-                    ) : (
-                      <button
-                        onClick={() => { setCompletingUpcomingId(fu.id); setCompletingUpcomingText(fu.content); }}
-                        className="flex-shrink-0 hover:opacity-70 transition-colors"
-                        title="Complete"
-                      >
-                        <Square className="h-3.5 w-3.5" style={{ color: dateColor }} />
-                      </button>
+                  <div key={fu.id}>
+                    <div className="flex items-center gap-2 text-sm">
+                      {isMeeting ? (
+                        <span
+                          className={`flex-shrink-0 ${isTodayMeeting ? "cursor-pointer" : ""}`}
+                          onClick={isTodayMeeting ? () => toggleMeetingExpand(fu.id) : undefined}
+                        >{meetingIcon}</span>
+                      ) : (
+                        <button
+                          onClick={() => { setCompletingUpcomingId(fu.id); setCompletingUpcomingText(fu.content); }}
+                          className="flex-shrink-0 hover:opacity-70 transition-colors"
+                          title="Complete"
+                        >
+                          <Square className="h-3.5 w-3.5" style={{ color: dateColor }} />
+                        </button>
+                      )}
+                      <span className="font-bold flex-shrink-0" style={{ color: isMeeting ? "#2563eb" : dateColor }}>
+                        {fmtDate(due)}{fu.time ? ` ${fu.time}` : ""}
+                      </span>
+                      <span className="truncate min-w-0" style={{ color: C.text }}>
+                        {fu.content}{fu.location ? ` — ${fu.location}` : ""}
+                      </span>
+                      <span className="text-xs flex-shrink-0 whitespace-nowrap" style={{ color: C.muted }}>
+                        {contactName}
+                      </span>
+                      {isOverdue && (
+                        <span className="text-xs font-semibold flex-shrink-0" style={{ color: C.red }}>OVERDUE</span>
+                      )}
+                      {isTodayDue && (
+                        <span className="text-xs font-semibold flex-shrink-0" style={{ color: C.stale }}>TODAY</span>
+                      )}
+                      {!isOverdue && !isTodayDue && daysUntil <= 7 && (
+                        <span className="text-xs flex-shrink-0" style={{ color: C.muted }}>{daysUntil}d</span>
+                      )}
+                      {isTodayMeeting && (
+                        <ChevronDown className={`h-3 w-3 flex-shrink-0 transition-transform cursor-pointer ${isExp ? "rotate-180" : ""}`} style={{ color: C.muted }} onClick={() => toggleMeetingExpand(fu.id)} />
+                      )}
+                    </div>
+                    {isExp && briefing && (
+                      <div className="mt-1.5 ml-6 text-xs rounded-lg px-3 py-2 whitespace-pre-wrap" style={{ backgroundColor: C.accentLight, color: C.text }}>
+                        <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: C.accentDark }}>Briefing</div>
+                        {briefing.content}
+                      </div>
                     )}
-                    <span className="font-bold flex-shrink-0" style={{ color: isMeeting ? "#2563eb" : dateColor }}>
-                      {fmtDate(due)}{fu.time ? ` ${fu.time}` : ""}
-                    </span>
-                    <span className="truncate min-w-0" style={{ color: C.text }}>
-                      {fu.content}{fu.location ? ` — ${fu.location}` : ""}
-                    </span>
-                    <span className="text-xs flex-shrink-0 whitespace-nowrap" style={{ color: C.muted }}>
-                      {contactName}
-                    </span>
-                    {isOverdue && (
-                      <span className="text-xs font-semibold flex-shrink-0" style={{ color: C.red }}>OVERDUE</span>
-                    )}
-                    {isTodayDue && (
-                      <span className="text-xs font-semibold flex-shrink-0" style={{ color: C.stale }}>TODAY</span>
-                    )}
-                    {!isOverdue && !isTodayDue && daysUntil <= 7 && (
-                      <span className="text-xs flex-shrink-0" style={{ color: C.muted }}>{daysUntil}d</span>
+                    {isExp && !briefing && (
+                      <div className="mt-1.5 ml-6 text-[10px] italic" style={{ color: C.muted }}>No briefing yet</div>
                     )}
                   </div>
                 );
