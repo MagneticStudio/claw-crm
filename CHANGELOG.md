@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-04-02
+
+### Merge Today + Upcoming into one section (#31)
+- Removed the separate "Today" card; all follow-ups and meetings now appear in a single "Upcoming" list
+- Today's meetings keep their type-specific icons (📞📹🤝☕) and expandable briefings inline
+- Items due today are tagged with a bold **TODAY** label for visual distinction
+
 ## 2026-04-01
 
 ### Configurable Upcoming Window (#28)
