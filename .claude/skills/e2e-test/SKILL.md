@@ -44,6 +44,15 @@ curl -s http://localhost:3000/api/user  # should return 401 (not authenticated)
 - Verify a meeting item appears with 📅 icon, `12/25 2:00 PM`, content, and location
 - **Screenshot the meeting**
 
+### 4c. UI: Edit a follow-up date
+- Click on the task created in step 4 to enter edit mode
+- Change the date to a different date (e.g., change from 12/31 to 1/15)
+- Press Enter or click Save
+- Verify the flash says "Updated"
+- **Reload the page** (navigate to `/` again)
+- After reload, find the same follow-up and verify the date is the NEW date, not the original
+- **Screenshot the follow-up showing the persisted date change**
+
 ### 5. UI: Complete the task
 - Click the square checkbox on the follow-up
 - Verify the completion form appears ("Completing: ...")

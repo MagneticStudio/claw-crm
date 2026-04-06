@@ -348,9 +348,9 @@ export function ContactBlock({
                       <input type="date" value={editingFollowupDate} onChange={(e) => setEditingFollowupDate(e.target.value)}
                         className="text-xs rounded px-1 py-0.5 outline-none w-[110px] flex-shrink-0" style={{ border: `1px solid ${C.border}`, color: C.text }} />
                       <input autoFocus value={editingFollowupText} onChange={(e) => setEditingFollowupText(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") handleFollowupSave(fu.id, editingFollowupDate); if (e.key === "Escape") setEditingFollowupId(null); }}
+                        onKeyDown={(e) => { if (e.key === "Enter") handleFollowupSave(fu.id, fmtDateInput(due)); if (e.key === "Escape") setEditingFollowupId(null); }}
                         className="flex-1 text-xs rounded px-1.5 py-0.5 outline-none" style={{ border: `1px solid ${C.border}`, color: C.text }} />
-                      <button onMouseDown={(e) => { e.preventDefault(); handleFollowupSave(fu.id, editingFollowupDate); }}
+                      <button onMouseDown={(e) => { e.preventDefault(); handleFollowupSave(fu.id, fmtDateInput(due)); }}
                         className="text-[10px] font-medium" style={{ color: C.accentDark }}>Save</button>
                       <button onMouseDown={(e) => { e.preventDefault(); onDeleteFollowup(fu.id); setEditingFollowupId(null); showFlash("Deleted"); }}
                         className="p-0.5 hover:opacity-70" style={{ color: C.red }}><Trash2 className="h-3 w-3" /></button>
