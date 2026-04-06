@@ -3,7 +3,7 @@ import { format, isPast, isToday, differenceInDays } from "date-fns";
 import { ChevronDown, ChevronRight, Square, AlertTriangle, Trash2 } from "lucide-react";
 import type { ContactWithRelations } from "@shared/schema";
 import { fmtDate, fmtDateInput } from "@/lib/utils";
-import { useConfig, useColors } from "@/App";
+import { useColors, BADGES } from "@/App";
 
 const STAGE_OPTIONS = ["LEAD", "MEETING", "PROPOSAL", "NEGOTIATION", "LIVE", "PASS", "RELATIONSHIP"] as const;
 
@@ -42,7 +42,6 @@ export function ContactBlock({
   onUpdateContact,
 }: ContactBlockProps) {
   const C = useColors();
-  const { badges: pluginBadges } = useConfig();
   const isInactive = contact.status !== "ACTIVE";
   const [isExpanded, setIsExpanded] = useState(!isInactive);
   const [showDetails, setShowDetails] = useState(false);
@@ -194,8 +193,8 @@ export function ContactBlock({
         {isStale && <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" style={{ color: C.stale }} />}
         {hasViolations && !isStale && <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" style={{ color: C.stale }} />}
 
-        {/* Plugin badges — rendered from plugin badge declarations */}
-        {pluginBadges.map((badge, i) =>
+        {/* Feature badges */}
+        {BADGES.map((badge, i) =>
           (contact as any)[badge.dataKey] ? (
             <a key={i} href={badge.route.replace(":contactId", String(contact.id))} className="flex-shrink-0 hover:opacity-70 transition-colors" title={badge.tooltip || ""} style={{ fontSize: "14px" }}>{badge.icon}</a>
           ) : null

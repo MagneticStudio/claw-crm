@@ -36,15 +36,6 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // Load plugins before registering routes
-  const { registerPlugin } = await import("../plugins");
-  const meetingsPlugin = (await import("../plugins/meetings")).default;
-  const briefingsPlugin = (await import("../plugins/briefings")).default;
-  const activityLogPlugin = (await import("../plugins/activity-log")).default;
-  registerPlugin(meetingsPlugin);
-  registerPlugin(briefingsPlugin);
-  registerPlugin(activityLogPlugin);
-
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -65,7 +56,7 @@ app.use((req, res, next) => {
   startRulesScheduler();
 
   const port = process.env.PORT || 3000;
-  server.listen({ port, host: "0.0.0.0" }, () => {
+  server.listen({ port, host: "127.0.0.1" }, () => {
     log(`serving on port ${port}`);
   });
 })();

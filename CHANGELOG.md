@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-04-06
+
+### Remove plugin system — flatten into core (#35)
+- Removed the `plugins/` directory and `CrmPlugin` abstraction entirely
+- Meetings routes, briefings routes, activity log routes inlined into `server/routes.ts`
+- MCP tools (set_meeting, save_briefing, get_activity_log, etc.) inlined into `server/mcp-remote.ts`
+- Briefings and activity_log schemas moved into `shared/schema.ts`
+- Briefing enrichment moved directly into `server/storage.ts`
+- Rules engine simplified — removed plugin data threading and stub conditions
+- Client badges hardcoded as static constant instead of fetched from API
+- Net result: -599 lines removed, +233 lines added, 0 behavior changes
+
 ## 2026-04-02
 
 ### Merge Today + Upcoming into one section (#31)

@@ -14,14 +14,12 @@ import BriefingPage from "@/pages/briefing-page";
 import SetupPage from "@/pages/setup-page";
 import NotFound from "@/pages/not-found";
 
-// App config context — org name from DB
-export interface PluginBadge {
-  dataKey: string;
-  icon: string;
-  route: string;
-  tooltip?: string;
-}
+// Badge definitions — hardcoded, no plugin indirection
+export const BADGES = [
+  { dataKey: "briefing", icon: "📋", route: "/briefings/:contactId", tooltip: "View briefing" },
+];
 
+// App config context — org name from DB
 // Derive color variants from a hex primary color
 function deriveColors(hex: string) {
   const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
@@ -35,10 +33,10 @@ function deriveColors(hex: string) {
   };
 }
 
-interface AppConfig { orgName: string; primaryColor: string; upcomingDays: number; badges: PluginBadge[]; colors: ReturnType<typeof deriveColors> }
+interface AppConfig { orgName: string; primaryColor: string; upcomingDays: number; colors: ReturnType<typeof deriveColors> }
 
 const defaultColors = deriveColors("#2bbcb3");
-const ConfigContext = createContext<AppConfig>({ orgName: "Claw CRM", primaryColor: "#2bbcb3", upcomingDays: 7, badges: [], colors: defaultColors });
+const ConfigContext = createContext<AppConfig>({ orgName: "Claw CRM", primaryColor: "#2bbcb3", upcomingDays: 7, colors: defaultColors });
 export function useConfig() { return useContext(ConfigContext); }
 
 // Static palette colors that don't change with the primary color
@@ -54,7 +52,7 @@ export function useColors() {
 }
 
 function ConfigProvider({ children }: { children: React.ReactNode }) {
-  const { data } = useQuery<{ orgName: string; primaryColor: string; upcomingDays: number; badges: PluginBadge[] }>({
+  const { data } = useQuery<{ orgName: string; primaryColor: string; upcomingDays: number }>({
     queryKey: ["/api/config"],
     staleTime: 60_000,
   });
@@ -71,7 +69,7 @@ function ConfigProvider({ children }: { children: React.ReactNode }) {
   }, [colors]);
 
   return (
-    <ConfigContext.Provider value={{ orgName: data?.orgName || "Claw CRM", primaryColor, upcomingDays: data?.upcomingDays ?? 7, badges: data?.badges || [], colors }}>
+    <ConfigContext.Provider value={{ orgName: data?.orgName || "Claw CRM", primaryColor, upcomingDays: data?.upcomingDays ?? 7, colors }}>
       {children}
     </ConfigContext.Provider>
   );

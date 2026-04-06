@@ -7,6 +7,7 @@ import {
   rules, type Rule, type InsertRule,
   ruleViolations, type RuleViolation, type InsertRuleViolation,
   activityLog,
+  briefings,
 } from "@shared/schema";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
@@ -14,7 +15,6 @@ import { db } from "./db";
 import { pool } from "./db";
 import { eq, desc, asc, and, isNull, lte, gte } from "drizzle-orm";
 import { sseManager } from "./sse";
-import { getPlugins } from "../plugins";
 
 // Lazy import to avoid circular dependency
 let evaluateRulesForContact: ((contactId: number) => Promise<void>) | null = null;
@@ -135,30 +135,11 @@ export class Storage {
       violations: contactViolations,
     };
 
-    // Let plugins enrich the contact with their data
-    const pluginCtx = this.getPluginContext();
-    for (const plugin of getPlugins()) {
-      if (plugin.enrichContact) {
-        try {
-          const extra = await plugin.enrichContact(contact.id, pluginCtx);
-          Object.assign(result, extra);
-        } catch {
-          // Plugin enrichment failed — skip, don't crash
-        }
-      }
-    }
+    // Enrich with briefing data
+    const [briefingRow] = await db.select().from(briefings).where(eq(briefings.contactId, contact.id));
+    result.briefing = briefingRow ?? null;
 
     return result;
-  }
-
-  /** Build the plugin context object */
-  getPluginContext() {
-    return {
-      db,
-      broadcast: (data: Record<string, unknown>) => sseManager.broadcast(data),
-      logActivity: this.logActivity.bind(this),
-      requireAuth: null as any, // Set by routes.ts when registering
-    };
   }
 
   async createContact(data: InsertContact): Promise<Contact> {

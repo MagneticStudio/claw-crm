@@ -121,19 +121,37 @@ export const insertRuleViolationSchema = createInsertSchema(ruleViolations).omit
 export type InsertRuleViolation = z.infer<typeof insertRuleViolationSchema>;
 export type RuleViolation = typeof ruleViolations.$inferSelect;
 
-// Re-export plugin schemas for Drizzle to discover during db:push
-export { briefings } from "../plugins/briefings/schema";
-export type { Briefing } from "../plugins/briefings/schema";
-export { activityLog } from "../plugins/activity-log/schema";
-export type { ActivityLogEntry } from "../plugins/activity-log/schema";
+// Briefings — one per contact, stores prep notes
+export const briefings = pgTable("briefings", {
+  id: serial("id").primaryKey(),
+  contactId: integer("contact_id").notNull().references(() => contacts.id, { onDelete: "cascade" }),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
 
-// Composite type — core fields + plugin fields merged by enrichContact
+export const insertBriefingSchema = createInsertSchema(briefings).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertBriefing = z.infer<typeof insertBriefingSchema>;
+export type Briefing = typeof briefings.$inferSelect;
+
+// Activity log — tracks all system and agent actions
+export const activityLog = pgTable("activity_log", {
+  id: serial("id").primaryKey(),
+  event: text("event").notNull(),
+  detail: text("detail").notNull(),
+  contactId: integer("contact_id").references(() => contacts.id, { onDelete: "cascade" }),
+  source: text("source").notNull().default("system"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type ActivityLogEntry = typeof activityLog.$inferSelect;
+
+// Composite type — contact with all related data
 export type ContactWithRelations = Contact & {
   company: Company | null;
   interactions: Interaction[];
   followups: Followup[];
   violations: RuleViolation[];
-  // Plugin-contributed fields
-  briefing?: any | null;
-  [key: string]: unknown;
+  briefing?: Briefing | null;
 };

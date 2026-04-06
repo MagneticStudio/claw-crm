@@ -9,8 +9,12 @@ import {
   insertInteractionSchema,
   insertFollowupSchema,
   insertRuleSchema,
+  briefings,
+  activityLog,
+  followups,
 } from "@shared/schema";
-import { getPlugins } from "../plugins";
+import { db } from "./db";
+import { eq, and, isNull, gte, lte, asc, desc } from "drizzle-orm";
 import { toNoonUTC } from "@shared/dates";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -23,8 +27,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // --- Public config (no auth — needed for login page branding) ---
   app.get("/api/config", async (_req, res) => {
     const user = await storage.getFirstUser();
-    const badges = getPlugins().flatMap(p => p.badges || []);
-    res.json({ orgName: user?.orgName || "Claw CRM", primaryColor: user?.primaryColor || "#2bbcb3", upcomingDays: user?.upcomingDays ?? 7, badges });
+    res.json({ orgName: user?.orgName || "Claw CRM", primaryColor: user?.primaryColor || "#2bbcb3", upcomingDays: user?.upcomingDays ?? 7 });
   });
 
   // --- Settings (auth required) ---
@@ -289,13 +292,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(violation);
   });
 
-  // --- Plugins ---
-  const pluginCtx = { ...storage.getPluginContext(), requireAuth };
-  for (const plugin of getPlugins()) {
-    if (plugin.registerRoutes) {
-      plugin.registerRoutes(app, pluginCtx);
+  // --- Meetings ---
+  app.get("/api/meetings", requireAuth, async (req, res) => {
+    const contactId = req.query.contactId ? parseInt(req.query.contactId as string) : undefined;
+    const today = req.query.today === "true";
+    let conditions = [eq(followups.type, "meeting"), isNull(followups.cancelledAt)];
+    if (contactId) conditions.push(eq(followups.contactId, contactId));
+    if (today) {
+      const start = new Date(); start.setHours(0, 0, 0, 0);
+      const end = new Date(); end.setHours(23, 59, 59, 999);
+      conditions.push(gte(followups.dueDate, start), lte(followups.dueDate, end));
     }
-  }
+    const result = await db.select().from(followups).where(and(...conditions)).orderBy(asc(followups.dueDate));
+    res.json(result);
+  });
+
+  app.get("/api/meetings/upcoming", requireAuth, async (req, res) => {
+    const hours = req.query.hours ? parseInt(req.query.hours as string) : 168;
+    const now = new Date();
+    const cutoff = new Date();
+    cutoff.setHours(cutoff.getHours() + hours);
+    const result = await db.select().from(followups)
+      .where(and(eq(followups.type, "meeting"), isNull(followups.cancelledAt), eq(followups.completed, false), gte(followups.dueDate, now), lte(followups.dueDate, cutoff)))
+      .orderBy(asc(followups.dueDate));
+    res.json(result);
+  });
+
+  // --- Briefings ---
+  app.get("/api/briefings/:contactId", requireAuth, async (req, res) => {
+    const [briefing] = await db.select().from(briefings).where(eq(briefings.contactId, parseInt(req.params.contactId)));
+    if (!briefing) return res.status(404).json({ message: "No briefing found" });
+    res.json(briefing);
+  });
+
+  app.put("/api/briefings/:contactId", requireAuth, async (req, res) => {
+    const { content } = req.body;
+    if (!content || typeof content !== "string") return res.status(400).json({ message: "content required" });
+    const contactId = parseInt(req.params.contactId);
+    const [existing] = await db.select().from(briefings).where(eq(briefings.contactId, contactId));
+    let result;
+    if (existing) {
+      [result] = await db.update(briefings).set({ content, updatedAt: new Date() }).where(eq(briefings.contactId, contactId)).returning();
+    } else {
+      [result] = await db.insert(briefings).values({ contactId, content }).returning();
+    }
+    sseManager.broadcast({ type: "briefing_updated", contactId });
+    storage.logActivity("briefing.saved", `Briefing updated (${content.length} chars)`, { contactId, source: "agent" });
+    res.json(result);
+  });
+
+  app.delete("/api/briefings/:contactId", requireAuth, async (req, res) => {
+    const result = await db.delete(briefings).where(eq(briefings.contactId, parseInt(req.params.contactId))).returning();
+    if (result.length === 0) return res.status(404).json({ message: "Briefing not found" });
+    sseManager.broadcast({ type: "briefing_deleted", contactId: parseInt(req.params.contactId) });
+    res.status(204).send();
+  });
+
+  // --- Activity Log ---
+  app.get("/api/activity", requireAuth, async (req, res) => {
+    const conditions = [];
+    if (req.query.contactId) conditions.push(eq(activityLog.contactId, parseInt(req.query.contactId as string)));
+    if (req.query.event) conditions.push(eq(activityLog.event, req.query.event as string));
+    if (req.query.source) conditions.push(eq(activityLog.source, req.query.source as string));
+    let query = db.select().from(activityLog).orderBy(desc(activityLog.createdAt));
+    if (conditions.length > 0) query = query.where(and(...conditions)) as any;
+    const result = await (query as any).limit(parseInt(req.query.limit as string) || 50);
+    res.json(result);
+  });
 
   // --- Pipeline ---
   app.get("/api/pipeline", requireAuth, async (_req, res) => {
