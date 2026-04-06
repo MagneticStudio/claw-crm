@@ -3,7 +3,6 @@ import type { Contact, Interaction, Followup, Rule } from "@shared/schema";
 import { db } from "./db";
 import { rules } from "@shared/schema";
 import { eq } from "drizzle-orm";
-import { getPlugins } from "../plugins";
 
 interface RuleCondition {
   type: string;
@@ -26,18 +25,8 @@ export async function evaluateRulesForContact(contactId: number): Promise<void> 
     storage.getFollowups(contactId),
   ]);
 
-  // Gather plugin data for rule evaluation
-  const pluginData: Record<string, unknown> = {};
-  const pluginCtx = storage.getPluginContext();
-  for (const plugin of getPlugins()) {
-    if (plugin.enrichContact) {
-      try { Object.assign(pluginData, await plugin.enrichContact(contactId, pluginCtx)); }
-      catch { /* plugin enrichment failed — skip */ }
-    }
-  }
-
   for (const rule of enabledRules) {
-    await evaluateRule(rule, contact, contactInteractions, contactFollowups, pluginData);
+    await evaluateRule(rule, contact, contactInteractions, contactFollowups);
   }
 
   const now = new Date();
@@ -49,7 +38,6 @@ export async function evaluateRulesForContact(contactId: number): Promise<void> 
 export async function evaluateAllRules(): Promise<void> {
   const enabledRules = await storage.getRules(true);
   const allContacts = await storage.getContacts();
-  const pluginCtx = storage.getPluginContext();
 
   for (const contact of allContacts) {
     const [contactInteractions, contactFollowups] = await Promise.all([
@@ -57,16 +45,8 @@ export async function evaluateAllRules(): Promise<void> {
       storage.getFollowups(contact.id),
     ]);
 
-    const pluginData: Record<string, unknown> = {};
-    for (const plugin of getPlugins()) {
-      if (plugin.enrichContact) {
-        try { Object.assign(pluginData, await plugin.enrichContact(contact.id, pluginCtx)); }
-        catch { /* plugin enrichment failed — skip */ }
-      }
-    }
-
     for (const rule of enabledRules) {
-      await evaluateRule(rule, contact, contactInteractions, contactFollowups, pluginData);
+      await evaluateRule(rule, contact, contactInteractions, contactFollowups);
     }
   }
 
@@ -79,16 +59,15 @@ export async function evaluateAllRules(): Promise<void> {
 async function evaluateRule(
   rule: Rule, contact: Contact,
   contactInteractions: Interaction[], contactFollowups: Followup[],
-  pluginData: Record<string, unknown>
 ): Promise<void> {
   const condition = rule.condition as RuleCondition;
   const action = rule.action as RuleAction;
-  const violated = checkCondition(condition, contact, contactInteractions, contactFollowups, pluginData);
+  const violated = checkCondition(condition, contact, contactInteractions, contactFollowups);
 
   if (violated) {
     const hasViolation = await storage.hasActiveViolation(rule.id, contact.id);
     if (!hasViolation) {
-      const message = buildMessage(action.params.message_template || "", contact, contactInteractions, contactFollowups, pluginData);
+      const message = buildMessage(action.params.message_template || "", contact, contactInteractions, contactFollowups);
       await storage.createViolation({ ruleId: rule.id, contactId: contact.id, message, severity: action.params.severity || "warning" });
     }
   } else {
@@ -99,13 +78,11 @@ async function evaluateRule(
 function checkCondition(
   condition: RuleCondition, contact: Contact,
   contactInteractions: Interaction[], contactFollowups: Followup[],
-  pluginData: Record<string, unknown>
 ): boolean {
   if (contact.status !== "ACTIVE" && condition.type !== "followup_past_due") return false;
 
   let violated = false;
 
-  // Core conditions
   switch (condition.type) {
     case "no_interaction_for_days": {
       const days = condition.params.days || 14;
@@ -137,22 +114,12 @@ function checkCondition(
     case "stage_is":
       violated = contact.stage === condition.params.stage;
       break;
-    default: {
-      // Check plugin-provided conditions
-      for (const plugin of getPlugins()) {
-        if (plugin.ruleConditions?.[condition.type]) {
-          violated = plugin.ruleConditions[condition.type](condition.params, contact, pluginData);
-          break;
-        }
-      }
-      break;
-    }
   }
 
   // Check exceptions
   if (violated && condition.exceptions) {
     for (const exception of condition.exceptions) {
-      if (checkException(exception, contact, contactInteractions, contactFollowups, pluginData)) {
+      if (checkException(exception, contact, contactFollowups)) {
         violated = false;
         break;
       }
@@ -164,8 +131,7 @@ function checkCondition(
 
 function checkException(
   exception: { type: string; params?: Record<string, any> },
-  contact: Contact, contactInteractions: Interaction[], contactFollowups: Followup[],
-  pluginData: Record<string, unknown>
+  contact: Contact, contactFollowups: Followup[],
 ): boolean {
   switch (exception.type) {
     case "has_future_followup":
@@ -180,7 +146,6 @@ function checkException(
 function buildMessage(
   template: string, contact: Contact,
   contactInteractions: Interaction[], contactFollowups: Followup[],
-  pluginData: Record<string, unknown>
 ): string {
   let message = template;
   const last = contactInteractions.length > 0 ? contactInteractions[contactInteractions.length - 1] : null;
@@ -192,8 +157,6 @@ function buildMessage(
   if (overdue.length > 0) message = message.replace("{{followup_content}}", overdue[0].content);
   const pastMeetings = contactInteractions.filter((i) => i.type === "meeting");
   if (pastMeetings.length > 0) message = message.replace("{{meeting_date}}", new Date(pastMeetings[pastMeetings.length - 1].date).toLocaleDateString());
-  const upcoming = (pluginData.meetings || []) as any[];
-  if (upcoming.length > 0) message = message.replace("{{next_meeting_date}}", new Date(upcoming[0].date).toLocaleString());
   return message;
 }
 

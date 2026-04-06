@@ -14,11 +14,10 @@ AI-first personal CRM. A single scrollable notebook view of your entire pipeline
                               (primary write path — agents)
 ```
 
-- **Core**: Postgres — contacts, companies, interactions, follow-ups, rules, violations
-- **Plugins**: Meetings, briefings, activity log — each in `app/plugins/` with own schema, routes, MCP tools
+- **Core**: Postgres — contacts, companies, interactions, follow-ups, rules, violations, briefings, activity log
 - **Frontend**: React notebook-style view. Inline editing, slash commands, SSE real-time updates
-- **Rules**: Business logic stored as data (JSONB). Evaluated reactively on writes + every 15 minutes. Plugin-extensible conditions.
-- **MCP**: Remote endpoint for AI agents. Core + plugin tools auto-registered.
+- **Rules**: Business logic stored as data (JSONB). Evaluated reactively on writes + every 15 minutes.
+- **MCP**: Remote endpoint for AI agents. All tools registered in `server/mcp-remote.ts`.
 - **Deploy**: Railway (auto-deploy from GitHub on merge to main)
 
 ---
@@ -96,7 +95,7 @@ curl -H "X-API-Key: <key>" https://your-domain.com/api/contacts
 | `delete_rule` | Remove a rule |
 | `list_violations` | Active rule violations |
 
-Plugins add their own tools — see each plugin's README for details.
+Additional tools: `set_meeting`, `get_upcoming_meetings`, `cancel_meeting`, `save_briefing`, `get_briefing`, `get_activity_log`.
 
 ---
 
@@ -179,7 +178,7 @@ Use `complete_followup(followupId, outcome: "what happened")` to do both in one 
 | `/status STATUS` | Change status | `/status HOLD` |
 | (plain text + Enter) | Add interaction note | `Had coffee with Idan` |
 
-Tasks show □ checkbox (completable). Meetings show 📅 icon. Plugins can register new item types with custom slash commands.
+Tasks show □ checkbox (completable). Meetings show 📅 icon.
 
 ---
 
@@ -208,31 +207,12 @@ Tasks show □ checkbox (completable). Meetings show 📅 icon. Plugins can regi
 
 ---
 
-## Plugins
+## Features
 
-The CRM core is thin — contacts, interactions, follow-ups, rules. Everything else is a plugin.
+All features are built directly into the core codebase for simplicity:
 
-### Included Plugins
-
-| Plugin | What it adds |
-|--------|-------------|
-| **meetings** | Schedule meetings, "Today" view, `meeting_within_hours` rule condition |
-| **briefings** | Per-contact prep notes (upsert), MCP tools |
-| **activity-log** | Audit trail for all system/agent actions, MCP query tool |
-
-### Creating a Plugin
-
-```
-app/plugins/my-plugin/
-├── schema.ts     # Drizzle table definition
-└── index.ts      # Implements CrmPlugin interface
-```
-
-The `CrmPlugin` interface:
-- `registerRoutes(app, ctx)` — add Express API routes
-- `registerTools(server, ctx)` — add MCP tools
-- `enrichContact(contactId, ctx)` — add data to contact responses
-- `ruleConditions` — register custom rule condition evaluators
-- `guideText` — append to the `get_crm_guide` output
-
-Register in `app/server/index.ts` and the plugin auto-integrates with the API, MCP, rules engine, and UI.
+| Feature | What it does | Key files |
+|---------|-------------|-----------|
+| **Meetings** | Schedule meetings, upcoming view, MCP tools | `server/routes.ts`, `server/mcp-remote.ts` |
+| **Briefings** | Per-contact prep notes (upsert), badge on contact cards | `server/routes.ts`, `server/mcp-remote.ts`, `shared/schema.ts` |
+| **Activity Log** | Audit trail for all system/agent actions | `server/storage.ts`, `server/routes.ts`, `server/mcp-remote.ts` |

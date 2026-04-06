@@ -2,8 +2,11 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 import { storage } from "./storage";
-import { getPlugins } from "../plugins";
 import { toNoonUTC, parseDateToNoonUTC } from "@shared/dates";
+import { briefings, activityLog, followups } from "@shared/schema";
+import { db } from "./db";
+import { eq, and, isNull, gte, lte, asc, desc } from "drizzle-orm";
+import { sseManager } from "./sse";
 import type { Express, Request, Response } from "express";
 import { randomUUID } from "crypto";
 
@@ -88,7 +91,18 @@ Available condition types: no_interaction_for_days, followup_past_due, no_follow
 
 Available exception types: has_future_followup, stage_in (with params.stages array)
 
-${getPlugins().map(p => p.guideText || "").filter(Boolean).join("\n\n")}
+## Meetings
+Use set_meeting to schedule meetings. Use /mtg in the UI.
+Meetings appear alongside tasks in contact cards and the Upcoming strip.
+After a meeting happens, log it as an interaction with add_interaction.
+
+## Briefings
+Use save_briefing to store prep notes for a contact (one per contact, upsert).
+Good for: talking points, recent news, open items before a meeting.
+
+## Activity Log
+Use get_activity_log to see what the system and agents have been doing.
+Useful for troubleshooting: rule evaluations, agent actions, violations, meeting scheduling.
 
 ## Confidentiality
 - NEVER put pricing or deal terms in the CRM
@@ -355,13 +369,100 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
     }
   );
 
-  // --- Plugins ---
-  const pluginCtx = storage.getPluginContext();
-  for (const plugin of getPlugins()) {
-    if (plugin.registerTools) {
-      plugin.registerTools(server, pluginCtx);
-    }
-  }
+  // --- Meetings ---
+  server.tool("set_meeting", "Schedule a meeting. Creates an item with type 'meeting'.", {
+    contactId: z.number(),
+    date: z.string().describe("Date+time ISO 8601, e.g. '2026-04-01T14:00:00'"),
+    content: z.string().describe("Meeting description"),
+    type: z.string().optional().describe("call (default), video, in-person, coffee — stored in metadata"),
+    location: z.string().optional(),
+    time: z.string().optional().describe("Display time, e.g. '2:00 PM'. Auto-parsed from date if not provided."),
+  }, async ({ contactId, date, content, type: meetingType, location, time }) => {
+    try {
+      const d = toNoonUTC(date);
+      const displayTime = time || d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+      const [item] = await db.insert(followups).values({
+        contactId, type: "meeting", dueDate: d, content,
+        time: displayTime, location,
+        metadata: meetingType ? { meetingType } : null,
+        completed: false,
+      }).returning();
+      sseManager.broadcast({ type: "followup_created", contactId });
+      storage.logActivity("meeting.created", `Scheduled ${meetingType || "meeting"}: ${content}`, { contactId, source: "agent" });
+      return { content: [{ type: "text" as const, text: `Meeting scheduled: ${displayTime} ${content} (ID: ${item.id})` }] };
+    } catch (err: any) { return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true }; }
+  });
+
+  server.tool("get_upcoming_meetings", "List upcoming meetings.", {
+    withinHours: z.number().optional().describe("Hours ahead. Default 168 (7 days)"),
+    contactId: z.number().optional(),
+  }, async ({ withinHours, contactId }) => {
+    try {
+      const now = new Date();
+      const cutoff = new Date();
+      cutoff.setHours(cutoff.getHours() + (withinHours || 168));
+      let conditions = [eq(followups.type, "meeting"), isNull(followups.cancelledAt), eq(followups.completed, false), gte(followups.dueDate, now), lte(followups.dueDate, cutoff)];
+      if (contactId) conditions.push(eq(followups.contactId, contactId));
+      const result = await db.select().from(followups).where(and(...conditions)).orderBy(asc(followups.dueDate));
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    } catch (err: any) { return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true }; }
+  });
+
+  server.tool("cancel_meeting", "Cancel a meeting.", { meetingId: z.number() }, async ({ meetingId }) => {
+    try {
+      const [item] = await db.update(followups).set({ cancelledAt: new Date() }).where(eq(followups.id, meetingId)).returning();
+      if (!item) return { content: [{ type: "text" as const, text: `Meeting ${meetingId} not found` }], isError: true };
+      sseManager.broadcast({ type: "followup_deleted", contactId: item.contactId });
+      storage.logActivity("meeting.cancelled", "Cancelled meeting", { contactId: item.contactId, source: "agent" });
+      return { content: [{ type: "text" as const, text: `Cancelled meeting ${meetingId}` }] };
+    } catch (err: any) { return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true }; }
+  });
+
+  // --- Briefings ---
+  server.tool("save_briefing", "Save a meeting prep briefing for a contact. One per contact (upsert). Use bullet points for scannability.", {
+    contactId: z.number(), content: z.string().describe("Briefing text — talking points, context, prep notes"),
+  }, async ({ contactId, content }) => {
+    try {
+      const [existing] = await db.select().from(briefings).where(eq(briefings.contactId, contactId));
+      if (existing) {
+        await db.update(briefings).set({ content, updatedAt: new Date() }).where(eq(briefings.contactId, contactId));
+      } else {
+        await db.insert(briefings).values({ contactId, content });
+      }
+      sseManager.broadcast({ type: "briefing_updated", contactId });
+      storage.logActivity("briefing.saved", `Briefing saved (${content.length} chars)`, { contactId, source: "agent" });
+      return { content: [{ type: "text" as const, text: `Briefing saved for contact ${contactId} (${content.length} chars)` }] };
+    } catch (err: any) { return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true }; }
+  });
+
+  server.tool("get_briefing", "Get the prep briefing for a contact.", {
+    contactId: z.number(),
+  }, async ({ contactId }) => {
+    try {
+      const [b] = await db.select().from(briefings).where(eq(briefings.contactId, contactId));
+      if (!b) return { content: [{ type: "text" as const, text: `No briefing for contact ${contactId}` }] };
+      return { content: [{ type: "text" as const, text: b.content }] };
+    } catch (err: any) { return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true }; }
+  });
+
+  // --- Activity Log ---
+  server.tool("get_activity_log", "View the system activity log. Shows rule evaluations, agent actions, violations. Useful for troubleshooting.", {
+    limit: z.number().optional().describe("Max entries. Default 50"),
+    contactId: z.number().optional(),
+    event: z.string().optional().describe("Filter: rule.evaluated, meeting.created, contact.updated, violation.created, etc."),
+    source: z.string().optional().describe("Filter: system, agent, user, rule:N"),
+  }, async ({ limit, contactId, event, source }) => {
+    try {
+      const conditions = [];
+      if (contactId) conditions.push(eq(activityLog.contactId, contactId));
+      if (event) conditions.push(eq(activityLog.event, event));
+      if (source) conditions.push(eq(activityLog.source, source));
+      let query = db.select().from(activityLog).orderBy(desc(activityLog.createdAt));
+      if (conditions.length > 0) query = query.where(and(...conditions)) as any;
+      const result = await (query as any).limit(limit || 50);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    } catch (err: any) { return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true }; }
+  });
 
   // --- Rules ---
   server.tool("list_rules", "List business rules", { enabled: z.boolean().optional() }, async ({ enabled }) => {
