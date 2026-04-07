@@ -87,15 +87,13 @@ curl -H "X-API-Key: <key>" https://your-domain.com/api/contacts
 | `set_followup` | Create a follow-up task with due date |
 | `complete_followup` | Mark done + log outcome to timeline |
 | `delete_followup` | Remove a task without completing it |
-| `get_pipeline` | Contacts grouped by stage |
-| `get_dashboard` | Summary: active count, overdue follow-ups, violations |
 | `list_rules` | All business rules |
 | `create_rule` | Add a business rule |
 | `update_rule` | Modify rule logic, params, exceptions, or enable/disable |
 | `delete_rule` | Remove a rule |
 | `list_violations` | Active rule violations |
 
-Additional tools: `set_meeting`, `get_upcoming_meetings`, `cancel_meeting`, `save_briefing`, `get_briefing`, `get_activity_log`.
+Additional tools: `set_meeting`, `get_upcoming_meetings`, `cancel_meeting`, `save_briefing`, `get_briefing`.
 
 ---
 

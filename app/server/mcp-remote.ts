@@ -3,9 +3,9 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { z } from "zod";
 import { storage } from "./storage";
 import { toNoonUTC, parseDateToNoonUTC } from "@shared/dates";
-import { briefings, activityLog, followups } from "@shared/schema";
+import { briefings, followups } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, isNull, gte, lte, asc, desc } from "drizzle-orm";
+import { eq, and, isNull, gte, lte, asc } from "drizzle-orm";
 import { sseManager } from "./sse";
 import type { Express, Request, Response } from "express";
 import { randomUUID } from "crypto";
@@ -100,9 +100,6 @@ After a meeting happens, log it as an interaction with add_interaction.
 Use save_briefing to store prep notes for a contact (one per contact, upsert).
 Good for: talking points, recent news, open items before a meeting.
 
-## Activity Log
-Use get_activity_log to see what the system and agents have been doing.
-Useful for troubleshooting: rule evaluations, agent actions, violations, meeting scheduling.
 
 ## Confidentiality
 - NEVER put pricing or deal terms in the CRM
@@ -136,26 +133,6 @@ Useful for troubleshooting: rule evaluations, agent actions, violations, meeting
       return { content: [{ type: "text" as const, text: JSON.stringify(contact, null, 2) }] };
     } catch (err: any) {
       return { content: [{ type: "text" as const, text: `Error reading contact ${contactId}: ${err.message}` }], isError: true };
-    }
-  });
-
-  server.tool("get_pipeline", "Contacts grouped by stage", {}, async () => {
-    try {
-      const pipeline = await storage.getPipeline();
-      return { content: [{ type: "text" as const, text: JSON.stringify(pipeline, null, 2) }] };
-    } catch (err: any) {
-      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true };
-    }
-  });
-
-  server.tool("get_dashboard", "CRM summary", {}, async () => {
-    try {
-      const [contacts, overdue, violations, pipeline] = await Promise.all([storage.getContacts(), storage.getOverdueFollowups(), storage.getViolations(), storage.getPipeline()]);
-      const stageCounts: Record<string, number> = {};
-      for (const [s, c] of Object.entries(pipeline)) stageCounts[s] = c.length;
-      return { content: [{ type: "text" as const, text: JSON.stringify({ totalContacts: contacts.length, activeContacts: contacts.filter(c => c.status === "ACTIVE").length, overdueFollowups: overdue.length, activeViolations: violations.length, stageCounts }, null, 2) }] };
-    } catch (err: any) {
-      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true };
     }
   });
 
@@ -442,25 +419,6 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
       const [b] = await db.select().from(briefings).where(eq(briefings.contactId, contactId));
       if (!b) return { content: [{ type: "text" as const, text: `No briefing for contact ${contactId}` }] };
       return { content: [{ type: "text" as const, text: b.content }] };
-    } catch (err: any) { return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true }; }
-  });
-
-  // --- Activity Log ---
-  server.tool("get_activity_log", "View the system activity log. Shows rule evaluations, agent actions, violations. Useful for troubleshooting.", {
-    limit: z.number().optional().describe("Max entries. Default 50"),
-    contactId: z.number().optional(),
-    event: z.string().optional().describe("Filter: rule.evaluated, meeting.created, contact.updated, violation.created, etc."),
-    source: z.string().optional().describe("Filter: system, agent, user, rule:N"),
-  }, async ({ limit, contactId, event, source }) => {
-    try {
-      const conditions = [];
-      if (contactId) conditions.push(eq(activityLog.contactId, contactId));
-      if (event) conditions.push(eq(activityLog.event, event));
-      if (source) conditions.push(eq(activityLog.source, source));
-      let query = db.select().from(activityLog).orderBy(desc(activityLog.createdAt));
-      if (conditions.length > 0) query = query.where(and(...conditions)) as any;
-      const result = await (query as any).limit(limit || 50);
-      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     } catch (err: any) { return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true }; }
   });
 

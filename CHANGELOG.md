@@ -2,6 +2,13 @@
 
 ## 2026-04-06
 
+### Remove redundant MCP tools
+- Cut `get_dashboard` (data available via `search_contacts`)
+- Cut `get_pipeline` (data available via `search_contacts` with stage filter)
+- Cut `get_activity_log` (debugging tool, not an agent action)
+- Removed from all 3 MCP servers (remote, stdio, client)
+- REST API endpoints (`/api/dashboard`, `/api/activity`) unchanged — UI still uses them
+
 ### Remove plugin system — flatten into core (#35)
 - Removed the `plugins/` directory and `CrmPlugin` abstraction entirely
 - Meetings routes, briefings routes, activity log routes inlined into `server/routes.ts`

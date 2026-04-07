@@ -84,26 +84,6 @@ server.tool(
 );
 
 server.tool(
-  "get_pipeline",
-  "Get contacts grouped by pipeline stage with counts",
-  {},
-  async () => {
-    const pipeline = await api("GET", "/api/pipeline");
-    return { content: [{ type: "text" as const, text: JSON.stringify(pipeline, null, 2) }] };
-  }
-);
-
-server.tool(
-  "get_dashboard",
-  "Get CRM dashboard summary: pipeline counts, overdue follow-ups, stale contacts, recent activity",
-  {},
-  async () => {
-    const dashboard = await api("GET", "/api/dashboard");
-    return { content: [{ type: "text" as const, text: JSON.stringify(dashboard, null, 2) }] };
-  }
-);
-
-server.tool(
   "list_violations",
   "Get all active rule violations",
   { severity: z.string().optional().describe("Filter by severity") },

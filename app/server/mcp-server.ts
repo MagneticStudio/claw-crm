@@ -65,67 +65,6 @@ server.tool(
 );
 
 server.tool(
-  "get_pipeline",
-  "Get contacts grouped by pipeline stage with counts",
-  {},
-  async () => {
-    const pipeline = await storage.getPipeline();
-    const result: Record<string, any> = {};
-    for (const [stage, stageContacts] of Object.entries(pipeline)) {
-      result[stage] = {
-        count: stageContacts.length,
-        contacts: stageContacts.map((c) => ({
-          id: c.id,
-          name: `${c.firstName} ${c.lastName}`,
-          company: null as string | null, // Will be enriched below
-          status: c.status,
-        })),
-      };
-    }
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
-  }
-);
-
-server.tool(
-  "get_dashboard",
-  "Get CRM dashboard summary: pipeline counts, overdue follow-ups, stale contacts, recent activity",
-  {},
-  async () => {
-    const [allContacts, overdueFollowups, violations, pipeline] = await Promise.all([
-      storage.getContacts(),
-      storage.getOverdueFollowups(),
-      storage.getViolations(),
-      storage.getPipeline(),
-    ]);
-
-    const stageCounts: Record<string, number> = {};
-    for (const [stage, stageContacts] of Object.entries(pipeline)) {
-      stageCounts[stage] = stageContacts.length;
-    }
-
-    const result = {
-      totalContacts: allContacts.length,
-      activeContacts: allContacts.filter((c) => c.status === "ACTIVE").length,
-      overdueFollowups: overdueFollowups.map((f) => ({
-        id: f.id,
-        contactId: f.contactId,
-        dueDate: f.dueDate,
-        content: f.content,
-      })),
-      activeViolations: violations.map((v) => ({
-        id: v.id,
-        contactId: v.contactId,
-        message: v.message,
-        severity: v.severity,
-      })),
-      stageCounts,
-    };
-
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
-  }
-);
-
-server.tool(
   "list_violations",
   "Get all active rule violations",
   { severity: z.string().optional().describe("Filter by severity (info, warning, critical)") },
