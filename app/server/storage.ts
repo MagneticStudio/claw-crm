@@ -180,18 +180,27 @@ export class Storage {
     await db.update(contacts).set({ updatedAt: new Date() }).where(eq(contacts.id, data.contactId));
     sseManager.broadcast({ type: "interaction_created", contactId: data.contactId, interactionId: interaction.id });
     triggerRulesEvaluation(data.contactId);
+    const contact = await this.getContact(data.contactId);
+    const name = contact ? `${contact.firstName} ${contact.lastName}` : `contact ${data.contactId}`;
+    this.logActivity("interaction.created", `Added ${data.type || "note"} for ${name}: ${(data.content as string).slice(0, 80)}`, { contactId: data.contactId });
     return interaction;
   }
 
   async updateInteraction(id: number, data: Partial<InsertInteraction>): Promise<Interaction | undefined> {
     const [interaction] = await db.update(interactions).set(data).where(eq(interactions.id, id)).returning();
-    if (interaction) sseManager.broadcast({ type: "interaction_updated", contactId: interaction.contactId });
+    if (interaction) {
+      sseManager.broadcast({ type: "interaction_updated", contactId: interaction.contactId });
+      this.logActivity("interaction.updated", `Edited interaction ${id}`, { contactId: interaction.contactId });
+    }
     return interaction;
   }
 
   async deleteInteraction(id: number): Promise<boolean> {
     const [deleted] = await db.delete(interactions).where(eq(interactions.id, id)).returning();
-    if (deleted) sseManager.broadcast({ type: "interaction_deleted", contactId: deleted.contactId });
+    if (deleted) {
+      sseManager.broadcast({ type: "interaction_deleted", contactId: deleted.contactId });
+      this.logActivity("interaction.deleted", `Deleted interaction ${id}`, { contactId: deleted.contactId });
+    }
     return !!deleted;
   }
 
@@ -209,12 +218,19 @@ export class Storage {
     const [followup] = await db.insert(followups).values(data).returning();
     sseManager.broadcast({ type: "followup_created", contactId: data.contactId, followupId: followup.id });
     triggerRulesEvaluation(data.contactId);
+    const contact = await this.getContact(data.contactId);
+    const name = contact ? `${contact.firstName} ${contact.lastName}` : `contact ${data.contactId}`;
+    this.logActivity("followup.created", `Created ${data.type || "task"} for ${name}: ${(data.content as string).slice(0, 80)}`, { contactId: data.contactId });
     return followup;
   }
 
   async updateFollowup(id: number, data: Partial<InsertFollowup>): Promise<Followup | undefined> {
     const [followup] = await db.update(followups).set(data).where(eq(followups.id, id)).returning();
-    if (followup) sseManager.broadcast({ type: "followup_updated", contactId: followup.contactId });
+    if (followup) {
+      sseManager.broadcast({ type: "followup_updated", contactId: followup.contactId });
+      const changes = Object.keys(data).join(", ");
+      this.logActivity("followup.updated", `Updated ${followup.type || "task"} ${id}: ${changes}`, { contactId: followup.contactId });
+    }
     return followup;
   }
 
@@ -223,13 +239,19 @@ export class Storage {
     if (followup) {
       sseManager.broadcast({ type: "followup_completed", contactId: followup.contactId });
       triggerRulesEvaluation(followup.contactId);
+      const contact = await this.getContact(followup.contactId);
+      const name = contact ? `${contact.firstName} ${contact.lastName}` : `contact ${followup.contactId}`;
+      this.logActivity("followup.completed", `Completed ${followup.type || "task"} for ${name}: ${followup.content.slice(0, 80)}`, { contactId: followup.contactId });
     }
     return followup;
   }
 
   async deleteFollowup(id: number): Promise<boolean> {
     const [deleted] = await db.delete(followups).where(eq(followups.id, id)).returning();
-    if (deleted) sseManager.broadcast({ type: "followup_deleted", contactId: deleted.contactId });
+    if (deleted) {
+      sseManager.broadcast({ type: "followup_deleted", contactId: deleted.contactId });
+      this.logActivity("followup.deleted", `Deleted ${deleted.type || "task"}: ${deleted.content.slice(0, 80)}`, { contactId: deleted.contactId });
+    }
     return !!deleted;
   }
 
@@ -246,16 +268,20 @@ export class Storage {
 
   async createRule(data: InsertRule): Promise<Rule> {
     const [rule] = await db.insert(rules).values(data).returning();
+    this.logActivity("rule.created", `Created rule: ${rule.name}`, { source: "agent" });
     return rule;
   }
 
   async updateRule(id: number, data: Partial<InsertRule>): Promise<Rule | undefined> {
     const [rule] = await db.update(rules).set({ ...data, updatedAt: new Date() }).where(eq(rules.id, id)).returning();
+    if (rule) this.logActivity("rule.updated", `Updated rule: ${rule.name}`, { source: "agent" });
     return rule;
   }
 
   async deleteRule(id: number): Promise<boolean> {
+    const rule = await this.getRule(id);
     const result = await db.delete(rules).where(eq(rules.id, id)).returning();
+    if (result.length > 0) this.logActivity("rule.deleted", `Deleted rule: ${rule?.name || id}`, { source: "agent" });
     return result.length > 0;
   }
 
