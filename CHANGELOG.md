@@ -2,6 +2,10 @@
 
 ## 2026-04-09
 
+### Move Upcoming Days setting to Settings page (#30)
+- Upcoming days picker moved from CRM page to Settings > Upcoming Window
+- Setting is now always accessible regardless of whether follow-ups are visible
+
 ### Add Kanban board view (#38)
 - New toggleable Kanban view alongside existing list view (icon toggle in header)
 - Desktop: full-width columns per pipeline stage with drag-and-drop contact cards
