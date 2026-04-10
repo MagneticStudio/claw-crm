@@ -3,12 +3,20 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { z } from "zod";
 import { storage } from "./storage";
 import { toNoonUTC, parseDateToNoonUTC } from "@shared/dates";
-import { briefings, followups } from "@shared/schema";
+import { briefings, followups, companies } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, isNull, gte, lte, asc } from "drizzle-orm";
 import { sseManager } from "./sse";
 import type { Express, Request, Response } from "express";
 import { randomUUID } from "crypto";
+
+async function findOrCreateCompany(name: string): Promise<number> {
+  const allCompanies = await storage.getCompanies();
+  const match = allCompanies.find((c) => c.name.toLowerCase() === name.toLowerCase());
+  if (match) return match.id;
+  const created = await storage.createCompany({ name });
+  return created.id;
+}
 
 function createMcpServer(): McpServer {
   const server = new McpServer({
@@ -170,6 +178,7 @@ After creating the contact, use add_interaction to log the key events (meetings,
     {
       firstName: z.string().describe("First name of the primary contact"),
       lastName: z.string().describe("Last name of the primary contact"),
+      companyName: z.string().optional().describe("Company name, e.g. 'Meridian Capital'. Auto-creates if new, reuses if existing."),
       title: z.string().optional().describe("Job title, e.g. 'CEO & Founder'"),
       email: z.string().optional().describe("Direct email address — always include if known"),
       phone: z.string().optional().describe("Direct phone number"),
@@ -181,11 +190,12 @@ After creating the contact, use add_interaction to log the key events (meetings,
       status: z.string().optional().describe("ACTIVE (default) or HOLD"),
       stage: z.string().optional().describe("LEAD, MEETING, PROPOSAL, NEGOTIATION, LIVE, PASS, or RELATIONSHIP. NOT HOLD (use status for that)"),
     },
-    async (data) => {
+    async ({ companyName, ...data }) => {
       try {
-        const cleaned = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
+        const cleaned: Record<string, unknown> = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
         if (!cleaned.status) cleaned.status = "ACTIVE";
         if (!cleaned.stage) cleaned.stage = "LEAD";
+        if (companyName) cleaned.companyId = await findOrCreateCompany(companyName);
         const c = await storage.createContact(cleaned as any);
         return { content: [{ type: "text" as const, text: `Created contact: ${c.firstName} ${c.lastName} (ID: ${c.id}). Now use add_interaction to log key events in the timeline.` }] };
       } catch (err: any) {
@@ -201,6 +211,7 @@ After creating the contact, use add_interaction to log the key events (meetings,
       contactId: z.number().describe("Contact ID to update"),
       firstName: z.string().optional(),
       lastName: z.string().optional(),
+      companyName: z.string().optional().describe("Company name. Auto-creates if new, reuses if existing."),
       title: z.string().optional().describe("Job title"),
       email: z.string().optional().describe("Direct email address"),
       phone: z.string().optional().describe("Direct phone number"),
@@ -212,9 +223,10 @@ After creating the contact, use add_interaction to log the key events (meetings,
       status: z.string().optional().describe("ACTIVE, HOLD, or PASS"),
       stage: z.string().optional().describe("LEAD, MEETING, PROPOSAL, NEGOTIATION, LIVE, PASS, or RELATIONSHIP. NOT HOLD (use status for that)"),
     },
-    async ({ contactId, ...data }) => {
+    async ({ contactId, companyName, ...data }) => {
       try {
-        const filtered = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
+        const filtered: Record<string, unknown> = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
+        if (companyName) filtered.companyId = await findOrCreateCompany(companyName);
         const c = await storage.updateContact(contactId, filtered);
         if (!c) return { content: [{ type: "text" as const, text: `Contact ${contactId} not found` }], isError: true };
         return { content: [{ type: "text" as const, text: `Updated: ${c.firstName} ${c.lastName}` }] };
@@ -507,7 +519,7 @@ async function checkToken(req: Request, res: Response): Promise<boolean> {
   return false;
 }
 
-const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
 const sessionLastUsed = new Map<string, number>();
 
 function createTransportAndServer(): StreamableHTTPServerTransport {
