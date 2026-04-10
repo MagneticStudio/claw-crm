@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-04-09
+
+### Fix activity log coverage (#43)
+- Added logging for all interaction mutations (create, update, delete)
+- Added logging for all follow-up/meeting mutations (create, update, complete, delete)
+- Added logging for rule mutations (create, update, delete)
+- All mutations now flow through `logActivity` in storage.ts, so future actions are covered automatically
+
 ## 2026-04-06
 
 ### Remove redundant MCP tools
