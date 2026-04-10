@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ArrowLeft, Copy, RefreshCw, Check } from "lucide-react";
 import { Link } from "wouter";
-import { useColors } from "@/App";
+import { useColors, useConfig } from "@/App";
 
 export default function SettingsPage() {
   const C = useColors();
@@ -19,6 +19,17 @@ export default function SettingsPage() {
   const [newPin, setNewPin] = useState("");
   const [pinMessage, setPinMessage] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
+  const { upcomingDays } = useConfig();
+
+  const saveDays = useMutation({
+    mutationFn: async (d: number) => {
+      await apiRequest("PUT", "/api/settings", { upcomingDays: d });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/config"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+    },
+  });
 
   // Initialize from settings
   if (settings && !orgNameDirty && orgName !== settings.orgName) {
@@ -145,6 +156,28 @@ export default function SettingsPage() {
               className="text-xs font-medium text-white px-3 py-1.5 rounded-lg disabled:opacity-40"
               style={{ backgroundColor: C.accentDark }}
             >Save</button>
+          </div>
+        </div>
+
+        {/* Upcoming Days */}
+        <div className="bg-white" style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}>
+          <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>Upcoming Window</label>
+          <p className="text-[11px] mt-0.5 mb-2" style={{ color: C.muted }}>How many days ahead to show in the Upcoming section.</p>
+          <div className="flex gap-1">
+            {[1, 2, 3, 7, 14].map((d) => (
+              <button
+                key={d}
+                onClick={() => saveDays.mutate(d)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                style={{
+                  backgroundColor: upcomingDays === d ? C.accent : "transparent",
+                  color: upcomingDays === d ? "white" : C.muted,
+                  border: upcomingDays === d ? "none" : `1px solid ${C.border}`,
+                }}
+              >
+                {d}d
+              </button>
+            ))}
           </div>
         </div>
 
