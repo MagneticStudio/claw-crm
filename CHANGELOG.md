@@ -2,6 +2,14 @@
 
 ## 2026-04-09
 
+### Add Kanban board view (#38)
+- New toggleable Kanban view alongside existing list view (icon toggle in header)
+- Desktop: full-width columns per pipeline stage with drag-and-drop contact cards
+- Mobile (<768px): compact horizontal swimlane strips with pill-shaped tiles
+- Drag-and-drop between stages updates contact via API with optimistic updates
+- HOLD contacts excluded from Kanban view; view preference saved to localStorage
+- New dependencies: @dnd-kit/core, @dnd-kit/sortable, @dnd-kit/utilities
+
 ### Fix activity log coverage (#43)
 - Added logging for all interaction mutations (create, update, delete)
 - Added logging for all follow-up/meeting mutations (create, update, complete, delete)

@@ -1,11 +1,12 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useCrm } from "@/hooks/use-crm";
 import { useSSE } from "@/hooks/use-sse";
 import { useAuth } from "@/hooks/use-auth";
 import { ContactBlock } from "@/components/contact-block";
-import { Loader2, LogOut, Settings, Square, Activity, X, ChevronDown, Zap } from "lucide-react";
+import { Loader2, LogOut, Settings, Square, Activity, X, ChevronDown, Zap, LayoutList, Kanban } from "lucide-react";
+import { KanbanBoard } from "@/components/kanban/kanban-board";
 import { Link } from "wouter";
 import { format, isPast, isToday, differenceInDays } from "date-fns";
 import type { ContactWithRelations, Followup, ActivityLogEntry } from "@shared/schema";
@@ -40,6 +41,10 @@ export default function CrmPage() {
   const { orgName, upcomingDays: configDays } = useConfig();
   const [localDays, setLocalDays] = useState<number | null>(null);
   const days = localDays ?? configDays;
+  const [viewMode, setViewMode] = useState<"list" | "kanban">(() =>
+    (localStorage.getItem("crm-view-mode") as "list" | "kanban") || "list",
+  );
+  useEffect(() => { localStorage.setItem("crm-view-mode", viewMode); }, [viewMode]);
   useSSE();
 
   const saveDays = useMutation({
@@ -82,6 +87,8 @@ export default function CrmPage() {
     }
     return counts;
   }, [contacts]);
+
+  const kanbanContacts = useMemo(() => contacts.filter((c) => c.status !== "HOLD"), [contacts]);
 
   // Follow-ups due within N days (including overdue), sorted by due date
   const allFollowups = useMemo(() => {
@@ -137,7 +144,7 @@ export default function CrmPage() {
     <div className="min-h-screen" style={{ backgroundColor: "#f0f8f8" }}>
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: `1px solid ${C.border}` }}>
-        <div className="max-w-[640px] mx-auto px-4 py-3 flex items-center justify-between">
+        <div className={`${viewMode === "list" ? "max-w-[640px]" : ""} mx-auto px-4 py-3 flex items-center justify-between`}>
           <div>
             <h1 className="text-[13px] font-semibold tracking-[0.2em] uppercase" style={{ color: C.text }}>
               {orgName}
@@ -149,6 +156,25 @@ export default function CrmPage() {
             </p>
           </div>
           <div className="flex items-center gap-1">
+            {/* View mode toggle */}
+            <div className="flex items-center rounded-lg mr-1" style={{ border: `1px solid ${C.border}` }}>
+              <button
+                onClick={() => setViewMode("list")}
+                className="p-1.5 rounded-l-lg transition-colors"
+                style={{ backgroundColor: viewMode === "list" ? C.accent : "transparent", color: viewMode === "list" ? "#fff" : C.muted }}
+                title="List view"
+              >
+                <LayoutList className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={() => setViewMode("kanban")}
+                className="p-1.5 rounded-r-lg transition-colors"
+                style={{ backgroundColor: viewMode === "kanban" ? C.accent : "transparent", color: viewMode === "kanban" ? "#fff" : C.muted }}
+                title="Kanban view"
+              >
+                <Kanban className="h-3.5 w-3.5" />
+              </button>
+            </div>
             <Link href="/rules" className="p-2 transition-colors" style={{ color: C.muted }} title="Rules">
               <Zap className="h-4 w-4" />
             </Link>
@@ -164,29 +190,31 @@ export default function CrmPage() {
           </div>
         </div>
 
-        {/* Stage filter pills */}
-        <div className="max-w-[640px] mx-auto px-4 pb-2.5 flex gap-1.5 overflow-x-auto">
-          {STAGES.map((stage) => {
-            const count = stageCounts[stage] || 0;
-            if (stage !== "ALL" && count === 0) return null;
-            const isActive = activeStage === stage;
-            return (
-              <button
-                key={stage}
-                onClick={() => setActiveStage(stage)}
-                className="px-3 py-1 rounded-full text-[11px] font-medium whitespace-nowrap transition-all"
-                style={
-                  isActive
-                    ? { backgroundColor: C.accent, color: "#ffffff" }
-                    : { backgroundColor: "transparent", color: C.muted, border: `1px solid ${C.border}` }
-                }
-              >
-                {stage === "ALL" ? "All" : stage.charAt(0) + stage.slice(1).toLowerCase()}
-                <span className="ml-1" style={{ opacity: 0.7 }}>{count}</span>
-              </button>
-            );
-          })}
-        </div>
+        {/* Stage filter pills — list view only */}
+        {viewMode === "list" && (
+          <div className="max-w-[640px] mx-auto px-4 pb-2.5 flex gap-1.5 overflow-x-auto">
+            {STAGES.map((stage) => {
+              const count = stageCounts[stage] || 0;
+              if (stage !== "ALL" && count === 0) return null;
+              const isActive = activeStage === stage;
+              return (
+                <button
+                  key={stage}
+                  onClick={() => setActiveStage(stage)}
+                  className="px-3 py-1 rounded-full text-[11px] font-medium whitespace-nowrap transition-all"
+                  style={
+                    isActive
+                      ? { backgroundColor: C.accent, color: "#ffffff" }
+                      : { backgroundColor: "transparent", color: C.muted, border: `1px solid ${C.border}` }
+                  }
+                >
+                  {stage === "ALL" ? "All" : stage.charAt(0) + stage.slice(1).toLowerCase()}
+                  <span className="ml-1" style={{ opacity: 0.7 }}>{count}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </header>
 
       {/* Activity drawer */}
@@ -220,166 +248,170 @@ export default function CrmPage() {
         </div>
       )}
 
-      <main className="max-w-[640px] mx-auto px-4 py-5">
-        {/* Upcoming — all follow-ups and meetings in one list */}
-        {allFollowups.length > 0 && (
-          <div className="bg-white mb-5" style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>Upcoming</span>
-              <div className="flex items-center gap-0.5">
-                {[1, 2, 3, 7, 14].map((d) => (
-                  <button
-                    key={d}
-                    onClick={() => { setLocalDays(d); saveDays.mutate(d); }}
-                    className="px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors"
-                    style={{
-                      backgroundColor: days === d ? C.accent : "transparent",
-                      color: days === d ? "white" : C.muted,
-                    }}
-                  >
-                    {d}d
-                  </button>
-                ))}
+      {viewMode === "kanban" ? (
+        <KanbanBoard contacts={kanbanContacts} updateContact={updateContact} />
+      ) : (
+        <main className="max-w-[640px] mx-auto px-4 py-5">
+          {/* Upcoming — all follow-ups and meetings in one list */}
+          {allFollowups.length > 0 && (
+            <div className="bg-white mb-5" style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>Upcoming</span>
+                <div className="flex items-center gap-0.5">
+                  {[1, 2, 3, 7, 14].map((d) => (
+                    <button
+                      key={d}
+                      onClick={() => { setLocalDays(d); saveDays.mutate(d); }}
+                      className="px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors"
+                      style={{
+                        backgroundColor: days === d ? C.accent : "transparent",
+                        color: days === d ? "white" : C.muted,
+                      }}
+                    >
+                      {d}d
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-            <div className="space-y-1.5">
-              {allFollowups.map(({ followup: fu, contactName, briefing }) => {
-                const due = new Date(fu.dueDate);
-                const isOverdue = isPast(due) && !isToday(due);
-                const isTodayDue = isToday(due);
-                const daysUntil = differenceInDays(due, new Date());
-                const dateColor = isOverdue ? C.red : isTodayDue ? C.stale : C.accentDark;
-                const isCompleting = completingUpcomingId === fu.id;
+              <div className="space-y-1.5">
+                {allFollowups.map(({ followup: fu, contactName, briefing }) => {
+                  const due = new Date(fu.dueDate);
+                  const isOverdue = isPast(due) && !isToday(due);
+                  const isTodayDue = isToday(due);
+                  const daysUntil = differenceInDays(due, new Date());
+                  const dateColor = isOverdue ? C.red : isTodayDue ? C.stale : C.accentDark;
+                  const isCompleting = completingUpcomingId === fu.id;
 
-                if (isCompleting) {
-                  return (
-                    <div key={fu.id} className="rounded-lg px-3 py-2 space-y-2" style={{ backgroundColor: C.accentLight, border: `1px solid ${C.accent}40` }}>
-                      <div className="text-xs font-medium" style={{ color: C.accentDark }}>
-                        Completing: {fmtDate(due)} {fu.content} — {contactName}
-                      </div>
-                      <input
-                        autoFocus
-                        value={completingUpcomingText}
-                        onChange={(e) => setCompletingUpcomingText(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && completingUpcomingText.trim()) {
-                            completeFollowup.mutate({ id: fu.id, outcome: completingUpcomingText.trim() });
-                            setCompletingUpcomingId(null);
-                          }
-                          if (e.key === "Escape") setCompletingUpcomingId(null);
-                        }}
-                        placeholder="What happened?"
-                        className="w-full text-sm bg-white rounded px-2 py-1 outline-none"
-                        style={{ color: C.text, border: `1px solid ${C.accent}40` }}
-                      />
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => {
-                            if (completingUpcomingText.trim()) {
+                  if (isCompleting) {
+                    return (
+                      <div key={fu.id} className="rounded-lg px-3 py-2 space-y-2" style={{ backgroundColor: C.accentLight, border: `1px solid ${C.accent}40` }}>
+                        <div className="text-xs font-medium" style={{ color: C.accentDark }}>
+                          Completing: {fmtDate(due)} {fu.content} — {contactName}
+                        </div>
+                        <input
+                          autoFocus
+                          value={completingUpcomingText}
+                          onChange={(e) => setCompletingUpcomingText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && completingUpcomingText.trim()) {
                               completeFollowup.mutate({ id: fu.id, outcome: completingUpcomingText.trim() });
                               setCompletingUpcomingId(null);
                             }
+                            if (e.key === "Escape") setCompletingUpcomingId(null);
                           }}
-                          className="text-xs font-medium text-white px-2.5 py-1 rounded"
-                          style={{ backgroundColor: C.accentDark }}
-                        >Done</button>
-                        <button onClick={() => { completeFollowup.mutate({ id: fu.id }); setCompletingUpcomingId(null); }}
-                          className="text-xs" style={{ color: C.muted }}>Skip note</button>
-                        <button onClick={() => setCompletingUpcomingId(null)}
-                          className="text-xs" style={{ color: C.muted }}>Cancel</button>
+                          placeholder="What happened?"
+                          className="w-full text-sm bg-white rounded px-2 py-1 outline-none"
+                          style={{ color: C.text, border: `1px solid ${C.accent}40` }}
+                        />
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              if (completingUpcomingText.trim()) {
+                                completeFollowup.mutate({ id: fu.id, outcome: completingUpcomingText.trim() });
+                                setCompletingUpcomingId(null);
+                              }
+                            }}
+                            className="text-xs font-medium text-white px-2.5 py-1 rounded"
+                            style={{ backgroundColor: C.accentDark }}
+                          >Done</button>
+                          <button onClick={() => { completeFollowup.mutate({ id: fu.id }); setCompletingUpcomingId(null); }}
+                            className="text-xs" style={{ color: C.muted }}>Skip note</button>
+                          <button onClick={() => setCompletingUpcomingId(null)}
+                            className="text-xs" style={{ color: C.muted }}>Cancel</button>
+                        </div>
                       </div>
+                    );
+                  }
+
+                  const isMeeting = fu.type === "meeting";
+                  const meetingType = (fu.metadata as any)?.meetingType;
+                  const meetingIcon = isMeeting
+                    ? ({ call: "📞", video: "📹", "in-person": "🤝", coffee: "☕" } as any)[meetingType] || "📅"
+                    : null;
+                  const isTodayMeeting = isMeeting && isTodayDue;
+                  const isExp = isTodayMeeting && expandedMeetingIds.has(fu.id);
+
+                  return (
+                    <div key={fu.id}>
+                      <div className="flex items-center gap-2 text-sm">
+                        {isMeeting ? (
+                          <span
+                            className={`flex-shrink-0 ${isTodayMeeting ? "cursor-pointer" : ""}`}
+                            onClick={isTodayMeeting ? () => toggleMeetingExpand(fu.id) : undefined}
+                          >{meetingIcon}</span>
+                        ) : (
+                          <button
+                            onClick={() => { setCompletingUpcomingId(fu.id); setCompletingUpcomingText(fu.content); }}
+                            className="flex-shrink-0 hover:opacity-70 transition-colors"
+                            title="Complete"
+                          >
+                            <Square className="h-3.5 w-3.5" style={{ color: dateColor }} />
+                          </button>
+                        )}
+                        <span className="font-bold flex-shrink-0" style={{ color: isMeeting ? "#2563eb" : dateColor }}>
+                          {fmtDate(due)}{fu.time ? ` ${fu.time}` : ""}
+                        </span>
+                        <span className="truncate min-w-0" style={{ color: C.text }}>
+                          {fu.content}{fu.location ? ` — ${fu.location}` : ""}
+                        </span>
+                        <span className="text-xs flex-shrink-0 whitespace-nowrap" style={{ color: C.muted }}>
+                          {contactName}
+                        </span>
+                        {isOverdue && (
+                          <span className="text-xs font-semibold flex-shrink-0" style={{ color: C.red }}>OVERDUE</span>
+                        )}
+                        {isTodayDue && (
+                          <span className="text-xs font-semibold flex-shrink-0" style={{ color: C.stale }}>TODAY</span>
+                        )}
+                        {!isOverdue && !isTodayDue && daysUntil <= 7 && (
+                          <span className="text-xs flex-shrink-0" style={{ color: C.muted }}>{daysUntil}d</span>
+                        )}
+                        {isTodayMeeting && (
+                          <ChevronDown className={`h-3 w-3 flex-shrink-0 transition-transform cursor-pointer ${isExp ? "rotate-180" : ""}`} style={{ color: C.muted }} onClick={() => toggleMeetingExpand(fu.id)} />
+                        )}
+                      </div>
+                      {isExp && briefing && (
+                        <div className="mt-1.5 ml-6 text-xs rounded-lg px-3 py-2 whitespace-pre-wrap" style={{ backgroundColor: C.accentLight, color: C.text }}>
+                          <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: C.accentDark }}>Briefing</div>
+                          {briefing.content}
+                        </div>
+                      )}
+                      {isExp && !briefing && (
+                        <div className="mt-1.5 ml-6 text-[10px] italic" style={{ color: C.muted }}>No briefing yet</div>
+                      )}
                     </div>
                   );
-                }
-
-                const isMeeting = fu.type === "meeting";
-                const meetingType = (fu.metadata as any)?.meetingType;
-                const meetingIcon = isMeeting
-                  ? ({ call: "📞", video: "📹", "in-person": "🤝", coffee: "☕" } as any)[meetingType] || "📅"
-                  : null;
-                const isTodayMeeting = isMeeting && isTodayDue;
-                const isExp = isTodayMeeting && expandedMeetingIds.has(fu.id);
-
-                return (
-                  <div key={fu.id}>
-                    <div className="flex items-center gap-2 text-sm">
-                      {isMeeting ? (
-                        <span
-                          className={`flex-shrink-0 ${isTodayMeeting ? "cursor-pointer" : ""}`}
-                          onClick={isTodayMeeting ? () => toggleMeetingExpand(fu.id) : undefined}
-                        >{meetingIcon}</span>
-                      ) : (
-                        <button
-                          onClick={() => { setCompletingUpcomingId(fu.id); setCompletingUpcomingText(fu.content); }}
-                          className="flex-shrink-0 hover:opacity-70 transition-colors"
-                          title="Complete"
-                        >
-                          <Square className="h-3.5 w-3.5" style={{ color: dateColor }} />
-                        </button>
-                      )}
-                      <span className="font-bold flex-shrink-0" style={{ color: isMeeting ? "#2563eb" : dateColor }}>
-                        {fmtDate(due)}{fu.time ? ` ${fu.time}` : ""}
-                      </span>
-                      <span className="truncate min-w-0" style={{ color: C.text }}>
-                        {fu.content}{fu.location ? ` — ${fu.location}` : ""}
-                      </span>
-                      <span className="text-xs flex-shrink-0 whitespace-nowrap" style={{ color: C.muted }}>
-                        {contactName}
-                      </span>
-                      {isOverdue && (
-                        <span className="text-xs font-semibold flex-shrink-0" style={{ color: C.red }}>OVERDUE</span>
-                      )}
-                      {isTodayDue && (
-                        <span className="text-xs font-semibold flex-shrink-0" style={{ color: C.stale }}>TODAY</span>
-                      )}
-                      {!isOverdue && !isTodayDue && daysUntil <= 7 && (
-                        <span className="text-xs flex-shrink-0" style={{ color: C.muted }}>{daysUntil}d</span>
-                      )}
-                      {isTodayMeeting && (
-                        <ChevronDown className={`h-3 w-3 flex-shrink-0 transition-transform cursor-pointer ${isExp ? "rotate-180" : ""}`} style={{ color: C.muted }} onClick={() => toggleMeetingExpand(fu.id)} />
-                      )}
-                    </div>
-                    {isExp && briefing && (
-                      <div className="mt-1.5 ml-6 text-xs rounded-lg px-3 py-2 whitespace-pre-wrap" style={{ backgroundColor: C.accentLight, color: C.text }}>
-                        <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: C.accentDark }}>Briefing</div>
-                        {briefing.content}
-                      </div>
-                    )}
-                    {isExp && !briefing && (
-                      <div className="mt-1.5 ml-6 text-[10px] italic" style={{ color: C.muted }}>No briefing yet</div>
-                    )}
-                  </div>
-                );
-              })}
+                })}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Contact cards */}
-        {filteredContacts.map((contact) => (
-          <ContactBlock
-            key={contact.id}
-            contact={contact}
-            accentColor={STAGE_ACCENT[contact.stage] || "#5a7a7a"}
-            onAddInteraction={(content, date, type) =>
-              addInteraction.mutate({ contactId: contact.id, content, date, type })
-            }
-            onUpdateInteraction={(id, data) => updateInteraction.mutate({ id, ...data })}
-            onDeleteInteraction={(id) => deleteInteraction.mutate(id)}
-            onCreateFollowup={(content, dueDate, opts) =>
-              createFollowup.mutate({ contactId: contact.id, content, dueDate, ...opts })
-            }
-            onUpdateFollowup={(id, data) => updateFollowup.mutate({ id, ...data })}
-            onDeleteFollowup={(id) => deleteFollowup.mutate(id)}
-            onCompleteFollowup={(id, outcome) => completeFollowup.mutate({ id, outcome })}
-            onUpdateContact={(data) => updateContact.mutate({ id: contact.id, ...data })}
-          />
-        ))}
+          {/* Contact cards */}
+          {filteredContacts.map((contact) => (
+            <ContactBlock
+              key={contact.id}
+              contact={contact}
+              accentColor={STAGE_ACCENT[contact.stage] || "#5a7a7a"}
+              onAddInteraction={(content, date, type) =>
+                addInteraction.mutate({ contactId: contact.id, content, date, type })
+              }
+              onUpdateInteraction={(id, data) => updateInteraction.mutate({ id, ...data })}
+              onDeleteInteraction={(id) => deleteInteraction.mutate(id)}
+              onCreateFollowup={(content, dueDate, opts) =>
+                createFollowup.mutate({ contactId: contact.id, content, dueDate, ...opts })
+              }
+              onUpdateFollowup={(id, data) => updateFollowup.mutate({ id, ...data })}
+              onDeleteFollowup={(id) => deleteFollowup.mutate(id)}
+              onCompleteFollowup={(id, outcome) => completeFollowup.mutate({ id, outcome })}
+              onUpdateContact={(data) => updateContact.mutate({ id: contact.id, ...data })}
+            />
+          ))}
 
-        {filteredContacts.length === 0 && (
-          <p className="text-center py-16 text-sm" style={{ color: C.muted }}>No contacts in this stage</p>
-        )}
-      </main>
+          {filteredContacts.length === 0 && (
+            <p className="text-center py-16 text-sm" style={{ color: C.muted }}>No contacts in this stage</p>
+          )}
+        </main>
+      )}
     </div>
   );
 }

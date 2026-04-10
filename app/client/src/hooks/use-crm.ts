@@ -13,7 +13,23 @@ export function useCrm() {
       const res = await apiRequest("PUT", `/api/contacts/${id}`, data);
       return res.json();
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/contacts"] }),
+    onMutate: async ({ id, ...data }) => {
+      await queryClient.cancelQueries({ queryKey: ["/api/contacts"] });
+      const previous = queryClient.getQueryData<ContactWithRelations[]>(["/api/contacts"]);
+      if (previous) {
+        queryClient.setQueryData<ContactWithRelations[]>(
+          ["/api/contacts"],
+          previous.map((c) => (c.id === id ? { ...c, ...data } as ContactWithRelations : c)),
+        );
+      }
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["/api/contacts"], context.previous);
+      }
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["/api/contacts"] }),
   });
 
   const createContact = useMutation({
