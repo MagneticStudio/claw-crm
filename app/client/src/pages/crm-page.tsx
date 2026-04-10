@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useQuery } from "@tanstack/react-query";
 import { useCrm } from "@/hooks/use-crm";
 import { useSSE } from "@/hooks/use-sse";
 import { useAuth } from "@/hooks/use-auth";
@@ -38,21 +37,12 @@ export default function CrmPage() {
   const { contacts, isLoading, addInteraction, updateInteraction, deleteInteraction, createFollowup, updateFollowup, deleteFollowup, completeFollowup, updateContact } = useCrm();
   const { logoutMutation } = useAuth();
   const [activeStage, setActiveStage] = useState<string>("ALL");
-  const { orgName, upcomingDays: configDays } = useConfig();
-  const [localDays, setLocalDays] = useState<number | null>(null);
-  const days = localDays ?? configDays;
+  const { orgName, upcomingDays: days } = useConfig();
   const [viewMode, setViewMode] = useState<"list" | "kanban">(() =>
     (localStorage.getItem("crm-view-mode") as "list" | "kanban") || "list",
   );
   useEffect(() => { localStorage.setItem("crm-view-mode", viewMode); }, [viewMode]);
   useSSE();
-
-  const saveDays = useMutation({
-    mutationFn: async (d: number) => {
-      await apiRequest("PUT", "/api/settings", { upcomingDays: d });
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/config"] }),
-  });
 
   const sortedContacts = useMemo(() => {
     const sorted = [...contacts].sort((a, b) => {
@@ -255,23 +245,8 @@ export default function CrmPage() {
           {/* Upcoming — all follow-ups and meetings in one list */}
           {allFollowups.length > 0 && (
             <div className="bg-white mb-5" style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}>
-              <div className="flex items-center justify-between mb-2">
+              <div className="mb-2">
                 <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>Upcoming</span>
-                <div className="flex items-center gap-0.5">
-                  {[1, 2, 3, 7, 14].map((d) => (
-                    <button
-                      key={d}
-                      onClick={() => { setLocalDays(d); saveDays.mutate(d); }}
-                      className="px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors"
-                      style={{
-                        backgroundColor: days === d ? C.accent : "transparent",
-                        color: days === d ? "white" : C.muted,
-                      }}
-                    >
-                      {d}d
-                    </button>
-                  ))}
-                </div>
               </div>
               <div className="space-y-1.5">
                 {allFollowups.map(({ followup: fu, contactName, briefing }) => {
