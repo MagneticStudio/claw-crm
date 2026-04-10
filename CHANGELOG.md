@@ -2,6 +2,11 @@
 
 ## 2026-04-09
 
+### Fix MCP session durability + add companyName to MCP tools
+- Increased MCP session TTL from 30 minutes to 8 hours to prevent frequent disconnects
+- Added `companyName` parameter to `create_contact` and `update_contact` MCP tools
+- Company is auto-found by name or auto-created if new
+
 ### Move Upcoming Days setting to Settings page (#30)
 - Upcoming days picker moved from CRM page to Settings > Upcoming Window
 - Setting is now always accessible regardless of whether follow-ups are visible
