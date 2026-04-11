@@ -57,8 +57,10 @@ export async function evaluateAllRules(): Promise<void> {
 }
 
 async function evaluateRule(
-  rule: Rule, contact: Contact,
-  contactInteractions: Interaction[], contactFollowups: Followup[],
+  rule: Rule,
+  contact: Contact,
+  contactInteractions: Interaction[],
+  contactFollowups: Followup[],
 ): Promise<void> {
   const condition = rule.condition as RuleCondition;
   const action = rule.action as RuleAction;
@@ -67,8 +69,18 @@ async function evaluateRule(
   if (violated) {
     const hasViolation = await storage.hasActiveViolation(rule.id, contact.id);
     if (!hasViolation) {
-      const message = buildMessage(action.params.message_template || "", contact, contactInteractions, contactFollowups);
-      await storage.createViolation({ ruleId: rule.id, contactId: contact.id, message, severity: action.params.severity || "warning" });
+      const message = buildMessage(
+        action.params.message_template || "",
+        contact,
+        contactInteractions,
+        contactFollowups,
+      );
+      await storage.createViolation({
+        ruleId: rule.id,
+        contactId: contact.id,
+        message,
+        severity: action.params.severity || "warning",
+      });
     }
   } else {
     await storage.resolveViolationsForRule(rule.id, contact.id);
@@ -76,8 +88,10 @@ async function evaluateRule(
 }
 
 function checkCondition(
-  condition: RuleCondition, contact: Contact,
-  contactInteractions: Interaction[], contactFollowups: Followup[],
+  condition: RuleCondition,
+  contact: Contact,
+  contactInteractions: Interaction[],
+  contactFollowups: Followup[],
 ): boolean {
   if (contact.status !== "ACTIVE" && condition.type !== "followup_past_due") return false;
 
@@ -131,7 +145,8 @@ function checkCondition(
 
 function checkException(
   exception: { type: string; params?: Record<string, any> },
-  contact: Contact, contactFollowups: Followup[],
+  contact: Contact,
+  contactFollowups: Followup[],
 ): boolean {
   switch (exception.type) {
     case "has_future_followup":
@@ -144,8 +159,10 @@ function checkException(
 }
 
 function buildMessage(
-  template: string, contact: Contact,
-  contactInteractions: Interaction[], contactFollowups: Followup[],
+  template: string,
+  contact: Contact,
+  contactInteractions: Interaction[],
+  contactFollowups: Followup[],
 ): string {
   let message = template;
   const last = contactInteractions.length > 0 ? contactInteractions[contactInteractions.length - 1] : null;
@@ -156,7 +173,11 @@ function buildMessage(
   const overdue = contactFollowups.filter((f) => !f.completed && new Date(f.dueDate) < new Date());
   if (overdue.length > 0) message = message.replace("{{followup_content}}", overdue[0].content);
   const pastMeetings = contactInteractions.filter((i) => i.type === "meeting");
-  if (pastMeetings.length > 0) message = message.replace("{{meeting_date}}", new Date(pastMeetings[pastMeetings.length - 1].date).toLocaleDateString());
+  if (pastMeetings.length > 0)
+    message = message.replace(
+      "{{meeting_date}}",
+      new Date(pastMeetings[pastMeetings.length - 1].date).toLocaleDateString(),
+    );
   return message;
 }
 

@@ -38,6 +38,8 @@ export function useSSE() {
 
     es.onerror = () => {};
 
-    return () => { es.close(); };
+    return () => {
+      es.close();
+    };
   }, []);
 }

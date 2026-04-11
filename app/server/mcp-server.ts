@@ -4,7 +4,13 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { storage } from "./storage";
 import {
-  STAGES, STATUSES, INTERACTION_TYPES, TASK_TYPES, SEVERITIES, MEETING_TYPES, CONDITION_TYPES, EXCEPTION_TYPES,
+  STAGES,
+  STATUSES,
+  INTERACTION_TYPES,
+  TASK_TYPES,
+  SEVERITIES,
+  CONDITION_TYPES,
+  EXCEPTION_TYPES,
 } from "@shared/schema";
 
 // Zod enums from shared constants
@@ -41,7 +47,7 @@ server.tool(
         (c) =>
           `${c.firstName} ${c.lastName}`.toLowerCase().includes(q) ||
           c.company?.name.toLowerCase().includes(q) ||
-          c.email?.toLowerCase().includes(q)
+          c.email?.toLowerCase().includes(q),
       );
     }
     if (stage) contacts = contacts.filter((c) => c.stage === stage);
@@ -59,15 +65,26 @@ server.tool(
       stage: c.stage,
       status: c.status,
       email: c.email,
-      lastInteraction: c.interactions.length > 0
-        ? { date: c.interactions[c.interactions.length - 1].date, content: c.interactions[c.interactions.length - 1].content }
-        : null,
+      lastInteraction:
+        c.interactions.length > 0
+          ? {
+              date: c.interactions[c.interactions.length - 1].date,
+              content: c.interactions[c.interactions.length - 1].content,
+            }
+          : null,
       activeFollowups: c.followups.filter((f) => !f.completed).length,
       violations: c.violations.length,
     }));
 
-    return { content: [{ type: "text" as const, text: JSON.stringify({ results: summary, totalCount: total, hasMore: o + l < total }, null, 2) }] };
-  }
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify({ results: summary, totalCount: total, hasMore: o + l < total }, null, 2),
+        },
+      ],
+    };
+  },
 );
 
 server.tool(
@@ -76,9 +93,18 @@ server.tool(
   { contactId: z.number().describe("Contact ID") },
   async ({ contactId }) => {
     const contact = await storage.getContactWithRelations(contactId);
-    if (!contact) return { content: [{ type: "text" as const, text: `Contact ${contactId} not found. Use search_contacts to find valid contacts.` }], isError: true };
+    if (!contact)
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Contact ${contactId} not found. Use search_contacts to find valid contacts.`,
+          },
+        ],
+        isError: true,
+      };
     return { content: [{ type: "text" as const, text: JSON.stringify(contact, null, 2) }] };
-  }
+  },
 );
 
 server.tool(
@@ -99,17 +125,23 @@ server.tool(
     const sliced = violations.slice(o, o + l);
 
     // Enrich with contact names
-    const contactIds = [...new Set(sliced.map(v => v.contactId))];
     const allContacts = await storage.getContacts();
-    const nameMap = new Map(allContacts.map(c => [c.id, `${c.firstName} ${c.lastName}`]));
+    const nameMap = new Map(allContacts.map((c) => [c.id, `${c.firstName} ${c.lastName}`]));
 
-    const enriched = sliced.map(v => ({
+    const enriched = sliced.map((v) => ({
       ...v,
       contactName: nameMap.get(v.contactId) || "Unknown",
     }));
 
-    return { content: [{ type: "text" as const, text: JSON.stringify({ results: enriched, totalCount: total, hasMore: o + l < total }, null, 2) }] };
-  }
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify({ results: enriched, totalCount: total, hasMore: o + l < total }, null, 2),
+        },
+      ],
+    };
+  },
 );
 
 // --- Write Tools ---
@@ -126,18 +158,31 @@ server.tool(
     website: z.string().optional().describe("Website domain (no https://)"),
     location: z.string().optional().describe("City or short location"),
     background: z.string().optional().describe("1-2 sentence company context"),
-    status: statusEnum.optional().default("ACTIVE").describe(`${STATUSES.join(" or ")}`),
-    stage: stageEnum.optional().default("LEAD").describe(`${STAGES.join(", ")}`),
+    status: statusEnum
+      .optional()
+      .default("ACTIVE")
+      .describe(`${STATUSES.join(" or ")}`),
+    stage: stageEnum
+      .optional()
+      .default("LEAD")
+      .describe(`${STAGES.join(", ")}`),
     source: z.string().optional().describe("How we connected"),
   },
   async (data) => {
     try {
       const contact = await storage.createContact(data);
-      return { content: [{ type: "text" as const, text: `Created contact: ${contact.firstName} ${contact.lastName} (ID: ${contact.id}). Now use add_interaction to log key events.` }] };
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Created contact: ${contact.firstName} ${contact.lastName} (ID: ${contact.id}). Now use add_interaction to log key events.`,
+          },
+        ],
+      };
     } catch (err: any) {
       return { content: [{ type: "text" as const, text: `Error creating contact: ${err.message}` }], isError: true };
     }
-  }
+  },
 );
 
 server.tool(
@@ -161,12 +206,23 @@ server.tool(
     try {
       const filtered = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
       const contact = await storage.updateContact(contactId, filtered);
-      if (!contact) return { content: [{ type: "text" as const, text: `Contact ${contactId} not found. Use search_contacts to find valid contacts.` }], isError: true };
-      return { content: [{ type: "text" as const, text: `Updated contact: ${contact.firstName} ${contact.lastName}` }] };
+      if (!contact)
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Contact ${contactId} not found. Use search_contacts to find valid contacts.`,
+            },
+          ],
+          isError: true,
+        };
+      return {
+        content: [{ type: "text" as const, text: `Updated contact: ${contact.firstName} ${contact.lastName}` }],
+      };
     } catch (err: any) {
       return { content: [{ type: "text" as const, text: `Error updating contact: ${err.message}` }], isError: true };
     }
-  }
+  },
 );
 
 server.tool(
@@ -176,7 +232,10 @@ server.tool(
     contactId: z.number().describe("Contact ID"),
     content: z.string().describe("What happened — concise, past tense, factual"),
     date: z.string().optional().describe("Date of interaction (ISO string). Defaults to now."),
-    type: interactionTypeEnum.optional().default("note").describe(`${INTERACTION_TYPES.join(", ")}`),
+    type: interactionTypeEnum
+      .optional()
+      .default("note")
+      .describe(`${INTERACTION_TYPES.join(", ")}`),
   },
   async ({ contactId, content, date, type }) => {
     try {
@@ -190,7 +249,7 @@ server.tool(
     } catch (err: any) {
       return { content: [{ type: "text" as const, text: `Error logging interaction: ${err.message}` }], isError: true };
     }
-  }
+  },
 );
 
 server.tool(
@@ -230,13 +289,24 @@ For meetings (type "meeting"): scheduled events with optional time/location.`,
       });
 
       if (isMeeting) {
-        return { content: [{ type: "text" as const, text: `Meeting scheduled${time ? ` at ${time}` : ""}: "${content}" (ID: ${followup.id})` }] };
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Meeting scheduled${time ? ` at ${time}` : ""}: "${content}" (ID: ${followup.id})`,
+            },
+          ],
+        };
       }
-      return { content: [{ type: "text" as const, text: `Follow-up set for ${parsedDate.toLocaleDateString()}: "${content}"` }] };
+      return {
+        content: [
+          { type: "text" as const, text: `Follow-up set for ${parsedDate.toLocaleDateString()}: "${content}"` },
+        ],
+      };
     } catch (err: any) {
       return { content: [{ type: "text" as const, text: `Error creating task: ${err.message}` }], isError: true };
     }
-  }
+  },
 );
 
 server.tool(
@@ -249,7 +319,16 @@ server.tool(
   async ({ followupId, outcome }) => {
     try {
       const followup = await storage.completeFollowup(followupId);
-      if (!followup) return { content: [{ type: "text" as const, text: `Follow-up ${followupId} not found. Use get_contact to check valid follow-up IDs.` }], isError: true };
+      if (!followup)
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Follow-up ${followupId} not found. Use get_contact to check valid follow-up IDs.`,
+            },
+          ],
+          isError: true,
+        };
 
       if (outcome?.trim()) {
         await storage.createInteraction({
@@ -263,9 +342,12 @@ server.tool(
 
       return { content: [{ type: "text" as const, text: `Completed: "${followup.content}"` }] };
     } catch (err: any) {
-      return { content: [{ type: "text" as const, text: `Error completing follow-up: ${err.message}` }], isError: true };
+      return {
+        content: [{ type: "text" as const, text: `Error completing follow-up: ${err.message}` }],
+        isError: true,
+      };
     }
-  }
+  },
 );
 
 // --- Rules Tools ---
@@ -284,8 +366,15 @@ server.tool(
     const l = limit || 25;
     const o = offset || 0;
     const sliced = rules.slice(o, o + l);
-    return { content: [{ type: "text" as const, text: JSON.stringify({ results: sliced, totalCount: total, hasMore: o + l < total }, null, 2) }] };
-  }
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify({ results: sliced, totalCount: total, hasMore: o + l < total }, null, 2),
+        },
+      ],
+    };
+  },
 );
 
 server.tool(
@@ -296,8 +385,14 @@ server.tool(
     description: z.string().describe("Human-readable description"),
     conditionType: conditionTypeEnum.describe(`Condition type: ${CONDITION_TYPES.join(", ")}`),
     conditionParams: z.record(z.any()).optional().describe("Parameters for the condition (e.g., {days: 14})"),
-    exceptions: z.array(z.object({ type: z.string(), params: z.record(z.any()).optional() })).optional().describe(`Exception conditions: ${EXCEPTION_TYPES.join(", ")}`),
-    severity: severityEnum.optional().default("warning").describe(`Violation severity: ${SEVERITIES.join(", ")}`),
+    exceptions: z
+      .array(z.object({ type: z.string(), params: z.record(z.any()).optional() }))
+      .optional()
+      .describe(`Exception conditions: ${EXCEPTION_TYPES.join(", ")}`),
+    severity: severityEnum
+      .optional()
+      .default("warning")
+      .describe(`Violation severity: ${SEVERITIES.join(", ")}`),
     messageTemplate: z.string().describe("Message template with {{variable}} placeholders"),
   },
   async ({ name, description, conditionType, conditionParams, exceptions, severity, messageTemplate }) => {
@@ -320,7 +415,7 @@ server.tool(
     } catch (err: any) {
       return { content: [{ type: "text" as const, text: `Error creating rule: ${err.message}` }], isError: true };
     }
-  }
+  },
 );
 
 server.tool(
@@ -336,28 +431,33 @@ server.tool(
     try {
       const filtered = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
       const rule = await storage.updateRule(ruleId, filtered);
-      if (!rule) return { content: [{ type: "text" as const, text: `Rule ${ruleId} not found. Use list_rules to find valid rule IDs.` }], isError: true };
+      if (!rule)
+        return {
+          content: [
+            { type: "text" as const, text: `Rule ${ruleId} not found. Use list_rules to find valid rule IDs.` },
+          ],
+          isError: true,
+        };
       return { content: [{ type: "text" as const, text: `Updated rule: "${rule.name}"` }] };
     } catch (err: any) {
       return { content: [{ type: "text" as const, text: `Error updating rule: ${err.message}` }], isError: true };
     }
-  }
+  },
 );
 
-server.tool(
-  "delete_rule",
-  "Delete a business rule",
-  { ruleId: z.number().describe("Rule ID") },
-  async ({ ruleId }) => {
-    try {
-      const deleted = await storage.deleteRule(ruleId);
-      if (!deleted) return { content: [{ type: "text" as const, text: `Rule ${ruleId} not found. Use list_rules to find valid rule IDs.` }], isError: true };
-      return { content: [{ type: "text" as const, text: `Deleted rule ${ruleId}` }] };
-    } catch (err: any) {
-      return { content: [{ type: "text" as const, text: `Error deleting rule: ${err.message}` }], isError: true };
-    }
+server.tool("delete_rule", "Delete a business rule", { ruleId: z.number().describe("Rule ID") }, async ({ ruleId }) => {
+  try {
+    const deleted = await storage.deleteRule(ruleId);
+    if (!deleted)
+      return {
+        content: [{ type: "text" as const, text: `Rule ${ruleId} not found. Use list_rules to find valid rule IDs.` }],
+        isError: true,
+      };
+    return { content: [{ type: "text" as const, text: `Deleted rule ${ruleId}` }] };
+  } catch (err: any) {
+    return { content: [{ type: "text" as const, text: `Error deleting rule: ${err.message}` }], isError: true };
   }
-);
+});
 
 // Start the MCP server
 async function main() {

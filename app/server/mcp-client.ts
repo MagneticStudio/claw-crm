@@ -47,10 +47,11 @@ server.tool(
     let contacts = await api("GET", "/api/contacts");
     if (query) {
       const q = query.toLowerCase();
-      contacts = contacts.filter((c: any) =>
-        `${c.firstName} ${c.lastName}`.toLowerCase().includes(q) ||
-        c.company?.name?.toLowerCase().includes(q) ||
-        c.email?.toLowerCase().includes(q)
+      contacts = contacts.filter(
+        (c: any) =>
+          `${c.firstName} ${c.lastName}`.toLowerCase().includes(q) ||
+          c.company?.name?.toLowerCase().includes(q) ||
+          c.email?.toLowerCase().includes(q),
       );
     }
     if (stage) contacts = contacts.filter((c: any) => c.stage === stage);
@@ -63,14 +64,18 @@ server.tool(
       stage: c.stage,
       status: c.status,
       email: c.email,
-      lastInteraction: c.interactions?.length > 0
-        ? { date: c.interactions[c.interactions.length - 1].date, content: c.interactions[c.interactions.length - 1].content }
-        : null,
+      lastInteraction:
+        c.interactions?.length > 0
+          ? {
+              date: c.interactions[c.interactions.length - 1].date,
+              content: c.interactions[c.interactions.length - 1].content,
+            }
+          : null,
       activeFollowups: c.followups?.filter((f: any) => !f.completed).length || 0,
       violations: c.violations?.length || 0,
     }));
     return { content: [{ type: "text" as const, text: JSON.stringify(summary, null, 2) }] };
-  }
+  },
 );
 
 server.tool(
@@ -80,7 +85,7 @@ server.tool(
   async ({ contactId }) => {
     const contact = await api("GET", `/api/contacts/${contactId}`);
     return { content: [{ type: "text" as const, text: JSON.stringify(contact, null, 2) }] };
-  }
+  },
 );
 
 server.tool(
@@ -91,7 +96,7 @@ server.tool(
     let violations = await api("GET", "/api/violations");
     if (severity) violations = violations.filter((v: any) => v.severity === severity);
     return { content: [{ type: "text" as const, text: JSON.stringify(violations, null, 2) }] };
-  }
+  },
 );
 
 // --- Write Tools ---
@@ -100,57 +105,78 @@ server.tool(
   "create_contact",
   "Create a new contact in the CRM",
   {
-    firstName: z.string(), lastName: z.string(),
-    title: z.string().optional(), email: z.string().optional(),
-    phone: z.string().optional(), website: z.string().optional(),
-    location: z.string().optional(), background: z.string().optional(),
+    firstName: z.string(),
+    lastName: z.string(),
+    title: z.string().optional(),
+    email: z.string().optional(),
+    phone: z.string().optional(),
+    website: z.string().optional(),
+    location: z.string().optional(),
+    background: z.string().optional(),
     status: z.string().optional().default("ACTIVE"),
     stage: z.string().optional().default("LEAD"),
     source: z.string().optional(),
   },
   async (data) => {
     const contact = await api("POST", "/api/contacts", data);
-    return { content: [{ type: "text" as const, text: `Created: ${contact.firstName} ${contact.lastName} (ID: ${contact.id})` }] };
-  }
+    return {
+      content: [
+        { type: "text" as const, text: `Created: ${contact.firstName} ${contact.lastName} (ID: ${contact.id})` },
+      ],
+    };
+  },
 );
 
 server.tool(
   "update_contact",
   "Update an existing contact's fields",
   {
-    contactId: z.number(), firstName: z.string().optional(), lastName: z.string().optional(),
-    title: z.string().optional(), email: z.string().optional(), phone: z.string().optional(),
-    website: z.string().optional(), location: z.string().optional(), background: z.string().optional(),
-    status: z.string().optional(), stage: z.string().optional(), source: z.string().optional(),
+    contactId: z.number(),
+    firstName: z.string().optional(),
+    lastName: z.string().optional(),
+    title: z.string().optional(),
+    email: z.string().optional(),
+    phone: z.string().optional(),
+    website: z.string().optional(),
+    location: z.string().optional(),
+    background: z.string().optional(),
+    status: z.string().optional(),
+    stage: z.string().optional(),
+    source: z.string().optional(),
   },
   async ({ contactId, ...data }) => {
     const filtered = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
     const contact = await api("PUT", `/api/contacts/${contactId}`, filtered);
     return { content: [{ type: "text" as const, text: `Updated: ${contact.firstName} ${contact.lastName}` }] };
-  }
+  },
 );
 
 server.tool(
   "add_interaction",
   "Log a new interaction (note, meeting, email, or call) for a contact",
   {
-    contactId: z.number(), content: z.string(),
+    contactId: z.number(),
+    content: z.string(),
     date: z.string().optional().describe("ISO date string, defaults to now"),
     type: z.string().optional().describe("note, meeting, email, or call").default("note"),
   },
   async ({ contactId, content, date, type }) => {
     const interaction = await api("POST", "/api/interactions", {
-      contactId, content, date: date || new Date().toISOString(), type: type || "note",
+      contactId,
+      content,
+      date: date || new Date().toISOString(),
+      type: type || "note",
     });
     return { content: [{ type: "text" as const, text: `Logged ${interaction.type} for contact ${contactId}` }] };
-  }
+  },
 );
 
 server.tool(
   "set_followup",
   "Create a follow-up reminder for a contact",
   {
-    contactId: z.number(), content: z.string(),
+    contactId: z.number(),
+    content: z.string(),
     dueDate: z.string().describe("Due date — ISO string or M/D format"),
   },
   async ({ contactId, content, dueDate }) => {
@@ -163,9 +189,13 @@ server.tool(
     } else {
       parsedDate = new Date(dueDate).toISOString();
     }
-    const fu = await api("POST", "/api/followups", { contactId, content, dueDate: parsedDate });
-    return { content: [{ type: "text" as const, text: `Follow-up set for ${new Date(parsedDate).toLocaleDateString()}: "${content}"` }] };
-  }
+    await api("POST", "/api/followups", { contactId, content, dueDate: parsedDate });
+    return {
+      content: [
+        { type: "text" as const, text: `Follow-up set for ${new Date(parsedDate).toLocaleDateString()}: "${content}"` },
+      ],
+    };
+  },
 );
 
 server.tool(
@@ -177,25 +207,30 @@ server.tool(
   },
   async ({ followupId, outcome }) => {
     const fu = await api("POST", `/api/followups/${followupId}/complete`, outcome ? { outcome } : undefined);
-    return { content: [{ type: "text" as const, text: outcome ? `Completed and logged: "${outcome}"` : `Completed: "${fu.content}"` }] };
-  }
+    return {
+      content: [
+        { type: "text" as const, text: outcome ? `Completed and logged: "${outcome}"` : `Completed: "${fu.content}"` },
+      ],
+    };
+  },
 );
 
 // --- Rules ---
 
-server.tool("list_rules", "List all business rules", { enabled: z.boolean().optional() },
-  async ({ enabled }) => {
-    const rules = await api("GET", `/api/rules${enabled !== undefined ? `?enabled=${enabled}` : ""}`);
-    return { content: [{ type: "text" as const, text: JSON.stringify(rules, null, 2) }] };
-  }
-);
+server.tool("list_rules", "List all business rules", { enabled: z.boolean().optional() }, async ({ enabled }) => {
+  const rules = await api("GET", `/api/rules${enabled !== undefined ? `?enabled=${enabled}` : ""}`);
+  return { content: [{ type: "text" as const, text: JSON.stringify(rules, null, 2) }] };
+});
 
 server.tool(
   "create_rule",
   "Create a new business rule",
   {
-    name: z.string(), description: z.string(),
-    conditionType: z.string().describe("no_interaction_for_days, followup_past_due, no_followup_after_meeting, status_is, stage_is"),
+    name: z.string(),
+    description: z.string(),
+    conditionType: z
+      .string()
+      .describe("no_interaction_for_days, followup_past_due, no_followup_after_meeting, status_is, stage_is"),
     conditionParams: z.record(z.any()).optional(),
     exceptions: z.array(z.object({ type: z.string(), params: z.record(z.any()).optional() })).optional(),
     severity: z.string().optional().default("warning"),
@@ -203,29 +238,36 @@ server.tool(
   },
   async ({ name, description, conditionType, conditionParams, exceptions, severity, messageTemplate }) => {
     const rule = await api("POST", "/api/rules", {
-      name, description,
+      name,
+      description,
       condition: { type: conditionType, params: conditionParams || {}, exceptions: exceptions || [] },
       action: { type: "create_violation", params: { severity, message_template: messageTemplate } },
       enabled: true,
     });
     return { content: [{ type: "text" as const, text: `Created rule: "${rule.name}" (ID: ${rule.id})` }] };
-  }
+  },
 );
 
-server.tool("update_rule", "Update a rule", { ruleId: z.number(), name: z.string().optional(), description: z.string().optional(), enabled: z.boolean().optional() },
+server.tool(
+  "update_rule",
+  "Update a rule",
+  {
+    ruleId: z.number(),
+    name: z.string().optional(),
+    description: z.string().optional(),
+    enabled: z.boolean().optional(),
+  },
   async ({ ruleId, ...data }) => {
     const filtered = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
     const rule = await api("PUT", `/api/rules/${ruleId}`, filtered);
     return { content: [{ type: "text" as const, text: `Updated rule: "${rule.name}"` }] };
-  }
+  },
 );
 
-server.tool("delete_rule", "Delete a business rule", { ruleId: z.number() },
-  async ({ ruleId }) => {
-    await api("DELETE", `/api/rules/${ruleId}`);
-    return { content: [{ type: "text" as const, text: "Rule deleted" }] };
-  }
-);
+server.tool("delete_rule", "Delete a business rule", { ruleId: z.number() }, async ({ ruleId }) => {
+  await api("DELETE", `/api/rules/${ruleId}`);
+  return { content: [{ type: "text" as const, text: "Rule deleted" }] };
+});
 
 async function main() {
   const transport = new StdioServerTransport();

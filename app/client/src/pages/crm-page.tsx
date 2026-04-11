@@ -8,7 +8,7 @@ import { Loader2, LogOut, Settings, Square, Activity, X, ChevronDown, Zap, Layou
 import { KanbanBoard } from "@/components/kanban/kanban-board";
 import { Link } from "wouter";
 import { format, isPast, isToday, differenceInDays } from "date-fns";
-import type { ContactWithRelations, Followup, ActivityLogEntry } from "@shared/schema";
+import type { Followup, ActivityLogEntry } from "@shared/schema";
 import { fmtDate } from "@/lib/utils";
 import { useConfig, useColors } from "@/App";
 
@@ -26,7 +26,10 @@ const STAGE_ACCENT: Record<string, string> = {
 };
 
 const SORT_BUCKET: Record<string, number> = {
-  NEGOTIATION: 0, PROPOSAL: 0, MEETING: 0, LEAD: 0,
+  NEGOTIATION: 0,
+  PROPOSAL: 0,
+  MEETING: 0,
+  LEAD: 0,
   LIVE: 1,
   RELATIONSHIP: 2,
   PASS: 3,
@@ -34,14 +37,27 @@ const SORT_BUCKET: Record<string, number> = {
 
 export default function CrmPage() {
   const C = useColors();
-  const { contacts, isLoading, addInteraction, updateInteraction, deleteInteraction, createFollowup, updateFollowup, deleteFollowup, completeFollowup, updateContact } = useCrm();
+  const {
+    contacts,
+    isLoading,
+    addInteraction,
+    updateInteraction,
+    deleteInteraction,
+    createFollowup,
+    updateFollowup,
+    deleteFollowup,
+    completeFollowup,
+    updateContact,
+  } = useCrm();
   const { logoutMutation } = useAuth();
   const [activeStage, setActiveStage] = useState<string>("ALL");
   const { orgName, upcomingDays: days } = useConfig();
-  const [viewMode, setViewMode] = useState<"list" | "kanban">(() =>
-    (localStorage.getItem("crm-view-mode") as "list" | "kanban") || "list",
+  const [viewMode, setViewMode] = useState<"list" | "kanban">(
+    () => (localStorage.getItem("crm-view-mode") as "list" | "kanban") || "list",
   );
-  useEffect(() => { localStorage.setItem("crm-view-mode", viewMode); }, [viewMode]);
+  useEffect(() => {
+    localStorage.setItem("crm-view-mode", viewMode);
+  }, [viewMode]);
   useSSE();
 
   const sortedContacts = useMemo(() => {
@@ -54,8 +70,16 @@ export default function CrmPage() {
       const bBucket = SORT_BUCKET[b.stage] ?? 2;
       if (aBucket !== bBucket) return aBucket - bBucket;
 
-      const aNextFu = a.followups.filter(f => !f.completed).map(f => new Date(f.dueDate).getTime()).sort((x, y) => x - y)[0] ?? Infinity;
-      const bNextFu = b.followups.filter(f => !f.completed).map(f => new Date(f.dueDate).getTime()).sort((x, y) => x - y)[0] ?? Infinity;
+      const aNextFu =
+        a.followups
+          .filter((f) => !f.completed)
+          .map((f) => new Date(f.dueDate).getTime())
+          .sort((x, y) => x - y)[0] ?? Infinity;
+      const bNextFu =
+        b.followups
+          .filter((f) => !f.completed)
+          .map((f) => new Date(f.dueDate).getTime())
+          .sort((x, y) => x - y)[0] ?? Infinity;
       if (aNextFu !== bNextFu) return aNextFu - bNextFu;
 
       const aLast = a.interactions.length > 0 ? new Date(a.interactions[a.interactions.length - 1].date).getTime() : 0;
@@ -84,11 +108,23 @@ export default function CrmPage() {
   const allFollowups = useMemo(() => {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() + days);
-    const fus: Array<{ followup: Followup; contactName: string; companyName: string; contactId: number; briefing: any }> = [];
+    const fus: Array<{
+      followup: Followup;
+      contactName: string;
+      companyName: string;
+      contactId: number;
+      briefing: any;
+    }> = [];
     for (const c of contacts) {
       for (const fu of c.followups) {
         if (!fu.completed && new Date(fu.dueDate) <= cutoff) {
-          fus.push({ followup: fu, contactName: `${c.firstName} ${c.lastName}`, companyName: c.company?.name || "", contactId: c.id, briefing: (c as any).briefing });
+          fus.push({
+            followup: fu,
+            contactName: `${c.firstName} ${c.lastName}`,
+            companyName: c.company?.name || "",
+            contactId: c.id,
+            briefing: (c as any).briefing,
+          });
         }
       }
     }
@@ -102,9 +138,10 @@ export default function CrmPage() {
   const [expandedMeetingIds, setExpandedMeetingIds] = useState<Set<number>>(new Set());
 
   const toggleMeetingExpand = (id: number) => {
-    setExpandedMeetingIds(prev => {
+    setExpandedMeetingIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
@@ -151,7 +188,10 @@ export default function CrmPage() {
               <button
                 onClick={() => setViewMode("list")}
                 className="p-1.5 rounded-l-lg transition-colors"
-                style={{ backgroundColor: viewMode === "list" ? C.accent : "transparent", color: viewMode === "list" ? "#fff" : C.muted }}
+                style={{
+                  backgroundColor: viewMode === "list" ? C.accent : "transparent",
+                  color: viewMode === "list" ? "#fff" : C.muted,
+                }}
                 title="List view"
               >
                 <LayoutList className="h-3.5 w-3.5" />
@@ -159,7 +199,10 @@ export default function CrmPage() {
               <button
                 onClick={() => setViewMode("kanban")}
                 className="p-1.5 rounded-r-lg transition-colors"
-                style={{ backgroundColor: viewMode === "kanban" ? C.accent : "transparent", color: viewMode === "kanban" ? "#fff" : C.muted }}
+                style={{
+                  backgroundColor: viewMode === "kanban" ? C.accent : "transparent",
+                  color: viewMode === "kanban" ? "#fff" : C.muted,
+                }}
                 title="Kanban view"
               >
                 <Kanban className="h-3.5 w-3.5" />
@@ -171,10 +214,19 @@ export default function CrmPage() {
             <Link href="/settings" className="p-2 transition-colors" style={{ color: C.muted }} title="Settings">
               <Settings className="h-4 w-4" />
             </Link>
-            <button onClick={() => setShowActivityDrawer(!showActivityDrawer)} className="p-2 transition-colors relative" style={{ color: C.muted }} title="Activity Log">
+            <button
+              onClick={() => setShowActivityDrawer(!showActivityDrawer)}
+              className="p-2 transition-colors relative"
+              style={{ color: C.muted }}
+              title="Activity Log"
+            >
               <Activity className="h-4 w-4" />
             </button>
-            <button onClick={() => logoutMutation.mutate()} className="p-2 transition-colors" style={{ color: C.muted }}>
+            <button
+              onClick={() => logoutMutation.mutate()}
+              className="p-2 transition-colors"
+              style={{ color: C.muted }}
+            >
               <LogOut className="h-4 w-4" />
             </button>
           </div>
@@ -199,7 +251,9 @@ export default function CrmPage() {
                   }
                 >
                   {stage === "ALL" ? "All" : stage.charAt(0) + stage.slice(1).toLowerCase()}
-                  <span className="ml-1" style={{ opacity: 0.7 }}>{count}</span>
+                  <span className="ml-1" style={{ opacity: 0.7 }}>
+                    {count}
+                  </span>
                 </button>
               );
             })}
@@ -210,14 +264,28 @@ export default function CrmPage() {
       {/* Activity drawer */}
       {showActivityDrawer && (
         <div className="fixed inset-0 z-[60]" onClick={() => setShowActivityDrawer(false)}>
-          <div className="absolute right-0 top-0 h-full w-80 bg-white shadow-lg pt-14" style={{ borderLeft: `1px solid ${C.border}` }}
-            onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${C.border}` }}>
-              <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.text }}>Activity Log</span>
-              <button onClick={() => setShowActivityDrawer(false)} style={{ color: C.muted }}><X className="h-4 w-4" /></button>
+          <div
+            className="absolute right-0 top-0 h-full w-80 bg-white shadow-lg pt-14"
+            style={{ borderLeft: `1px solid ${C.border}` }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="flex items-center justify-between px-4 py-3"
+              style={{ borderBottom: `1px solid ${C.border}` }}
+            >
+              <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.text }}>
+                Activity Log
+              </span>
+              <button onClick={() => setShowActivityDrawer(false)} style={{ color: C.muted }}>
+                <X className="h-4 w-4" />
+              </button>
             </div>
             <div className="overflow-y-auto h-[calc(100%-48px)] px-4 py-3">
-              {activityLog.length === 0 && <p className="text-xs" style={{ color: C.muted }}>No activity yet</p>}
+              {activityLog.length === 0 && (
+                <p className="text-xs" style={{ color: C.muted }}>
+                  No activity yet
+                </p>
+              )}
               <div className="space-y-2">
                 {activityLog.map((entry) => (
                   <div key={entry.id} className="text-xs" style={{ color: C.text }}>
@@ -225,7 +293,10 @@ export default function CrmPage() {
                       <span className="font-mono flex-shrink-0" style={{ color: C.muted }}>
                         {format(new Date(entry.createdAt), "M/d h:mm a")}
                       </span>
-                      <span className="font-mono text-[10px] px-1 rounded" style={{ backgroundColor: C.accentLight, color: C.accentDark }}>
+                      <span
+                        className="font-mono text-[10px] px-1 rounded"
+                        style={{ backgroundColor: C.accentLight, color: C.accentDark }}
+                      >
                         {entry.source}
                       </span>
                     </div>
@@ -239,28 +310,37 @@ export default function CrmPage() {
       )}
 
       {viewMode === "kanban" ? (
-        <KanbanBoard contacts={kanbanContacts} updateContact={updateContact} onContactTap={(id) => {
-          setActiveStage("ALL");
-          setViewMode("list");
-          // Poll for the element to appear in the DOM after React renders the list
-          let attempts = 0;
-          const tryScroll = () => {
-            const el = document.getElementById(`contact-${id}`);
-            if (el) {
-              el.scrollIntoView({ behavior: "smooth", block: "center" });
-            } else if (attempts++ < 20) {
-              requestAnimationFrame(tryScroll);
-            }
-          };
-          requestAnimationFrame(tryScroll);
-        }} />
+        <KanbanBoard
+          contacts={kanbanContacts}
+          updateContact={updateContact}
+          onContactTap={(id) => {
+            setActiveStage("ALL");
+            setViewMode("list");
+            // Poll for the element to appear in the DOM after React renders the list
+            let attempts = 0;
+            const tryScroll = () => {
+              const el = document.getElementById(`contact-${id}`);
+              if (el) {
+                el.scrollIntoView({ behavior: "smooth", block: "center" });
+              } else if (attempts++ < 20) {
+                requestAnimationFrame(tryScroll);
+              }
+            };
+            requestAnimationFrame(tryScroll);
+          }}
+        />
       ) : (
         <main className="max-w-[640px] mx-auto px-4 py-5">
           {/* Upcoming — all follow-ups and meetings in one list */}
           {allFollowups.length > 0 && (
-            <div className="bg-white mb-5" style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}>
+            <div
+              className="bg-white mb-5"
+              style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}
+            >
               <div className="mb-2">
-                <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>Upcoming</span>
+                <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>
+                  Upcoming
+                </span>
               </div>
               <div className="space-y-1.5">
                 {allFollowups.map(({ followup: fu, contactName, briefing }) => {
@@ -273,7 +353,11 @@ export default function CrmPage() {
 
                   if (isCompleting) {
                     return (
-                      <div key={fu.id} className="rounded-lg px-3 py-2 space-y-2" style={{ backgroundColor: C.accentLight, border: `1px solid ${C.accent}40` }}>
+                      <div
+                        key={fu.id}
+                        className="rounded-lg px-3 py-2 space-y-2"
+                        style={{ backgroundColor: C.accentLight, border: `1px solid ${C.accent}40` }}
+                      >
                         <div className="text-xs font-medium" style={{ color: C.accentDark }}>
                           Completing: {fmtDate(due)} {fu.content} — {contactName}
                         </div>
@@ -302,11 +386,26 @@ export default function CrmPage() {
                             }}
                             className="text-xs font-medium text-white px-2.5 py-1 rounded"
                             style={{ backgroundColor: C.accentDark }}
-                          >Done</button>
-                          <button onClick={() => { completeFollowup.mutate({ id: fu.id }); setCompletingUpcomingId(null); }}
-                            className="text-xs" style={{ color: C.muted }}>Skip note</button>
-                          <button onClick={() => setCompletingUpcomingId(null)}
-                            className="text-xs" style={{ color: C.muted }}>Cancel</button>
+                          >
+                            Done
+                          </button>
+                          <button
+                            onClick={() => {
+                              completeFollowup.mutate({ id: fu.id });
+                              setCompletingUpcomingId(null);
+                            }}
+                            className="text-xs"
+                            style={{ color: C.muted }}
+                          >
+                            Skip note
+                          </button>
+                          <button
+                            onClick={() => setCompletingUpcomingId(null)}
+                            className="text-xs"
+                            style={{ color: C.muted }}
+                          >
+                            Cancel
+                          </button>
                         </div>
                       </div>
                     );
@@ -327,10 +426,15 @@ export default function CrmPage() {
                           <span
                             className={`flex-shrink-0 ${isTodayMeeting ? "cursor-pointer" : ""}`}
                             onClick={isTodayMeeting ? () => toggleMeetingExpand(fu.id) : undefined}
-                          >{meetingIcon}</span>
+                          >
+                            {meetingIcon}
+                          </span>
                         ) : (
                           <button
-                            onClick={() => { setCompletingUpcomingId(fu.id); setCompletingUpcomingText(fu.content); }}
+                            onClick={() => {
+                              setCompletingUpcomingId(fu.id);
+                              setCompletingUpcomingText(fu.content);
+                            }}
                             className="flex-shrink-0 hover:opacity-70 transition-colors"
                             title="Complete"
                           >
@@ -338,35 +442,57 @@ export default function CrmPage() {
                           </button>
                         )}
                         <span className="font-bold flex-shrink-0" style={{ color: isMeeting ? "#2563eb" : dateColor }}>
-                          {fmtDate(due)}{fu.time ? ` ${fu.time}` : ""}
+                          {fmtDate(due)}
+                          {fu.time ? ` ${fu.time}` : ""}
                         </span>
                         <span className="truncate min-w-0" style={{ color: C.text }}>
-                          {fu.content}{fu.location ? ` — ${fu.location}` : ""}
+                          {fu.content}
+                          {fu.location ? ` — ${fu.location}` : ""}
                         </span>
                         <span className="text-xs flex-shrink-0 whitespace-nowrap" style={{ color: C.muted }}>
                           {contactName}
                         </span>
                         {isOverdue && (
-                          <span className="text-xs font-semibold flex-shrink-0" style={{ color: C.red }}>OVERDUE</span>
+                          <span className="text-xs font-semibold flex-shrink-0" style={{ color: C.red }}>
+                            OVERDUE
+                          </span>
                         )}
                         {isTodayDue && (
-                          <span className="text-xs font-semibold flex-shrink-0" style={{ color: C.stale }}>TODAY</span>
+                          <span className="text-xs font-semibold flex-shrink-0" style={{ color: C.stale }}>
+                            TODAY
+                          </span>
                         )}
                         {!isOverdue && !isTodayDue && daysUntil <= 7 && (
-                          <span className="text-xs flex-shrink-0" style={{ color: C.muted }}>{daysUntil}d</span>
+                          <span className="text-xs flex-shrink-0" style={{ color: C.muted }}>
+                            {daysUntil}d
+                          </span>
                         )}
                         {isTodayMeeting && (
-                          <ChevronDown className={`h-3 w-3 flex-shrink-0 transition-transform cursor-pointer ${isExp ? "rotate-180" : ""}`} style={{ color: C.muted }} onClick={() => toggleMeetingExpand(fu.id)} />
+                          <ChevronDown
+                            className={`h-3 w-3 flex-shrink-0 transition-transform cursor-pointer ${isExp ? "rotate-180" : ""}`}
+                            style={{ color: C.muted }}
+                            onClick={() => toggleMeetingExpand(fu.id)}
+                          />
                         )}
                       </div>
                       {isExp && briefing && (
-                        <div className="mt-1.5 ml-6 text-xs rounded-lg px-3 py-2 whitespace-pre-wrap" style={{ backgroundColor: C.accentLight, color: C.text }}>
-                          <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: C.accentDark }}>Briefing</div>
+                        <div
+                          className="mt-1.5 ml-6 text-xs rounded-lg px-3 py-2 whitespace-pre-wrap"
+                          style={{ backgroundColor: C.accentLight, color: C.text }}
+                        >
+                          <div
+                            className="text-[10px] font-semibold uppercase tracking-wider mb-1"
+                            style={{ color: C.accentDark }}
+                          >
+                            Briefing
+                          </div>
                           {briefing.content}
                         </div>
                       )}
                       {isExp && !briefing && (
-                        <div className="mt-1.5 ml-6 text-[10px] italic" style={{ color: C.muted }}>No briefing yet</div>
+                        <div className="mt-1.5 ml-6 text-[10px] italic" style={{ color: C.muted }}>
+                          No briefing yet
+                        </div>
                       )}
                     </div>
                   );
@@ -397,7 +523,9 @@ export default function CrmPage() {
           ))}
 
           {filteredContacts.length === 0 && (
-            <p className="text-center py-16 text-sm" style={{ color: C.muted }}>No contacts in this stage</p>
+            <p className="text-center py-16 text-sm" style={{ color: C.muted }}>
+              No contacts in this stage
+            </p>
           )}
         </main>
       )}

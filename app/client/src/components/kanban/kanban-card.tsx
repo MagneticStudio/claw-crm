@@ -13,8 +13,10 @@ interface KanbanCardProps {
 
 export function KanbanCard({ contact, accentColor, isDragOverlay, compact }: KanbanCardProps) {
   const C = useColors();
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: contact.id, data: { stage: contact.stage } });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: contact.id,
+    data: { stage: contact.stage },
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -49,7 +51,10 @@ export function KanbanCard({ contact, accentColor, isDragOverlay, compact }: Kan
             transition: "border-color 0.2s, box-shadow 0.2s",
           }}
         >
-          <span className="text-[10px] font-bold leading-none overflow-hidden whitespace-nowrap" style={{ color: accentColor }}>
+          <span
+            className="text-[10px] font-bold leading-none overflow-hidden whitespace-nowrap"
+            style={{ color: accentColor }}
+          >
             {contact.firstName}
           </span>
           <span className="text-[9px] leading-none mt-0.5 overflow-hidden whitespace-nowrap" style={{ color: C.muted }}>
@@ -90,7 +95,9 @@ export function KanbanCard({ contact, accentColor, isDragOverlay, compact }: Kan
         <div className="mt-2 flex items-center gap-1.5 text-[11px]" style={{ color: accentColor }}>
           <span>{nextItem.type === "meeting" ? "📅" : "☐"}</span>
           <span className="font-medium">{fmtDate(new Date(nextItem.dueDate))}</span>
-          <span className="truncate" style={{ color: C.muted }}>{nextItem.content}</span>
+          <span className="truncate" style={{ color: C.muted }}>
+            {nextItem.content}
+          </span>
         </div>
       )}
     </div>

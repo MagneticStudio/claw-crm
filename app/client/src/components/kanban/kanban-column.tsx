@@ -38,19 +38,10 @@ export function KanbanColumn({ stage, contacts, accentColor, compact }: KanbanCo
           </div>
 
           {/* Pills row */}
-          <div
-            ref={setNodeRef}
-            className="flex gap-1.5 px-2.5 pb-1.5 overflow-x-auto"
-            style={{ minHeight: 40 }}
-          >
+          <div ref={setNodeRef} className="flex gap-1.5 px-2.5 pb-1.5 overflow-x-auto" style={{ minHeight: 40 }}>
             <SortableContext items={contacts.map((c) => c.id)} strategy={horizontalListSortingStrategy}>
               {contacts.map((contact) => (
-                <KanbanCard
-                  key={contact.id}
-                  contact={contact}
-                  accentColor={accentColor}
-                  compact
-                />
+                <KanbanCard key={contact.id} contact={contact} accentColor={accentColor} compact />
               ))}
             </SortableContext>
             {contacts.length === 0 && (
@@ -79,10 +70,7 @@ export function KanbanColumn({ stage, contacts, accentColor, compact }: KanbanCo
       <div className="px-3 pt-3 pb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full" style={{ backgroundColor: accentColor }} />
-          <span
-            className="text-[11px] font-semibold uppercase tracking-wider"
-            style={{ color: C.text }}
-          >
+          <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: C.text }}>
             {stage}
           </span>
         </div>

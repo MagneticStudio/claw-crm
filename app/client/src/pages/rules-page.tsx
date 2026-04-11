@@ -56,9 +56,14 @@ export default function RulesPage() {
           <Link href="/" className="transition-colors hover:opacity-70" style={{ color: C.muted }}>
             <ArrowLeft className="h-4 w-4" />
           </Link>
-          <h1 className="text-[13px] font-semibold tracking-[0.2em] uppercase" style={{ color: C.text }}>Rules</h1>
+          <h1 className="text-[13px] font-semibold tracking-[0.2em] uppercase" style={{ color: C.text }}>
+            Rules
+          </h1>
           {violations.length > 0 && (
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: C.staleBg, color: C.stale }}>
+            <span
+              className="text-xs font-medium px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: C.staleBg, color: C.stale }}
+            >
               {violations.length} active alert{violations.length !== 1 ? "s" : ""}
             </span>
           )}
@@ -77,36 +82,62 @@ export default function RulesPage() {
             const condition = rule.condition as any;
 
             return (
-              <div key={rule.id} className="bg-white" style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}>
+              <div
+                key={rule.id}
+                className="bg-white"
+                style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-semibold" style={{ color: C.text }}>{rule.name}</h3>
+                      <h3 className="text-sm font-semibold" style={{ color: C.text }}>
+                        {rule.name}
+                      </h3>
                       {!rule.enabled && (
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ backgroundColor: "#f5f5f5", color: "#999" }}>OFF</span>
+                        <span
+                          className="text-[10px] font-mono px-1.5 py-0.5 rounded"
+                          style={{ backgroundColor: "#f5f5f5", color: "#999" }}
+                        >
+                          OFF
+                        </span>
                       )}
                       {ruleViolations.length > 0 && (
-                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: C.staleBg, color: C.stale }}>
+                        <span
+                          className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                          style={{ backgroundColor: C.staleBg, color: C.stale }}
+                        >
                           {ruleViolations.length}
                         </span>
                       )}
                     </div>
-                    <p className="text-xs mt-1" style={{ color: C.muted }}>{rule.description}</p>
+                    <p className="text-xs mt-1" style={{ color: C.muted }}>
+                      {rule.description}
+                    </p>
 
                     {/* Show condition details */}
                     <div className="mt-2 text-[10px] font-mono space-y-0.5" style={{ color: C.muted }}>
                       <div>
                         Condition: <span style={{ color: C.accentDark }}>{condition.type}</span>
                         {condition.params && Object.keys(condition.params).length > 0 && (
-                          <span> ({Object.entries(condition.params).map(([k, v]) => `${k}: ${v}`).join(", ")})</span>
+                          <span>
+                            {" "}
+                            (
+                            {Object.entries(condition.params)
+                              .map(([k, v]) => `${k}: ${v}`)
+                              .join(", ")}
+                            )
+                          </span>
                         )}
                       </div>
                       {condition.exceptions?.length > 0 && (
                         <div>
-                          Exceptions: {condition.exceptions.map((e: any) => {
-                            if (e.type === "stage_in") return `${e.type}(${e.params?.stages?.join(", ")})`;
-                            return e.type;
-                          }).join(", ")}
+                          Exceptions:{" "}
+                          {condition.exceptions
+                            .map((e: any) => {
+                              if (e.type === "stage_in") return `${e.type}(${e.params?.stages?.join(", ")})`;
+                              return e.type;
+                            })
+                            .join(", ")}
                         </div>
                       )}
                     </div>
@@ -115,12 +146,22 @@ export default function RulesPage() {
                     {ruleViolations.length > 0 && (
                       <div className="mt-2 space-y-1">
                         {ruleViolations.map((v) => (
-                          <div key={v.id} className="flex items-center gap-2 text-xs rounded px-2 py-1 -mx-1"
-                            style={{ backgroundColor: C.staleBg, color: C.stale }}>
+                          <div
+                            key={v.id}
+                            className="flex items-center gap-2 text-xs rounded px-2 py-1 -mx-1"
+                            style={{ backgroundColor: C.staleBg, color: C.stale }}
+                          >
                             <AlertTriangle className="h-3 w-3 flex-shrink-0" />
-                            <span className="flex-1">{v.contactName}: {v.message}</span>
-                            <button onClick={() => resolveViolation.mutate(v.id)}
-                              className="hover:opacity-70" style={{ color: C.accentDark }}>dismiss</button>
+                            <span className="flex-1">
+                              {v.contactName}: {v.message}
+                            </span>
+                            <button
+                              onClick={() => resolveViolation.mutate(v.id)}
+                              className="hover:opacity-70"
+                              style={{ color: C.accentDark }}
+                            >
+                              dismiss
+                            </button>
                           </div>
                         ))}
                       </div>
@@ -136,16 +177,24 @@ export default function RulesPage() {
                     onClick={() => toggleRule.mutate({ id: rule.id, enabled: !rule.enabled })}
                     className="flex-shrink-0 rounded-full transition-colors"
                     style={{
-                      width: 36, height: 20, position: "relative",
+                      width: 36,
+                      height: 20,
+                      position: "relative",
                       backgroundColor: rule.enabled ? C.accentDark : "#d1d5db",
                     }}
                   >
-                    <div style={{
-                      width: 16, height: 16, borderRadius: "50%", backgroundColor: "white",
-                      position: "absolute", top: 2,
-                      left: rule.enabled ? 18 : 2,
-                      transition: "left 0.15s ease",
-                    }} />
+                    <div
+                      style={{
+                        width: 16,
+                        height: 16,
+                        borderRadius: "50%",
+                        backgroundColor: "white",
+                        position: "absolute",
+                        top: 2,
+                        left: rule.enabled ? 18 : 2,
+                        transition: "left 0.15s ease",
+                      }}
+                    />
                   </button>
                 </div>
               </div>
@@ -153,7 +202,9 @@ export default function RulesPage() {
           })}
 
           {rules.length === 0 && (
-            <p className="text-center py-12 text-sm" style={{ color: C.muted }}>No rules configured</p>
+            <p className="text-center py-12 text-sm" style={{ color: C.muted }}>
+              No rules configured
+            </p>
           )}
         </div>
       </main>

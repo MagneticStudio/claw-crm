@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef, useCallback, Fragment } from "react";
+import { useState, useMemo, useEffect, useRef, Fragment } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -101,7 +101,9 @@ export function KanbanBoard({ contacts, updateContact, onContactTap }: KanbanBoa
   // dnd-kit's PointerSensor uses setPointerCapture which swallows React events,
   // so we use capture-phase native listeners on the board container.
   const onContactTapRef = useRef(onContactTap);
-  onContactTapRef.current = onContactTap;
+  useEffect(() => {
+    onContactTapRef.current = onContactTap;
+  });
 
   useEffect(() => {
     const el = boardRef.current;
@@ -154,9 +156,7 @@ export function KanbanBoard({ contacts, updateContact, onContactTap }: KanbanBoa
                   accentColor={STAGE_ACCENT[stage] || "#5a7a7a"}
                   compact
                 />
-                {stage === "LIVE" && (
-                  <hr className="border-0 my-1" style={{ borderTop: "1px solid #d4e8e830" }} />
-                )}
+                {stage === "LIVE" && <hr className="border-0 my-1" style={{ borderTop: "1px solid #d4e8e830" }} />}
               </Fragment>
             ))}
           </div>

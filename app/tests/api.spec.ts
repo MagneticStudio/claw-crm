@@ -1,7 +1,5 @@
 import { test, expect } from "@playwright/test";
 
-const API_KEY = "claw_test_key"; // Seed creates a user — we read the key from DB
-
 test.describe("REST API", () => {
   test("GET /api/user returns 401 without auth", async ({ request }) => {
     const res = await request.get("http://localhost:3000/api/user");

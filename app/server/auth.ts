@@ -24,15 +24,18 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   // Check API key first (for MCP/agent access)
   const apiKey = req.headers["x-api-key"] as string;
   if (apiKey) {
-    storage.getUserByApiKey(apiKey).then((user) => {
-      if (user) {
-        (req as any).userId = user.id;
-        return next();
-      }
-      res.status(401).json({ message: "Invalid API key" });
-    }).catch(() => {
-      res.status(500).json({ message: "Auth error" });
-    });
+    storage
+      .getUserByApiKey(apiKey)
+      .then((user) => {
+        if (user) {
+          (req as any).userId = user.id;
+          return next();
+        }
+        res.status(401).json({ message: "Invalid API key" });
+      })
+      .catch(() => {
+        res.status(500).json({ message: "Auth error" });
+      });
     return;
   }
 

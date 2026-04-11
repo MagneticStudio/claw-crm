@@ -15,16 +15,30 @@ import SetupPage from "@/pages/setup-page";
 import NotFound from "@/pages/not-found";
 
 // Badge definitions — hardcoded, no plugin indirection
-export const BADGES = [
-  { dataKey: "briefing", icon: "📋", route: "/briefings/:contactId", tooltip: "View briefing" },
-];
+export const BADGES = [{ dataKey: "briefing", icon: "📋", route: "/briefings/:contactId", tooltip: "View briefing" }];
 
 // App config context — org name from DB
 // Derive color variants from a hex primary color
 function deriveColors(hex: string) {
-  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
-  const darken = (amt: number) => `#${[r,g,b].map(c => Math.max(0, Math.round(c * (1 - amt))).toString(16).padStart(2, "0")).join("")}`;
-  const lighten = (amt: number) => `#${[r,g,b].map(c => Math.min(255, Math.round(c + (255 - c) * amt)).toString(16).padStart(2, "0")).join("")}`;
+  const r = parseInt(hex.slice(1, 3), 16),
+    g = parseInt(hex.slice(3, 5), 16),
+    b = parseInt(hex.slice(5, 7), 16);
+  const darken = (amt: number) =>
+    `#${[r, g, b]
+      .map((c) =>
+        Math.max(0, Math.round(c * (1 - amt)))
+          .toString(16)
+          .padStart(2, "0"),
+      )
+      .join("")}`;
+  const lighten = (amt: number) =>
+    `#${[r, g, b]
+      .map((c) =>
+        Math.min(255, Math.round(c + (255 - c) * amt))
+          .toString(16)
+          .padStart(2, "0"),
+      )
+      .join("")}`;
   return {
     accent: hex,
     accentDark: darken(0.15),
@@ -33,16 +47,33 @@ function deriveColors(hex: string) {
   };
 }
 
-interface AppConfig { orgName: string; primaryColor: string; upcomingDays: number; colors: ReturnType<typeof deriveColors> }
+interface AppConfig {
+  orgName: string;
+  primaryColor: string;
+  upcomingDays: number;
+  colors: ReturnType<typeof deriveColors>;
+}
 
 const defaultColors = deriveColors("#2bbcb3");
-const ConfigContext = createContext<AppConfig>({ orgName: "Claw CRM", primaryColor: "#2bbcb3", upcomingDays: 7, colors: defaultColors });
-export function useConfig() { return useContext(ConfigContext); }
+const ConfigContext = createContext<AppConfig>({
+  orgName: "Claw CRM",
+  primaryColor: "#2bbcb3",
+  upcomingDays: 7,
+  colors: defaultColors,
+});
+export function useConfig() {
+  return useContext(ConfigContext);
+}
 
 // Static palette colors that don't change with the primary color
 const STATIC_COLORS = {
-  text: "#1a2f2f", muted: "#5a7a7a", border: "#d4e8e8",
-  stale: "#d4880f", staleBg: "#fef7ec", red: "#c0392b", redBg: "#fde8e8",
+  text: "#1a2f2f",
+  muted: "#5a7a7a",
+  border: "#d4e8e8",
+  stale: "#d4880f",
+  staleBg: "#fef7ec",
+  red: "#c0392b",
+  redBg: "#fde8e8",
 } as const;
 
 /** Dynamic accent colors + static palette. Use instead of hardcoded C = {...} objects. */
@@ -69,7 +100,9 @@ function ConfigProvider({ children }: { children: React.ReactNode }) {
   }, [colors]);
 
   return (
-    <ConfigContext.Provider value={{ orgName: data?.orgName || "Claw CRM", primaryColor, upcomingDays: data?.upcomingDays ?? 7, colors }}>
+    <ConfigContext.Provider
+      value={{ orgName: data?.orgName || "Claw CRM", primaryColor, upcomingDays: data?.upcomingDays ?? 7, colors }}
+    >
       {children}
     </ConfigContext.Provider>
   );
@@ -98,14 +131,36 @@ function PrivacyScreen() {
     const handleFocus = () => setHidden(false);
     window.addEventListener("blur", handleBlur);
     window.addEventListener("focus", handleFocus);
-    return () => { window.removeEventListener("blur", handleBlur); window.removeEventListener("focus", handleFocus); };
+    return () => {
+      window.removeEventListener("blur", handleBlur);
+      window.removeEventListener("focus", handleFocus);
+    };
   }, []);
 
   if (!hidden) return null;
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "linear-gradient(135deg, #2bbcb3, #30bfb7, #3cc8c0)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <h1 style={{ color: "white", fontSize: "18px", fontWeight: 600, letterSpacing: "0.2em", textTransform: "uppercase", fontFamily: "'Montserrat', sans-serif" }}>
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 9999,
+        background: "linear-gradient(135deg, #2bbcb3, #30bfb7, #3cc8c0)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <h1
+        style={{
+          color: "white",
+          fontSize: "18px",
+          fontWeight: 600,
+          letterSpacing: "0.2em",
+          textTransform: "uppercase",
+          fontFamily: "'Montserrat', sans-serif",
+        }}
+      >
         {orgName}
       </h1>
     </div>
