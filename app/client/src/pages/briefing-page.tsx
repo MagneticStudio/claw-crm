@@ -16,7 +16,7 @@ export default function BriefingPage() {
     enabled: contactId > 0,
   });
 
-  const briefing = (contact as any)?.briefing;
+  const briefing = contact?.briefing;
   const [editing, setEditing] = useState(false);
   const [content, setContent] = useState("");
 
@@ -42,7 +42,7 @@ export default function BriefingPage() {
 
   // Find upcoming meetings for this contact
   const upcomingMeetings = (contact?.followups || []).filter(
-    (f: any) => f.type === "meeting" && !f.completed && new Date(f.dueDate) >= new Date(),
+    (f) => f.type === "meeting" && !f.completed && new Date(f.dueDate) >= new Date(),
   );
 
   return (
@@ -72,7 +72,7 @@ export default function BriefingPage() {
         {/* Upcoming meetings */}
         {upcomingMeetings.length > 0 && (
           <div className="mb-4 text-xs" style={{ color: C.muted }}>
-            {upcomingMeetings.map((m: any) => (
+            {upcomingMeetings.map((m) => (
               <div key={m.id} className="flex items-center gap-1.5 mb-1">
                 <span>📅</span>
                 <span className="font-semibold" style={{ color: C.accentDark }}>

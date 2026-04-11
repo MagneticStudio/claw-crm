@@ -41,12 +41,12 @@ export default function SetupPage() {
     setupMutation.mutate(
       { pin },
       {
-        onSuccess: (data: any) => {
+        onSuccess: (data: { apiKey: string; mcpToken: string }) => {
           setApiKey(data.apiKey);
           setMcpToken(data.mcpToken);
           setStep("connect");
         },
-        onError: (err: any) => setError(err.message),
+        onError: (err: Error) => setError(err.message),
       },
     );
   };

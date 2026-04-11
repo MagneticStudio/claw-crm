@@ -159,7 +159,7 @@ export function ContactBlock({
       const stageMatch = newNote.match(/^\/stage\s+(\w+)/i);
       if (stageMatch) {
         const s = stageMatch[1].toUpperCase();
-        if (STAGE_OPTIONS.includes(s as any)) {
+        if ((STAGE_OPTIONS as readonly string[]).includes(s)) {
           onUpdateContact({ stage: s });
           setNewNote("");
           showFlash(`Stage → ${s}`);
@@ -289,7 +289,7 @@ export function ContactBlock({
 
         {/* Feature badges */}
         {BADGES.map((badge, i) =>
-          (contact as any)[badge.dataKey] ? (
+          (contact as ContactWithRelations & Record<string, unknown>)[badge.dataKey] ? (
             <a
               key={i}
               href={badge.route.replace(":contactId", String(contact.id))}
