@@ -2,6 +2,16 @@ import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizz
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// --- Shared constants (single source of truth for valid values) ---
+export const STAGES = ["LEAD", "MEETING", "PROPOSAL", "NEGOTIATION", "LIVE", "PASS", "RELATIONSHIP"] as const;
+export const STATUSES = ["ACTIVE", "HOLD"] as const;
+export const INTERACTION_TYPES = ["note", "meeting", "email", "call"] as const;
+export const TASK_TYPES = ["task", "meeting"] as const;
+export const SEVERITIES = ["info", "warning", "critical"] as const;
+export const MEETING_TYPES = ["call", "video", "in-person", "coffee"] as const;
+export const CONDITION_TYPES = ["no_interaction_for_days", "followup_past_due", "no_followup_after_meeting", "meeting_within_hours", "status_is", "stage_is"] as const;
+export const EXCEPTION_TYPES = ["has_future_followup", "stage_in"] as const;
+
 // User model — single user, PIN auth + settings
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),

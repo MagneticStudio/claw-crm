@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-04-11
+
+### MCP tool upgrades
+- **New `get_dashboard` tool**: One-call CRM snapshot — contacts by stage, overdue tasks, upcoming meetings (48h), violations by severity, recent activity. All with contact names pre-resolved.
+- **New `create_task` tool**: Consolidates `set_followup` and `set_meeting` into a single tool with a `type` parameter ("task" or "meeting"). Meeting-specific fields (meetingType, time, location) are optional params.
+- **Enriched list responses**: `list_violations` and `get_upcoming_meetings` now include `contactName` alongside `contactId`, eliminating N+1 lookup calls.
+- **Pagination**: `search_contacts`, `list_violations`, `get_upcoming_meetings`, and `list_rules` accept `limit`/`offset` and return `{ results, totalCount, hasMore }`.
+- **Enum validation**: Stage, status, interaction type, severity, condition type, and meeting type all use `z.enum()` derived from shared constants in `shared/schema.ts`. Adding a new value means updating one array.
+- **Actionable error messages**: Not-found errors tell agents which tool to use to find valid IDs. Common DB errors (bad types, FK violations) get auto-detected hints.
+- **Dynamic `get_crm_guide`**: Now includes a live snapshot (contact counts by stage, violation count, meetings this week, overdue tasks) and lists all valid enums dynamically.
+
 ## 2026-04-09
 
 ### Fix MCP session durability + add companyName to MCP tools

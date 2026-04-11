@@ -3,12 +3,17 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { z } from "zod";
 import { storage } from "./storage";
 import { toNoonUTC, parseDateToNoonUTC } from "@shared/dates";
-import { briefings, followups, companies } from "@shared/schema";
+import {
+  briefings, followups, companies, contacts, interactions, ruleViolations,
+  STAGES, STATUSES, INTERACTION_TYPES, TASK_TYPES, SEVERITIES, MEETING_TYPES, CONDITION_TYPES, EXCEPTION_TYPES,
+} from "@shared/schema";
 import { db } from "./db";
-import { eq, and, isNull, gte, lte, asc } from "drizzle-orm";
+import { eq, and, isNull, gte, lte, asc, sql } from "drizzle-orm";
 import { sseManager } from "./sse";
 import type { Express, Request, Response } from "express";
 import { randomUUID } from "crypto";
+
+// --- Helpers ---
 
 async function findOrCreateCompany(name: string): Promise<number> {
   const allCompanies = await storage.getCompanies();
@@ -18,23 +23,95 @@ async function findOrCreateCompany(name: string): Promise<number> {
   return created.id;
 }
 
+/** Resolve contactId → "FirstName LastName" for enriching list responses */
+async function contactNameMap(contactIds: number[]): Promise<Map<number, string>> {
+  const unique = [...new Set(contactIds)];
+  if (unique.length === 0) return new Map();
+  const rows = await db.select({ id: contacts.id, firstName: contacts.firstName, lastName: contacts.lastName })
+    .from(contacts).where(sql`${contacts.id} IN ${unique}`);
+  return new Map(rows.map(r => [r.id, `${r.firstName} ${r.lastName}`]));
+}
+
+// Zod enums from shared constants
+const stageEnum = z.enum(STAGES);
+const statusEnum = z.enum(STATUSES);
+const interactionTypeEnum = z.enum(INTERACTION_TYPES);
+const taskTypeEnum = z.enum(TASK_TYPES);
+const severityEnum = z.enum(SEVERITIES);
+const meetingTypeEnum = z.enum(MEETING_TYPES);
+const conditionTypeEnum = z.enum(CONDITION_TYPES);
+
+/** Build an actionable error message with guidance on how to fix the call */
+function actionableError(operation: string, err: any, hints?: string): string {
+  const base = `Error ${operation}: ${err.message}`;
+  if (hints) return `${base}\n\nHint: ${hints}`;
+
+  // Auto-detect common issues and add guidance
+  const msg = err.message?.toLowerCase() || "";
+  if (msg.includes("invalid input syntax for type integer"))
+    return `${base}\n\nHint: The ID parameter must be a number. Use search_contacts to find valid IDs.`;
+  if (msg.includes("not null") || msg.includes("violates not-null"))
+    return `${base}\n\nHint: A required field is missing. Check the tool parameters.`;
+  if (msg.includes("foreign key") || msg.includes("violates foreign key"))
+    return `${base}\n\nHint: The referenced record doesn't exist. Use search_contacts or list_rules to find valid IDs.`;
+  return base;
+}
+
+function notFoundError(entity: string, id: number, searchHint: string): { content: { type: "text"; text: string }[]; isError: true } {
+  return {
+    content: [{ type: "text" as const, text: `${entity} ${id} not found. Use ${searchHint} to find valid ${entity.toLowerCase()}s.` }],
+    isError: true,
+  };
+}
+
+/** Apply pagination to an array, returning { items, totalCount, hasMore } */
+function paginate<T>(items: T[], limit: number, offset: number): { items: T[]; totalCount: number; hasMore: boolean } {
+  const totalCount = items.length;
+  const sliced = items.slice(offset, offset + limit);
+  return { items: sliced, totalCount, hasMore: offset + limit < totalCount };
+}
+
 function createMcpServer(): McpServer {
   const server = new McpServer({
     name: "claw-crm",
     version: "1.0.0",
   });
 
-  // --- Guide ---
+  // --- Guide (with live stats) ---
   server.tool(
     "get_crm_guide",
-    "RECOMMENDED FIRST CALL. Returns instructions on how to use this CRM correctly. Call this before creating or updating contacts to understand the data conventions.",
+    "RECOMMENDED FIRST CALL. Returns CRM instructions plus a live snapshot of current data (contact counts, violations, upcoming meetings). Call this before creating or updating contacts.",
     {},
     async () => {
-      // Detect if CRM is empty (first-time setup)
       const allContacts = await storage.getContacts();
       const user = await storage.getFirstUser();
       const isEmpty = allContacts.length === 0;
       const orgName = user?.orgName || "Claw CRM";
+
+      // Live stats
+      const violations = await storage.getViolations();
+      const now = new Date();
+      const weekOut = new Date();
+      weekOut.setHours(weekOut.getHours() + 168);
+      const upcomingMeetings = await db.select().from(followups).where(and(
+        eq(followups.type, "meeting"), isNull(followups.cancelledAt), eq(followups.completed, false),
+        gte(followups.dueDate, now), lte(followups.dueDate, weekOut),
+      ));
+      const overdue = await storage.getOverdueFollowups();
+
+      // Stage distribution
+      const stageCounts = STAGES.map(s => {
+        const count = allContacts.filter(c => c.stage === s).length;
+        return count > 0 ? `${s}: ${count}` : null;
+      }).filter(Boolean).join(", ");
+
+      const statsSection = !isEmpty ? `
+## Live Snapshot
+- **${allContacts.length}** contacts (${stageCounts})
+- **${violations.length}** active violation${violations.length !== 1 ? "s" : ""} (${violations.filter(v => v.severity === "critical").length} critical)
+- **${upcomingMeetings.length}** meeting${upcomingMeetings.length !== 1 ? "s" : ""} this week
+- **${overdue.length}** overdue task${overdue.length !== 1 ? "s" : ""}
+` : "";
 
       const onboardingSection = isEmpty ? `
 ## FIRST-TIME SETUP — This CRM is empty!
@@ -44,15 +121,14 @@ Help the user set up their CRM through conversation:
 2. Ask them to describe their pipeline: "Who are your current clients and prospects?"
 3. For each person they mention → create_contact() with the right stage
 4. Ask about recent interactions → add_interaction() for each
-5. Ask about upcoming tasks → set_followup() for each
+5. Ask about upcoming tasks → create_task() for each
 6. The default rules (stale detection, overdue follow-ups) are already active
 
 Be conversational. The user says "I have a prospect named Sarah at Acme, we had a call last week" → you create the contact, log the interaction, suggest a follow-up.
 ` : "";
 
       return { content: [{ type: "text" as const, text: `# ${orgName} CRM — Agent Guide
-
-This is a personal CRM. It tracks prospects and clients through a pipeline.
+${statsSection}
 ${onboardingSection}
 
 ## Key Principles
@@ -61,11 +137,11 @@ ${onboardingSection}
 - One contact record = one PRIMARY person. Use additionalContacts for secondary people at the same company.
 - The background field is 1-2 sentences of company context. Do NOT dump full history there.
 - Use add_interaction for timeline events (past tense, factual, concise).
-- Use set_followup for future action items.
+- Use create_task for future action items and meetings.
 - When completing a follow-up, ALWAYS provide an outcome describing what happened.
 
 ## Pipeline Stages
-LEAD → MEETING → PROPOSAL → NEGOTIATION → LIVE → PASS, plus RELATIONSHIP (warm contacts)
+${STAGES.join(" → ")} (RELATIONSHIP = warm contacts, not sales)
 
 - LEAD: Intro made, no meeting yet
 - MEETING: First meeting happened or scheduled
@@ -73,13 +149,20 @@ LEAD → MEETING → PROPOSAL → NEGOTIATION → LIVE → PASS, plus RELATIONSH
 - NEGOTIATION: Active back-and-forth on terms
 - LIVE: Signed, active engagement (moves to execution/project management)
 - PASS: Declined or not a fit
-- PASS: Declined or not a fit
 - RELATIONSHIP: Warm connection, not a sales prospect
 
 ## Contact Statuses
 - ACTIVE: In the pipeline, needs attention
 - HOLD: Paused — not dead, just not actively working it right now
 Note: PASS is a STAGE (declined/not a fit), not a status.
+
+## Valid Enums
+- Stages: ${STAGES.join(", ")}
+- Statuses: ${STATUSES.join(", ")}
+- Interaction types: ${INTERACTION_TYPES.join(", ")}
+- Task types: ${TASK_TYPES.join(", ")} (use create_task with type parameter)
+- Severities: ${SEVERITIES.join(", ")}
+- Meeting types: ${MEETING_TYPES.join(", ")}
 
 ## Data Formatting
 - email: direct email address
@@ -95,19 +178,17 @@ Note: PASS is a STAGE (declined/not a fit), not a status.
 
 ## Rules
 Rules auto-flag issues (stale contacts, overdue follow-ups). You can create, update, and delete rules.
-Available condition types: no_interaction_for_days, followup_past_due, no_followup_after_meeting, meeting_within_hours, status_is, stage_is
-
-Available exception types: has_future_followup, stage_in (with params.stages array)
+Available condition types: ${CONDITION_TYPES.join(", ")}
+Available exception types: ${EXCEPTION_TYPES.join(", ")}
 
 ## Meetings
-Use set_meeting to schedule meetings. Use /mtg in the UI.
+Use create_task with type "meeting" to schedule meetings.
 Meetings appear alongside tasks in contact cards and the Upcoming strip.
 After a meeting happens, log it as an interaction with add_interaction.
 
 ## Briefings
 Use save_briefing to store prep notes for a contact (one per contact, upsert).
 Good for: talking points, recent news, open items before a meeting.
-
 
 ## Confidentiality
 - NEVER put pricing or deal terms in the CRM
@@ -117,40 +198,141 @@ Good for: talking points, recent news, open items before a meeting.
     }
   );
 
+  // --- Dashboard ---
+  server.tool(
+    "get_dashboard",
+    "Get a high-level CRM snapshot: contacts by stage, overdue tasks, upcoming meetings, active violations, and recent activity. Use this to orient at the start of a session instead of making multiple calls.",
+    {},
+    async () => {
+      try {
+        const allContacts = await storage.getContacts();
+        const violations = await storage.getViolations();
+        const overdue = await storage.getOverdueFollowups();
+
+        // Upcoming meetings (next 48h)
+        const now = new Date();
+        const cutoff48h = new Date();
+        cutoff48h.setHours(cutoff48h.getHours() + 48);
+        const soonMeetings = await db.select().from(followups).where(and(
+          eq(followups.type, "meeting"), isNull(followups.cancelledAt), eq(followups.completed, false),
+          gte(followups.dueDate, now), lte(followups.dueDate, cutoff48h),
+        )).orderBy(asc(followups.dueDate));
+
+        // Resolve contact names for meetings, violations, and overdue items
+        const allContactIds = [
+          ...soonMeetings.map(m => m.contactId),
+          ...violations.map(v => v.contactId),
+          ...overdue.map(f => f.contactId),
+        ];
+        const names = await contactNameMap(allContactIds);
+
+        // Stage distribution
+        const byStage: Record<string, number> = {};
+        for (const c of allContacts) {
+          byStage[c.stage] = (byStage[c.stage] || 0) + 1;
+        }
+
+        // Recent activity (last 5)
+        const recentActivity = await db.select().from(
+          sql`activity_log`
+        ).orderBy(sql`created_at DESC`).limit(5);
+
+        const dashboard = {
+          totalContacts: allContacts.length,
+          byStage,
+          upcomingMeetings: soonMeetings.map(m => ({
+            id: m.id, contactId: m.contactId, contactName: names.get(m.contactId) || "Unknown",
+            content: m.content, date: m.dueDate, time: m.time, location: m.location,
+          })),
+          overdueTasks: overdue.map(f => ({
+            id: f.id, contactId: f.contactId, contactName: names.get(f.contactId) || "Unknown",
+            content: f.content, dueDate: f.dueDate,
+          })),
+          activeViolations: {
+            total: violations.length,
+            critical: violations.filter(v => v.severity === "critical").length,
+            warning: violations.filter(v => v.severity === "warning").length,
+            info: violations.filter(v => v.severity === "info").length,
+            items: violations.slice(0, 10).map(v => ({
+              id: v.id, contactId: v.contactId, contactName: names.get(v.contactId) || "Unknown",
+              message: v.message, severity: v.severity,
+            })),
+          },
+          recentActivity: recentActivity,
+        };
+
+        return { content: [{ type: "text" as const, text: JSON.stringify(dashboard, null, 2) }] };
+      } catch (err: any) {
+        return { content: [{ type: "text" as const, text: actionableError("loading dashboard", err) }], isError: true };
+      }
+    }
+  );
+
   // --- Read Tools ---
-  server.tool("search_contacts", "Search contacts by name, company, stage, or status", {
-    query: z.string().optional().describe("Search term"),
-    stage: z.string().optional(), status: z.string().optional(),
-  }, async ({ query, stage, status }) => {
+  server.tool("search_contacts", "Search contacts by name, company, stage, or status. Returns a summary list with pagination.", {
+    query: z.string().optional().describe("Search term (matches name, company, or email)"),
+    stage: stageEnum.optional().describe(`Filter by stage: ${STAGES.join(", ")}`),
+    status: statusEnum.optional().describe(`Filter by status: ${STATUSES.join(", ")}`),
+    limit: z.number().optional().describe("Max results to return (default 25)"),
+    offset: z.number().optional().describe("Skip this many results (default 0, for pagination)"),
+  }, async ({ query, stage, status, limit, offset }) => {
     try {
-      let contacts = await storage.getContactsWithRelations();
-      if (query) { const q = query.toLowerCase(); contacts = contacts.filter(c => `${c.firstName} ${c.lastName}`.toLowerCase().includes(q) || c.company?.name?.toLowerCase().includes(q)); }
-      if (stage) contacts = contacts.filter(c => c.stage === stage);
-      if (status) contacts = contacts.filter(c => c.status === status);
-      const summary = contacts.map(c => ({ id: c.id, name: `${c.firstName} ${c.lastName}`, company: c.company?.name, stage: c.stage, status: c.status, email: c.email, lastInteraction: c.interactions.length > 0 ? { date: c.interactions[c.interactions.length - 1].date, content: c.interactions[c.interactions.length - 1].content } : null, activeFollowups: c.followups.filter(f => !f.completed).length, violations: c.violations.length }));
-      return { content: [{ type: "text" as const, text: JSON.stringify(summary, null, 2) }] };
+      let results = await storage.getContactsWithRelations();
+      if (query) { const q = query.toLowerCase(); results = results.filter(c => `${c.firstName} ${c.lastName}`.toLowerCase().includes(q) || c.company?.name?.toLowerCase().includes(q) || c.email?.toLowerCase().includes(q)); }
+      if (stage) results = results.filter(c => c.stage === stage);
+      if (status) results = results.filter(c => c.status === status);
+
+      const { items, totalCount, hasMore } = paginate(results, limit || 25, offset || 0);
+
+      const summary = items.map(c => ({
+        id: c.id, name: `${c.firstName} ${c.lastName}`, company: c.company?.name,
+        stage: c.stage, status: c.status, email: c.email,
+        lastInteraction: c.interactions.length > 0
+          ? { date: c.interactions[c.interactions.length - 1].date, content: c.interactions[c.interactions.length - 1].content }
+          : null,
+        activeFollowups: c.followups.filter(f => !f.completed).length,
+        violations: c.violations.length,
+      }));
+
+      return { content: [{ type: "text" as const, text: JSON.stringify({ results: summary, totalCount, hasMore }, null, 2) }] };
     } catch (err: any) {
-      return { content: [{ type: "text" as const, text: `Error searching contacts: ${err.message}` }], isError: true };
+      return { content: [{ type: "text" as const, text: actionableError("searching contacts", err) }], isError: true };
     }
   });
 
-  server.tool("get_contact", "Get full contact details", { contactId: z.number() }, async ({ contactId }) => {
+  server.tool("get_contact", "Get full contact details including interactions, follow-ups, and violations.", {
+    contactId: z.number().describe("Contact ID"),
+  }, async ({ contactId }) => {
     try {
       const contact = await storage.getContactWithRelations(contactId);
-      if (!contact) return { content: [{ type: "text" as const, text: `Contact ${contactId} not found` }], isError: true };
+      if (!contact) return notFoundError("Contact", contactId, "search_contacts");
       return { content: [{ type: "text" as const, text: JSON.stringify(contact, null, 2) }] };
     } catch (err: any) {
-      return { content: [{ type: "text" as const, text: `Error reading contact ${contactId}: ${err.message}` }], isError: true };
+      return { content: [{ type: "text" as const, text: actionableError(`reading contact ${contactId}`, err) }], isError: true };
     }
   });
 
-  server.tool("list_violations", "Active rule violations", { severity: z.string().optional() }, async ({ severity }) => {
+  server.tool("list_violations", "Active rule violations, enriched with contact names.", {
+    severity: severityEnum.optional().describe(`Filter by severity: ${SEVERITIES.join(", ")}`),
+    limit: z.number().optional().describe("Max results (default 25)"),
+    offset: z.number().optional().describe("Skip results (default 0)"),
+  }, async ({ severity, limit, offset }) => {
     try {
       let v = await storage.getViolations();
       if (severity) v = v.filter(x => x.severity === severity);
-      return { content: [{ type: "text" as const, text: JSON.stringify(v, null, 2) }] };
+
+      const { items, totalCount, hasMore } = paginate(v, limit || 25, offset || 0);
+
+      // Enrich with contact names
+      const names = await contactNameMap(items.map(x => x.contactId));
+      const enriched = items.map(x => ({
+        ...x,
+        contactName: names.get(x.contactId) || "Unknown",
+      }));
+
+      return { content: [{ type: "text" as const, text: JSON.stringify({ results: enriched, totalCount, hasMore }, null, 2) }] };
     } catch (err: any) {
-      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true };
+      return { content: [{ type: "text" as const, text: actionableError("listing violations", err) }], isError: true };
     }
   });
 
@@ -187,8 +369,8 @@ After creating the contact, use add_interaction to log the key events (meetings,
       background: z.string().optional().describe("1-2 sentences about the company. Keep SHORT — do not dump full history here"),
       source: z.string().optional().describe("How we connected, e.g. 'Ryan Chan (referral)' or 'Direct'"),
       additionalContacts: z.string().optional().describe("Other key people: 'Name (Role): email' separated by newlines"),
-      status: z.string().optional().describe("ACTIVE (default) or HOLD"),
-      stage: z.string().optional().describe("LEAD, MEETING, PROPOSAL, NEGOTIATION, LIVE, PASS, or RELATIONSHIP. NOT HOLD (use status for that)"),
+      status: statusEnum.optional().describe(`${STATUSES.join(" or ")} (default ACTIVE)`),
+      stage: stageEnum.optional().describe(`${STAGES.join(", ")}. NOT HOLD (use status for that)`),
     },
     async ({ companyName, ...data }) => {
       try {
@@ -199,7 +381,7 @@ After creating the contact, use add_interaction to log the key events (meetings,
         const c = await storage.createContact(cleaned as any);
         return { content: [{ type: "text" as const, text: `Created contact: ${c.firstName} ${c.lastName} (ID: ${c.id}). Now use add_interaction to log key events in the timeline.` }] };
       } catch (err: any) {
-        return { content: [{ type: "text" as const, text: `Error creating contact: ${err.message}` }], isError: true };
+        return { content: [{ type: "text" as const, text: actionableError("creating contact", err) }], isError: true };
       }
     }
   );
@@ -220,18 +402,18 @@ After creating the contact, use add_interaction to log the key events (meetings,
       background: z.string().optional().describe("1-2 sentence company context. Keep short."),
       source: z.string().optional().describe("Referral source"),
       additionalContacts: z.string().optional().describe("Other key people: 'Name (Role): email' per line"),
-      status: z.string().optional().describe("ACTIVE, HOLD, or PASS"),
-      stage: z.string().optional().describe("LEAD, MEETING, PROPOSAL, NEGOTIATION, LIVE, PASS, or RELATIONSHIP. NOT HOLD (use status for that)"),
+      status: statusEnum.optional().describe(`${STATUSES.join(" or ")}`),
+      stage: stageEnum.optional().describe(`${STAGES.join(", ")}. NOT HOLD (use status for that)`),
     },
     async ({ contactId, companyName, ...data }) => {
       try {
         const filtered: Record<string, unknown> = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
         if (companyName) filtered.companyId = await findOrCreateCompany(companyName);
         const c = await storage.updateContact(contactId, filtered);
-        if (!c) return { content: [{ type: "text" as const, text: `Contact ${contactId} not found` }], isError: true };
+        if (!c) return notFoundError("Contact", contactId, "search_contacts");
         return { content: [{ type: "text" as const, text: `Updated: ${c.firstName} ${c.lastName}` }] };
       } catch (err: any) {
-        return { content: [{ type: "text" as const, text: `Error updating contact: ${err.message}` }], isError: true };
+        return { content: [{ type: "text" as const, text: actionableError("updating contact", err) }], isError: true };
       }
     }
   );
@@ -247,65 +429,99 @@ Examples:
 - "Lisa emailed: contract redlines attached. Sent to legal."
 - "AF pinged Sieva. No response yet."
 
-Do NOT log follow-up tasks here — use set_followup for those.`,
+Do NOT log follow-up tasks here — use create_task for those.`,
     {
       contactId: z.number().describe("Contact ID"),
       content: z.string().describe("What happened — concise, past tense, factual"),
-      date: z.string().optional().describe("When it happened (ISO date string). Defaults to now."),
-      type: z.string().optional().describe("note (default), meeting, email, or call"),
+      date: z.string().optional().describe("When it happened (ISO date string). Defaults to today."),
+      type: interactionTypeEnum.optional().describe(`${INTERACTION_TYPES.join(", ")} (default note)`),
     },
     async ({ contactId, content, date, type }) => {
       try {
         const i = await storage.createInteraction({ contactId, content, date: date ? toNoonUTC(date) : toNoonUTC(new Date()), type: type || "note" });
         return { content: [{ type: "text" as const, text: `Logged ${i.type} for contact ${contactId}` }] };
       } catch (err: any) {
-        return { content: [{ type: "text" as const, text: `Error logging interaction: ${err.message}` }], isError: true };
+        if (err.message?.includes("foreign key"))
+          return { content: [{ type: "text" as const, text: `Contact ${contactId} not found. Use search_contacts to find valid contacts.` }], isError: true };
+        return { content: [{ type: "text" as const, text: actionableError("logging interaction", err) }], isError: true };
       }
     }
   );
 
+  // --- Unified Task/Meeting Tool (replaces set_followup + set_meeting) ---
   server.tool(
-    "set_followup",
-    `Create a follow-up task for a contact. Follow-ups are action items with due dates.
+    "create_task",
+    `Create a task or meeting for a contact. Replaces the old set_followup and set_meeting tools.
 
-Content should be a clear action: what to do, not what happened.
-Examples: "Check for reply on proposal", "Send intro email", "Prep agenda for kickoff call"`,
+For tasks (type "task"): action items with due dates.
+  Content should be a clear action: "Check for reply on proposal", "Send intro email"
+
+For meetings (type "meeting"): scheduled events with optional time/location.
+  Content should describe the meeting: "Intro call with Bobby", "Coffee at Blue Bottle"
+  Include time as a display string (e.g. "2:00 PM") and optional location.`,
     {
       contactId: z.number().describe("Contact ID"),
-      content: z.string().describe("Action to take — clear and specific"),
-      dueDate: z.string().describe("Due date: ISO string (2026-04-15) or M/D format (4/15)"),
+      content: z.string().describe("For tasks: action to take. For meetings: meeting description."),
+      dueDate: z.string().describe("Due/meeting date: ISO string (2026-04-15), ISO datetime (2026-04-15T14:00:00), or M/D format (4/15)"),
+      type: taskTypeEnum.optional().describe(`"task" (default) or "meeting"`),
+      // Meeting-specific fields (ignored for tasks)
+      meetingType: meetingTypeEnum.optional().describe(`Meeting format: ${MEETING_TYPES.join(", ")} (only for type "meeting")`),
+      time: z.string().optional().describe("Display time, e.g. '2:00 PM' (only for meetings). Auto-parsed from date if ISO datetime provided."),
+      location: z.string().optional().describe("Meeting location (only for meetings)"),
     },
-    async ({ contactId, content, dueDate }) => {
+    async ({ contactId, content, dueDate, type, meetingType, time, location }) => {
       try {
+        const isMeeting = type === "meeting";
         const d = parseDateToNoonUTC(dueDate);
-        await storage.createFollowup({ contactId, content, dueDate: d, completed: false });
-        return { content: [{ type: "text" as const, text: `Follow-up set for ${d.getUTCMonth()+1}/${d.getUTCDate()}: "${content}"` }] };
+
+        if (isMeeting) {
+          // Auto-parse display time from ISO datetime if not explicitly provided
+          const displayTime = time || (dueDate.includes("T")
+            ? new Date(dueDate).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+            : undefined);
+
+          const [item] = await db.insert(followups).values({
+            contactId, type: "meeting", dueDate: d, content,
+            time: displayTime, location,
+            metadata: meetingType ? { meetingType } : null,
+            completed: false,
+          }).returning();
+          sseManager.broadcast({ type: "followup_created", contactId });
+          storage.logActivity("meeting.created", `Scheduled ${meetingType || "meeting"}: ${content}`, { contactId, source: "agent" });
+          return { content: [{ type: "text" as const, text: `Meeting scheduled${displayTime ? ` at ${displayTime}` : ""}: "${content}" (ID: ${item.id})` }] };
+        } else {
+          // Regular task/followup
+          await storage.createFollowup({ contactId, content, dueDate: d, completed: false });
+          return { content: [{ type: "text" as const, text: `Follow-up set for ${d.getUTCMonth()+1}/${d.getUTCDate()}: "${content}"` }] };
+        }
       } catch (err: any) {
-        return { content: [{ type: "text" as const, text: `Error creating follow-up: ${err.message}` }], isError: true };
+        if (err.message?.includes("foreign key"))
+          return { content: [{ type: "text" as const, text: `Contact ${contactId} not found. Use search_contacts to find valid contacts.` }], isError: true };
+        return { content: [{ type: "text" as const, text: actionableError("creating task", err) }], isError: true };
       }
     }
   );
 
   server.tool(
     "complete_followup",
-    `Mark a follow-up as done. Always provide an outcome describing what actually happened — this gets logged to the timeline as a permanent record.
+    `Mark a follow-up or meeting as done. Always provide an outcome describing what actually happened — this gets logged to the timeline as a permanent record.
 
 The outcome should be past tense: "Checked in with Idan — confirmed coffee next Tuesday" not "Check in with Idan"`,
     {
-      followupId: z.number().describe("Follow-up ID"),
+      followupId: z.number().describe("Follow-up/task ID"),
       outcome: z.string().optional().describe("What happened — logged as a timeline entry. Always provide this."),
     },
     async ({ followupId, outcome }) => {
       try {
         const fu = await storage.completeFollowup(followupId);
-        if (!fu) return { content: [{ type: "text" as const, text: `Follow-up ${followupId} not found` }], isError: true };
+        if (!fu) return notFoundError("Follow-up", followupId, "get_contact (check the followups array)");
         if (outcome?.trim()) {
           await storage.createInteraction({ contactId: fu.contactId, content: outcome.trim(), date: toNoonUTC(new Date()), type: "note" });
           return { content: [{ type: "text" as const, text: `Completed and logged: "${outcome.trim()}"` }] };
         }
         return { content: [{ type: "text" as const, text: `Completed: "${fu.content}"` }] };
       } catch (err: any) {
-        return { content: [{ type: "text" as const, text: `Error completing follow-up: ${err.message}` }], isError: true };
+        return { content: [{ type: "text" as const, text: actionableError("completing follow-up", err) }], isError: true };
       }
     }
   );
@@ -317,28 +533,28 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
     async ({ contactId }) => {
       try {
         const contact = await storage.getContact(contactId);
-        if (!contact) return { content: [{ type: "text" as const, text: `Contact ${contactId} not found` }], isError: true };
+        if (!contact) return notFoundError("Contact", contactId, "search_contacts");
         const name = `${contact.firstName} ${contact.lastName}`;
         const deleted = await storage.deleteContact(contactId);
         if (!deleted) return { content: [{ type: "text" as const, text: `Failed to delete contact ${contactId}` }], isError: true };
         return { content: [{ type: "text" as const, text: `Deleted contact: ${name} (ID: ${contactId}) and all associated data` }] };
       } catch (err: any) {
-        return { content: [{ type: "text" as const, text: `Error deleting contact: ${err.message}` }], isError: true };
+        return { content: [{ type: "text" as const, text: actionableError("deleting contact", err) }], isError: true };
       }
     }
   );
 
   server.tool(
     "delete_followup",
-    "Delete a follow-up task. Use this to remove follow-ups that are no longer relevant without marking them as completed.",
-    { followupId: z.number().describe("Follow-up ID to delete") },
+    "Delete a follow-up task or meeting. Use this to remove items that are no longer relevant without marking them as completed.",
+    { followupId: z.number().describe("Follow-up/task ID to delete") },
     async ({ followupId }) => {
       try {
         const deleted = await storage.deleteFollowup(followupId);
-        if (!deleted) return { content: [{ type: "text" as const, text: `Follow-up ${followupId} not found` }], isError: true };
+        if (!deleted) return notFoundError("Follow-up", followupId, "get_contact (check the followups array)");
         return { content: [{ type: "text" as const, text: `Deleted follow-up ${followupId}` }] };
       } catch (err: any) {
-        return { content: [{ type: "text" as const, text: `Error deleting follow-up: ${err.message}` }], isError: true };
+        return { content: [{ type: "text" as const, text: actionableError("deleting follow-up", err) }], isError: true };
       }
     }
   );
@@ -350,61 +566,54 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
     async ({ interactionId }) => {
       try {
         const deleted = await storage.deleteInteraction(interactionId);
-        if (!deleted) return { content: [{ type: "text" as const, text: `Interaction ${interactionId} not found` }], isError: true };
+        if (!deleted) return notFoundError("Interaction", interactionId, "get_contact (check the interactions array)");
         return { content: [{ type: "text" as const, text: `Deleted interaction ${interactionId}` }] };
       } catch (err: any) {
-        return { content: [{ type: "text" as const, text: `Error deleting interaction: ${err.message}` }], isError: true };
+        return { content: [{ type: "text" as const, text: actionableError("deleting interaction", err) }], isError: true };
       }
     }
   );
 
   // --- Meetings ---
-  server.tool("set_meeting", "Schedule a meeting. Creates an item with type 'meeting'.", {
-    contactId: z.number(),
-    date: z.string().describe("Date+time ISO 8601, e.g. '2026-04-01T14:00:00'"),
-    content: z.string().describe("Meeting description"),
-    type: z.string().optional().describe("call (default), video, in-person, coffee — stored in metadata"),
-    location: z.string().optional(),
-    time: z.string().optional().describe("Display time, e.g. '2:00 PM'. Auto-parsed from date if not provided."),
-  }, async ({ contactId, date, content, type: meetingType, location, time }) => {
-    try {
-      const d = toNoonUTC(date);
-      const displayTime = time || d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-      const [item] = await db.insert(followups).values({
-        contactId, type: "meeting", dueDate: d, content,
-        time: displayTime, location,
-        metadata: meetingType ? { meetingType } : null,
-        completed: false,
-      }).returning();
-      sseManager.broadcast({ type: "followup_created", contactId });
-      storage.logActivity("meeting.created", `Scheduled ${meetingType || "meeting"}: ${content}`, { contactId, source: "agent" });
-      return { content: [{ type: "text" as const, text: `Meeting scheduled: ${displayTime} ${content} (ID: ${item.id})` }] };
-    } catch (err: any) { return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true }; }
-  });
-
-  server.tool("get_upcoming_meetings", "List upcoming meetings.", {
-    withinHours: z.number().optional().describe("Hours ahead. Default 168 (7 days)"),
-    contactId: z.number().optional(),
-  }, async ({ withinHours, contactId }) => {
+  server.tool("get_upcoming_meetings", "List upcoming meetings, enriched with contact names.", {
+    withinHours: z.number().optional().describe("Hours ahead to look (default 168 = 7 days)"),
+    contactId: z.number().optional().describe("Filter to a specific contact"),
+    limit: z.number().optional().describe("Max results (default 25)"),
+    offset: z.number().optional().describe("Skip results (default 0)"),
+  }, async ({ withinHours, contactId, limit, offset }) => {
     try {
       const now = new Date();
       const cutoff = new Date();
       cutoff.setHours(cutoff.getHours() + (withinHours || 168));
       let conditions = [eq(followups.type, "meeting"), isNull(followups.cancelledAt), eq(followups.completed, false), gte(followups.dueDate, now), lte(followups.dueDate, cutoff)];
       if (contactId) conditions.push(eq(followups.contactId, contactId));
-      const result = await db.select().from(followups).where(and(...conditions)).orderBy(asc(followups.dueDate));
-      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
-    } catch (err: any) { return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true }; }
+      const allResults = await db.select().from(followups).where(and(...conditions)).orderBy(asc(followups.dueDate));
+
+      const { items, totalCount, hasMore } = paginate(allResults, limit || 25, offset || 0);
+
+      // Enrich with contact names
+      const names = await contactNameMap(items.map(m => m.contactId));
+      const enriched = items.map(m => ({
+        ...m,
+        contactName: names.get(m.contactId) || "Unknown",
+      }));
+
+      return { content: [{ type: "text" as const, text: JSON.stringify({ results: enriched, totalCount, hasMore }, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: actionableError("listing meetings", err) }], isError: true };
+    }
   });
 
   server.tool("cancel_meeting", "Cancel a meeting.", { meetingId: z.number() }, async ({ meetingId }) => {
     try {
       const [item] = await db.update(followups).set({ cancelledAt: new Date() }).where(eq(followups.id, meetingId)).returning();
-      if (!item) return { content: [{ type: "text" as const, text: `Meeting ${meetingId} not found` }], isError: true };
+      if (!item) return notFoundError("Meeting", meetingId, "get_upcoming_meetings");
       sseManager.broadcast({ type: "followup_deleted", contactId: item.contactId });
       storage.logActivity("meeting.cancelled", "Cancelled meeting", { contactId: item.contactId, source: "agent" });
       return { content: [{ type: "text" as const, text: `Cancelled meeting ${meetingId}` }] };
-    } catch (err: any) { return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true }; }
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: actionableError("cancelling meeting", err) }], isError: true };
+    }
   });
 
   // --- Briefings ---
@@ -421,7 +630,11 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
       sseManager.broadcast({ type: "briefing_updated", contactId });
       storage.logActivity("briefing.saved", `Briefing saved (${content.length} chars)`, { contactId, source: "agent" });
       return { content: [{ type: "text" as const, text: `Briefing saved for contact ${contactId} (${content.length} chars)` }] };
-    } catch (err: any) { return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true }; }
+    } catch (err: any) {
+      if (err.message?.includes("foreign key"))
+        return { content: [{ type: "text" as const, text: `Contact ${contactId} not found. Use search_contacts to find valid contacts.` }], isError: true };
+      return { content: [{ type: "text" as const, text: actionableError("saving briefing", err) }], isError: true };
+    }
   });
 
   server.tool("get_briefing", "Get the prep briefing for a contact.", {
@@ -429,29 +642,43 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
   }, async ({ contactId }) => {
     try {
       const [b] = await db.select().from(briefings).where(eq(briefings.contactId, contactId));
-      if (!b) return { content: [{ type: "text" as const, text: `No briefing for contact ${contactId}` }] };
+      if (!b) return { content: [{ type: "text" as const, text: `No briefing for contact ${contactId}. Use save_briefing to create one.` }] };
       return { content: [{ type: "text" as const, text: b.content }] };
-    } catch (err: any) { return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true }; }
-  });
-
-  // --- Rules ---
-  server.tool("list_rules", "List business rules", { enabled: z.boolean().optional() }, async ({ enabled }) => {
-    try {
-      const rules = await storage.getRules(enabled);
-      return { content: [{ type: "text" as const, text: JSON.stringify(rules, null, 2) }] };
     } catch (err: any) {
-      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }], isError: true };
+      return { content: [{ type: "text" as const, text: actionableError("reading briefing", err) }], isError: true };
     }
   });
 
-  server.tool("create_rule", "Create a business rule", {
-    name: z.string(), description: z.string(),
-    conditionType: z.string(), conditionParams: z.record(z.any()).optional(),
-    exceptions: z.array(z.object({ type: z.string(), params: z.record(z.any()).optional() })).optional(),
-    severity: z.string().optional().default("warning"), messageTemplate: z.string(),
+  // --- Rules ---
+  server.tool("list_rules", "List business rules.", {
+    enabled: z.boolean().optional().describe("Filter to only enabled rules"),
+    limit: z.number().optional().describe("Max results (default 25)"),
+    offset: z.number().optional().describe("Skip results (default 0)"),
+  }, async ({ enabled, limit, offset }) => {
+    try {
+      const allRules = await storage.getRules(enabled);
+      const { items, totalCount, hasMore } = paginate(allRules, limit || 25, offset || 0);
+      return { content: [{ type: "text" as const, text: JSON.stringify({ results: items, totalCount, hasMore }, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: actionableError("listing rules", err) }], isError: true };
+    }
+  });
+
+  server.tool("create_rule", "Create a business rule. Rules are evaluated automatically and create violations when conditions are met.", {
+    name: z.string().describe("Rule name"),
+    description: z.string().describe("Human-readable description of what this rule does"),
+    conditionType: conditionTypeEnum.describe(`Condition type: ${CONDITION_TYPES.join(", ")}`),
+    conditionParams: z.record(z.any()).optional().describe("Parameters for the condition (e.g., {days: 14})"),
+    exceptions: z.array(z.object({ type: z.string(), params: z.record(z.any()).optional() })).optional().describe(`Exception conditions: ${EXCEPTION_TYPES.join(", ")}`),
+    severity: severityEnum.optional().default("warning").describe(`Violation severity: ${SEVERITIES.join(", ")}`),
+    messageTemplate: z.string().describe("Message template. Use {{days_since_last}}, {{followup_content}}, {{meeting_date}} as variables."),
   }, async ({ name, description, conditionType, conditionParams, exceptions, severity, messageTemplate }) => {
-    const rule = await storage.createRule({ name, description, condition: { type: conditionType, params: conditionParams || {}, exceptions: exceptions || [] }, action: { type: "create_violation", params: { severity, message_template: messageTemplate } }, enabled: true });
-    return { content: [{ type: "text" as const, text: `Created rule: "${rule.name}" (ID: ${rule.id})` }] };
+    try {
+      const rule = await storage.createRule({ name, description, condition: { type: conditionType, params: conditionParams || {}, exceptions: exceptions || [] }, action: { type: "create_violation", params: { severity, message_template: messageTemplate } }, enabled: true });
+      return { content: [{ type: "text" as const, text: `Created rule: "${rule.name}" (ID: ${rule.id})` }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: actionableError("creating rule", err) }], isError: true };
+    }
   });
 
   server.tool(
@@ -461,7 +688,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
 To add a stage exception to the stale contact rule:
   update_rule(ruleId: 1, exceptions: [{ type: "has_future_followup" }, { type: "stage_in", params: { stages: ["LIVE", "RELATIONSHIP"] } }])
 
-Available exception types: has_future_followup, stage_in (with params.stages array)`,
+Available exception types: ${EXCEPTION_TYPES.join(", ")}`,
     {
       ruleId: z.number().describe("Rule ID to update"),
       name: z.string().optional(),
@@ -474,10 +701,9 @@ Available exception types: has_future_followup, stage_in (with params.stages arr
       try {
         const updates: Record<string, any> = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
 
-        // If conditionParams or exceptions changed, we need to update the condition jsonb
         if (conditionParams !== undefined || exceptions !== undefined) {
           const existing = await storage.getRule(ruleId);
-          if (!existing) return { content: [{ type: "text" as const, text: `Rule ${ruleId} not found` }], isError: true };
+          if (!existing) return notFoundError("Rule", ruleId, "list_rules");
           const condition = existing.condition as any;
           if (conditionParams) condition.params = conditionParams;
           if (exceptions) condition.exceptions = exceptions;
@@ -485,17 +711,22 @@ Available exception types: has_future_followup, stage_in (with params.stages arr
         }
 
         const rule = await storage.updateRule(ruleId, updates);
-        if (!rule) return { content: [{ type: "text" as const, text: `Rule ${ruleId} not found` }], isError: true };
+        if (!rule) return notFoundError("Rule", ruleId, "list_rules");
         return { content: [{ type: "text" as const, text: `Updated rule: "${rule.name}"` }] };
       } catch (err: any) {
-        return { content: [{ type: "text" as const, text: `Error updating rule: ${err.message}` }], isError: true };
+        return { content: [{ type: "text" as const, text: actionableError("updating rule", err) }], isError: true };
       }
     }
   );
 
-  server.tool("delete_rule", "Delete a rule", { ruleId: z.number() }, async ({ ruleId }) => {
-    await storage.deleteRule(ruleId);
-    return { content: [{ type: "text" as const, text: "Deleted" }] };
+  server.tool("delete_rule", "Delete a business rule.", { ruleId: z.number() }, async ({ ruleId }) => {
+    try {
+      const deleted = await storage.deleteRule(ruleId);
+      if (!deleted) return notFoundError("Rule", ruleId, "list_rules");
+      return { content: [{ type: "text" as const, text: `Deleted rule ${ruleId}` }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: actionableError("deleting rule", err) }], isError: true };
+    }
   });
 
   return server;
