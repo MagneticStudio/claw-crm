@@ -140,7 +140,8 @@ export default function RulesPage() {
                           Exceptions:{" "}
                           {condition.exceptions
                             .map((e: { type: string; params?: Record<string, unknown> }) => {
-                              if (e.type === "stage_in") return `${e.type}(${(e.params?.stages as string[])?.join(", ")})`;
+                              if (e.type === "stage_in")
+                                return `${e.type}(${(e.params?.stages as string[])?.join(", ")})`;
                               return e.type;
                             })
                             .join(", ")}

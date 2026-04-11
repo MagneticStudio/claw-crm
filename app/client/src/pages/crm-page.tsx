@@ -412,8 +412,15 @@ export default function CrmPage() {
                   }
 
                   const isMeeting = fu.type === "meeting";
-                  const meetingType = (fu.metadata as Record<string, unknown> | null)?.meetingType as string | undefined;
-                  const meetingIcons: Record<string, string> = { call: "📞", video: "📹", "in-person": "🤝", coffee: "☕" };
+                  const meetingType = (fu.metadata as Record<string, unknown> | null)?.meetingType as
+                    | string
+                    | undefined;
+                  const meetingIcons: Record<string, string> = {
+                    call: "📞",
+                    video: "📹",
+                    "in-person": "🤝",
+                    coffee: "☕",
+                  };
                   const meetingIcon = isMeeting ? (meetingType && meetingIcons[meetingType]) || "📅" : null;
                   const isTodayMeeting = isMeeting && isTodayDue;
                   const isExp = isTodayMeeting && expandedMeetingIds.has(fu.id);
