@@ -8,7 +8,7 @@ import { Loader2, LogOut, Settings, Square, Activity, X, ChevronDown, Zap, Layou
 import { KanbanBoard } from "@/components/kanban/kanban-board";
 import { Link } from "wouter";
 import { format, isPast, isToday, differenceInDays } from "date-fns";
-import type { Followup, ActivityLogEntry } from "@shared/schema";
+import type { Followup, ActivityLogEntry, Briefing } from "@shared/schema";
 import { fmtDate } from "@/lib/utils";
 import { useConfig, useColors } from "@/App";
 
@@ -113,7 +113,7 @@ export default function CrmPage() {
       contactName: string;
       companyName: string;
       contactId: number;
-      briefing: any;
+      briefing: Briefing | null | undefined;
     }> = [];
     for (const c of contacts) {
       for (const fu of c.followups) {
@@ -123,7 +123,7 @@ export default function CrmPage() {
             contactName: `${c.firstName} ${c.lastName}`,
             companyName: c.company?.name || "",
             contactId: c.id,
-            briefing: (c as any).briefing,
+            briefing: c.briefing,
           });
         }
       }
@@ -412,10 +412,9 @@ export default function CrmPage() {
                   }
 
                   const isMeeting = fu.type === "meeting";
-                  const meetingType = (fu.metadata as any)?.meetingType;
-                  const meetingIcon = isMeeting
-                    ? ({ call: "📞", video: "📹", "in-person": "🤝", coffee: "☕" } as any)[meetingType] || "📅"
-                    : null;
+                  const meetingType = (fu.metadata as Record<string, unknown> | null)?.meetingType as string | undefined;
+                  const meetingIcons: Record<string, string> = { call: "📞", video: "📹", "in-person": "🤝", coffee: "☕" };
+                  const meetingIcon = isMeeting ? (meetingType && meetingIcons[meetingType]) || "📅" : null;
                   const isTodayMeeting = isMeeting && isTodayDue;
                   const isExp = isTodayMeeting && expandedMeetingIds.has(fu.id);
 

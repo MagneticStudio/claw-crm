@@ -2,6 +2,7 @@ import "dotenv/config";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import type { ContactWithRelations, RuleViolation, Rule, Interaction, Followup } from "@shared/schema";
 
 const CRM_URL = process.env.CRM_URL || "https://crm.magneticadvisors.ai";
 const API_KEY = process.env.CRM_API_KEY || "";
@@ -11,7 +12,7 @@ if (!API_KEY) {
   process.exit(1);
 }
 
-async function api(method: string, path: string, body?: unknown): Promise<any> {
+async function api<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${CRM_URL}${path}`, {
     method,
     headers: {
@@ -20,12 +21,12 @@ async function api(method: string, path: string, body?: unknown): Promise<any> {
     },
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (res.status === 204) return null;
+  if (res.status === 204) return null as T;
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`API ${method} ${path}: ${res.status} ${text}`);
   }
-  return res.json();
+  return res.json() as Promise<T>;
 }
 
 const server = new McpServer({
@@ -44,20 +45,20 @@ server.tool(
     status: z.string().optional().describe("Filter by status (ACTIVE, HOLD, PASS)"),
   },
   async ({ query, stage, status }) => {
-    let contacts = await api("GET", "/api/contacts");
+    let contacts = await api<ContactWithRelations[]>("GET", "/api/contacts");
     if (query) {
       const q = query.toLowerCase();
       contacts = contacts.filter(
-        (c: any) =>
+        (c) =>
           `${c.firstName} ${c.lastName}`.toLowerCase().includes(q) ||
           c.company?.name?.toLowerCase().includes(q) ||
           c.email?.toLowerCase().includes(q),
       );
     }
-    if (stage) contacts = contacts.filter((c: any) => c.stage === stage);
-    if (status) contacts = contacts.filter((c: any) => c.status === status);
+    if (stage) contacts = contacts.filter((c) => c.stage === stage);
+    if (status) contacts = contacts.filter((c) => c.status === status);
 
-    const summary = contacts.map((c: any) => ({
+    const summary = contacts.map((c) => ({
       id: c.id,
       name: `${c.firstName} ${c.lastName}`,
       company: c.company?.name,
@@ -71,7 +72,7 @@ server.tool(
               content: c.interactions[c.interactions.length - 1].content,
             }
           : null,
-      activeFollowups: c.followups?.filter((f: any) => !f.completed).length || 0,
+      activeFollowups: c.followups?.filter((f) => !f.completed).length || 0,
       violations: c.violations?.length || 0,
     }));
     return { content: [{ type: "text" as const, text: JSON.stringify(summary, null, 2) }] };
@@ -83,7 +84,7 @@ server.tool(
   "Get full details for a contact including interactions, follow-ups, and violations",
   { contactId: z.number().describe("Contact ID") },
   async ({ contactId }) => {
-    const contact = await api("GET", `/api/contacts/${contactId}`);
+    const contact = await api<ContactWithRelations>("GET", `/api/contacts/${contactId}`);
     return { content: [{ type: "text" as const, text: JSON.stringify(contact, null, 2) }] };
   },
 );
@@ -93,8 +94,8 @@ server.tool(
   "Get all active rule violations",
   { severity: z.string().optional().describe("Filter by severity") },
   async ({ severity }) => {
-    let violations = await api("GET", "/api/violations");
-    if (severity) violations = violations.filter((v: any) => v.severity === severity);
+    let violations = await api<RuleViolation[]>("GET", "/api/violations");
+    if (severity) violations = violations.filter((v) => v.severity === severity);
     return { content: [{ type: "text" as const, text: JSON.stringify(violations, null, 2) }] };
   },
 );
@@ -118,7 +119,7 @@ server.tool(
     source: z.string().optional(),
   },
   async (data) => {
-    const contact = await api("POST", "/api/contacts", data);
+    const contact = await api<{ id: number; firstName: string; lastName: string }>("POST", "/api/contacts", data);
     return {
       content: [
         { type: "text" as const, text: `Created: ${contact.firstName} ${contact.lastName} (ID: ${contact.id})` },
@@ -146,7 +147,7 @@ server.tool(
   },
   async ({ contactId, ...data }) => {
     const filtered = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
-    const contact = await api("PUT", `/api/contacts/${contactId}`, filtered);
+    const contact = await api<{ firstName: string; lastName: string }>("PUT", `/api/contacts/${contactId}`, filtered);
     return { content: [{ type: "text" as const, text: `Updated: ${contact.firstName} ${contact.lastName}` }] };
   },
 );
@@ -161,7 +162,7 @@ server.tool(
     type: z.string().optional().describe("note, meeting, email, or call").default("note"),
   },
   async ({ contactId, content, date, type }) => {
-    const interaction = await api("POST", "/api/interactions", {
+    const interaction = await api<Interaction>("POST", "/api/interactions", {
       contactId,
       content,
       date: date || new Date().toISOString(),
@@ -189,7 +190,7 @@ server.tool(
     } else {
       parsedDate = new Date(dueDate).toISOString();
     }
-    await api("POST", "/api/followups", { contactId, content, dueDate: parsedDate });
+    await api<Followup>("POST", "/api/followups", { contactId, content, dueDate: parsedDate });
     return {
       content: [
         { type: "text" as const, text: `Follow-up set for ${new Date(parsedDate).toLocaleDateString()}: "${content}"` },
@@ -206,7 +207,7 @@ server.tool(
     outcome: z.string().optional().describe("What happened — logged as a new interaction"),
   },
   async ({ followupId, outcome }) => {
-    const fu = await api("POST", `/api/followups/${followupId}/complete`, outcome ? { outcome } : undefined);
+    const fu = await api<Followup>("POST", `/api/followups/${followupId}/complete`, outcome ? { outcome } : undefined);
     return {
       content: [
         { type: "text" as const, text: outcome ? `Completed and logged: "${outcome}"` : `Completed: "${fu.content}"` },
@@ -218,7 +219,7 @@ server.tool(
 // --- Rules ---
 
 server.tool("list_rules", "List all business rules", { enabled: z.boolean().optional() }, async ({ enabled }) => {
-  const rules = await api("GET", `/api/rules${enabled !== undefined ? `?enabled=${enabled}` : ""}`);
+  const rules = await api<Rule[]>("GET", `/api/rules${enabled !== undefined ? `?enabled=${enabled}` : ""}`);
   return { content: [{ type: "text" as const, text: JSON.stringify(rules, null, 2) }] };
 });
 
@@ -231,13 +232,13 @@ server.tool(
     conditionType: z
       .string()
       .describe("no_interaction_for_days, followup_past_due, no_followup_after_meeting, status_is, stage_is"),
-    conditionParams: z.record(z.any()).optional(),
-    exceptions: z.array(z.object({ type: z.string(), params: z.record(z.any()).optional() })).optional(),
+    conditionParams: z.record(z.unknown()).optional(),
+    exceptions: z.array(z.object({ type: z.string(), params: z.record(z.unknown()).optional() })).optional(),
     severity: z.string().optional().default("warning"),
     messageTemplate: z.string(),
   },
   async ({ name, description, conditionType, conditionParams, exceptions, severity, messageTemplate }) => {
-    const rule = await api("POST", "/api/rules", {
+    const rule = await api<Rule>("POST", "/api/rules", {
       name,
       description,
       condition: { type: conditionType, params: conditionParams || {}, exceptions: exceptions || [] },
@@ -259,7 +260,7 @@ server.tool(
   },
   async ({ ruleId, ...data }) => {
     const filtered = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
-    const rule = await api("PUT", `/api/rules/${ruleId}`, filtered);
+    const rule = await api<Rule>("PUT", `/api/rules/${ruleId}`, filtered);
     return { content: [{ type: "text" as const, text: `Updated rule: "${rule.name}"` }] };
   },
 );

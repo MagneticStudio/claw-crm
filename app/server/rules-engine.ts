@@ -4,15 +4,20 @@ import { db } from "./db";
 import { rules } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
-interface RuleCondition {
+export interface RuleCondition {
   type: string;
-  params: Record<string, any>;
-  exceptions?: Array<{ type: string; params?: Record<string, any> }>;
+  params: Record<string, unknown>;
+  exceptions?: RuleException[];
 }
 
-interface RuleAction {
+export interface RuleException {
   type: string;
-  params: Record<string, any>;
+  params?: Record<string, unknown>;
+}
+
+export interface RuleAction {
+  type: string;
+  params: Record<string, unknown>;
 }
 
 export async function evaluateRulesForContact(contactId: number): Promise<void> {
@@ -144,7 +149,7 @@ function checkCondition(
 }
 
 function checkException(
-  exception: { type: string; params?: Record<string, any> },
+  exception: RuleException,
   contact: Contact,
   contactFollowups: Followup[],
 ): boolean {

@@ -5,6 +5,12 @@ import { Link } from "wouter";
 import { useColors } from "@/App";
 import type { Rule, RuleViolation, Contact } from "@shared/schema";
 
+interface RuleCondition {
+  type: string;
+  params: Record<string, unknown>;
+  exceptions?: Array<{ type: string; params?: Record<string, unknown> }>;
+}
+
 type ViolationWithContact = RuleViolation & { contactName?: string };
 
 export default function RulesPage() {
@@ -20,10 +26,10 @@ export default function RulesPage() {
   // Fetch contacts to map violation contactId to names
   const { data: contacts = [] } = useQuery<Contact[]>({
     queryKey: ["/api/contacts"],
-    select: (data: any[]) => data.map((c: any) => ({ id: c.id, firstName: c.firstName, lastName: c.lastName })),
+    select: (data: Contact[]) => data.map((c) => ({ id: c.id, firstName: c.firstName, lastName: c.lastName })),
   });
 
-  const contactNameMap = new Map(contacts.map((c: any) => [c.id, `${c.firstName} ${c.lastName}`]));
+  const contactNameMap = new Map(contacts.map((c) => [c.id, `${c.firstName} ${c.lastName}`]));
 
   const toggleRule = useMutation({
     mutationFn: async ({ id, enabled }: { id: number; enabled: boolean }) => {
@@ -79,7 +85,7 @@ export default function RulesPage() {
         <div className="space-y-3">
           {rules.map((rule) => {
             const ruleViolations = violationsByRule.get(rule.id) || [];
-            const condition = rule.condition as any;
+            const condition = rule.condition as RuleCondition;
 
             return (
               <div
@@ -133,8 +139,8 @@ export default function RulesPage() {
                         <div>
                           Exceptions:{" "}
                           {condition.exceptions
-                            .map((e: any) => {
-                              if (e.type === "stage_in") return `${e.type}(${e.params?.stages?.join(", ")})`;
+                            .map((e: { type: string; params?: Record<string, unknown> }) => {
+                              if (e.type === "stage_in") return `${e.type}(${(e.params?.stages as string[])?.join(", ")})`;
                               return e.type;
                             })
                             .join(", ")}

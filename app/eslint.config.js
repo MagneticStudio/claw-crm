@@ -29,6 +29,14 @@ export default tseslint.config(
     },
   },
 
+  // Disable react-refresh for hooks, contexts, and UI primitives (they correctly export non-components)
+  {
+    files: ["client/src/hooks/**", "client/src/App.tsx", "client/src/components/ui/**"],
+    rules: {
+      "react-refresh/only-export-components": "off",
+    },
+  },
+
   // Project-specific rules
   {
     files: ["**/*.{ts,tsx}"],
