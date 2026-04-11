@@ -27,7 +27,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // --- Public config (no auth — needed for login page branding) ---
   app.get("/api/config", async (_req, res) => {
     const user = await storage.getFirstUser();
-    res.json({ orgName: user?.orgName || "Claw CRM", primaryColor: user?.primaryColor || "#2bbcb3", upcomingDays: user?.upcomingDays ?? 7 });
+    res.json({
+      orgName: user?.orgName || "Claw CRM",
+      primaryColor: user?.primaryColor || "#2bbcb3",
+      upcomingDays: user?.upcomingDays ?? 7,
+    });
   });
 
   // --- Settings (auth required) ---
@@ -47,7 +51,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const user = await storage.getFirstUser();
     if (!user) return res.status(404).json({ message: "No user" });
     const { orgName, primaryColor, upcomingDays } = req.body;
-    const updates: any = {};
+    const updates: Record<string, string | number> = {};
     if (orgName !== undefined) updates.orgName = orgName;
     if (primaryColor !== undefined) updates.primaryColor = primaryColor;
     if (upcomingDays !== undefined) updates.upcomingDays = upcomingDays;
@@ -82,7 +86,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!user) return res.status(404).json({ message: "No user" });
     // Verify current PIN
     const { hashPin } = await import("./auth");
-    const scrypt = await import("crypto").then(m => m.scrypt);
+    const scrypt = await import("crypto").then((m) => m.scrypt);
     const { timingSafeEqual } = await import("crypto");
     const { promisify } = await import("util");
     const scryptAsync = promisify(scrypt);
@@ -104,7 +108,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
     });
-    res.write("data: {\"type\":\"connected\"}\n\n");
+    res.write('data: {"type":"connected"}\n\n');
     sseManager.addClient(res);
   });
 
@@ -296,14 +300,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/meetings", requireAuth, async (req, res) => {
     const contactId = req.query.contactId ? parseInt(req.query.contactId as string) : undefined;
     const today = req.query.today === "true";
-    let conditions = [eq(followups.type, "meeting"), isNull(followups.cancelledAt)];
+    const conditions = [eq(followups.type, "meeting"), isNull(followups.cancelledAt)];
     if (contactId) conditions.push(eq(followups.contactId, contactId));
     if (today) {
-      const start = new Date(); start.setHours(0, 0, 0, 0);
-      const end = new Date(); end.setHours(23, 59, 59, 999);
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      const end = new Date();
+      end.setHours(23, 59, 59, 999);
       conditions.push(gte(followups.dueDate, start), lte(followups.dueDate, end));
     }
-    const result = await db.select().from(followups).where(and(...conditions)).orderBy(asc(followups.dueDate));
+    const result = await db
+      .select()
+      .from(followups)
+      .where(and(...conditions))
+      .orderBy(asc(followups.dueDate));
     res.json(result);
   });
 
@@ -312,15 +322,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const now = new Date();
     const cutoff = new Date();
     cutoff.setHours(cutoff.getHours() + hours);
-    const result = await db.select().from(followups)
-      .where(and(eq(followups.type, "meeting"), isNull(followups.cancelledAt), eq(followups.completed, false), gte(followups.dueDate, now), lte(followups.dueDate, cutoff)))
+    const result = await db
+      .select()
+      .from(followups)
+      .where(
+        and(
+          eq(followups.type, "meeting"),
+          isNull(followups.cancelledAt),
+          eq(followups.completed, false),
+          gte(followups.dueDate, now),
+          lte(followups.dueDate, cutoff),
+        ),
+      )
       .orderBy(asc(followups.dueDate));
     res.json(result);
   });
 
   // --- Briefings ---
   app.get("/api/briefings/:contactId", requireAuth, async (req, res) => {
-    const [briefing] = await db.select().from(briefings).where(eq(briefings.contactId, parseInt(req.params.contactId)));
+    const [briefing] = await db
+      .select()
+      .from(briefings)
+      .where(eq(briefings.contactId, parseInt(req.params.contactId)));
     if (!briefing) return res.status(404).json({ message: "No briefing found" });
     res.json(briefing);
   });
@@ -332,7 +355,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const [existing] = await db.select().from(briefings).where(eq(briefings.contactId, contactId));
     let result;
     if (existing) {
-      [result] = await db.update(briefings).set({ content, updatedAt: new Date() }).where(eq(briefings.contactId, contactId)).returning();
+      [result] = await db
+        .update(briefings)
+        .set({ content, updatedAt: new Date() })
+        .where(eq(briefings.contactId, contactId))
+        .returning();
     } else {
       [result] = await db.insert(briefings).values({ contactId, content }).returning();
     }
@@ -342,7 +369,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.delete("/api/briefings/:contactId", requireAuth, async (req, res) => {
-    const result = await db.delete(briefings).where(eq(briefings.contactId, parseInt(req.params.contactId))).returning();
+    const result = await db
+      .delete(briefings)
+      .where(eq(briefings.contactId, parseInt(req.params.contactId)))
+      .returning();
     if (result.length === 0) return res.status(404).json({ message: "Briefing not found" });
     sseManager.broadcast({ type: "briefing_deleted", contactId: parseInt(req.params.contactId) });
     res.status(204).send();
@@ -354,9 +384,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (req.query.contactId) conditions.push(eq(activityLog.contactId, parseInt(req.query.contactId as string)));
     if (req.query.event) conditions.push(eq(activityLog.event, req.query.event as string));
     if (req.query.source) conditions.push(eq(activityLog.source, req.query.source as string));
-    let query = db.select().from(activityLog).orderBy(desc(activityLog.createdAt));
-    if (conditions.length > 0) query = query.where(and(...conditions)) as any;
-    const result = await (query as any).limit(parseInt(req.query.limit as string) || 50);
+    const baseQuery = db.select().from(activityLog).orderBy(desc(activityLog.createdAt));
+    const filtered = conditions.length > 0 ? baseQuery.where(and(...conditions)) : baseQuery;
+    const result = await filtered.limit(parseInt(req.query.limit as string) || 50);
     res.json(result);
   });
 

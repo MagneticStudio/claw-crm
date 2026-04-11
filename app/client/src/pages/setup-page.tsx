@@ -10,7 +10,7 @@ export default function SetupPage() {
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [error, setError] = useState("");
-  const [apiKey, setApiKey] = useState("");
+  const [, setApiKey] = useState("");
   const [mcpToken, setMcpToken] = useState("");
   const [copied, setCopied] = useState(false);
   const [, navigate] = useLocation();
@@ -38,14 +38,17 @@ export default function SetupPage() {
       return;
     }
 
-    setupMutation.mutate({ pin }, {
-      onSuccess: (data: any) => {
-        setApiKey(data.apiKey);
-        setMcpToken(data.mcpToken);
-        setStep("connect");
+    setupMutation.mutate(
+      { pin },
+      {
+        onSuccess: (data: any) => {
+          setApiKey(data.apiKey);
+          setMcpToken(data.mcpToken);
+          setStep("connect");
+        },
+        onError: (err: any) => setError(err.message),
       },
-      onError: (err: any) => setError(err.message),
-    });
+    );
   };
 
   const mcpUrl = mcpToken ? `${window.location.origin}/mcp/${mcpToken}` : "";
@@ -58,19 +61,35 @@ export default function SetupPage() {
 
   if (step === "connect") {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4" style={{ background: "linear-gradient(135deg, #2bbcb3, #30bfb7, #3cc8c0)" }}>
+      <div
+        className="min-h-screen flex items-center justify-center p-4"
+        style={{ background: "linear-gradient(135deg, #2bbcb3, #30bfb7, #3cc8c0)" }}
+      >
         <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8">
-          <h1 className="text-lg font-semibold mb-1" style={{ color: C.text }}>Connect Your AI Agent</h1>
-          <p className="text-sm mb-6" style={{ color: C.muted }}>Your CRM is ready. Connect an AI agent to manage it.</p>
+          <h1 className="text-lg font-semibold mb-1" style={{ color: C.text }}>
+            Connect Your AI Agent
+          </h1>
+          <p className="text-sm mb-6" style={{ color: C.muted }}>
+            Your CRM is ready. Connect an AI agent to manage it.
+          </p>
 
           {/* MCP URL */}
           <div className="mb-6">
-            <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>MCP URL</label>
+            <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>
+              MCP URL
+            </label>
             <div className="flex items-center gap-2 mt-1">
-              <code className="flex-1 text-[11px] font-mono rounded-lg px-3 py-2 break-all" style={{ backgroundColor: C.accentLight, color: C.text }}>
+              <code
+                className="flex-1 text-[11px] font-mono rounded-lg px-3 py-2 break-all"
+                style={{ backgroundColor: C.accentLight, color: C.text }}
+              >
                 {mcpUrl}
               </code>
-              <button onClick={copyMcpUrl} className="flex-shrink-0 p-2 rounded-lg hover:opacity-70" style={{ color: C.accentDark }}>
+              <button
+                onClick={copyMcpUrl}
+                className="flex-shrink-0 p-2 rounded-lg hover:opacity-70"
+                style={{ color: C.accentDark }}
+              >
                 {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               </button>
             </div>
@@ -80,15 +99,21 @@ export default function SetupPage() {
           <div className="space-y-4 text-sm" style={{ color: C.text }}>
             <div className="rounded-lg p-3" style={{ backgroundColor: "#f8f9fa" }}>
               <p className="font-semibold mb-1">Claude (Web / Desktop / Mobile)</p>
-              <p className="text-xs" style={{ color: C.muted }}>Settings → Custom Connectors → Add → paste MCP URL → leave OAuth blank → Add</p>
+              <p className="text-xs" style={{ color: C.muted }}>
+                Settings → Custom Connectors → Add → paste MCP URL → leave OAuth blank → Add
+              </p>
             </div>
             <div className="rounded-lg p-3" style={{ backgroundColor: "#f8f9fa" }}>
               <p className="font-semibold mb-1">Claude Code</p>
-              <p className="text-xs font-mono" style={{ color: C.muted }}>Add to ~/.claude/settings.json mcpServers</p>
+              <p className="text-xs font-mono" style={{ color: C.muted }}>
+                Add to ~/.claude/settings.json mcpServers
+              </p>
             </div>
             <div className="rounded-lg p-3" style={{ backgroundColor: "#f8f9fa" }}>
               <p className="font-semibold mb-1">OpenClaw</p>
-              <p className="text-xs" style={{ color: C.muted }}>Add the MCP URL to your openclaw config under mcp.servers</p>
+              <p className="text-xs" style={{ color: C.muted }}>
+                Add the MCP URL to your openclaw config under mcp.servers
+              </p>
             </div>
           </div>
 
@@ -100,11 +125,7 @@ export default function SetupPage() {
             I've connected my agent →
           </button>
 
-          <button
-            onClick={() => navigate("/")}
-            className="w-full mt-2 py-2 text-xs"
-            style={{ color: C.muted }}
-          >
+          <button onClick={() => navigate("/")} className="w-full mt-2 py-2 text-xs" style={{ color: C.muted }}>
             Skip for now
           </button>
         </div>
@@ -113,10 +134,15 @@ export default function SetupPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: "linear-gradient(135deg, #2bbcb3, #30bfb7, #3cc8c0)" }}>
+    <div
+      className="min-h-screen flex items-center justify-center p-4"
+      style={{ background: "linear-gradient(135deg, #2bbcb3, #30bfb7, #3cc8c0)" }}
+    >
       <div className="w-full max-w-sm p-8 text-center">
         <h1 className="text-xl font-semibold tracking-[0.15em] text-white uppercase mb-1">Claw CRM</h1>
-        <p className="text-sm mb-8" style={{ color: "rgba(255,255,255,0.7)" }}>Welcome. Set your PIN to get started.</p>
+        <p className="text-sm mb-8" style={{ color: "rgba(255,255,255,0.7)" }}>
+          Welcome. Set your PIN to get started.
+        </p>
 
         <form onSubmit={handleSetPin} className="space-y-4">
           <div>
@@ -131,7 +157,11 @@ export default function SetupPage() {
               onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
               placeholder="____"
               className="w-full text-center text-2xl tracking-[0.5em] py-3 outline-none font-mono text-white placeholder:text-white/40"
-              style={{ backgroundColor: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.4)", borderRadius: "10px" }}
+              style={{
+                backgroundColor: "rgba(255,255,255,0.15)",
+                border: "1px solid rgba(255,255,255,0.4)",
+                borderRadius: "10px",
+              }}
               autoComplete="off"
             />
           </div>
@@ -146,7 +176,11 @@ export default function SetupPage() {
               onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ""))}
               placeholder="____"
               className="w-full text-center text-2xl tracking-[0.5em] py-3 outline-none font-mono text-white placeholder:text-white/40"
-              style={{ backgroundColor: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.4)", borderRadius: "10px" }}
+              style={{
+                backgroundColor: "rgba(255,255,255,0.15)",
+                border: "1px solid rgba(255,255,255,0.4)",
+                borderRadius: "10px",
+              }}
               autoComplete="off"
             />
           </div>

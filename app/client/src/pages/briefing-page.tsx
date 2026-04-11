@@ -42,7 +42,7 @@ export default function BriefingPage() {
 
   // Find upcoming meetings for this contact
   const upcomingMeetings = (contact?.followups || []).filter(
-    (f: any) => f.type === "meeting" && !f.completed && new Date(f.dueDate) >= new Date()
+    (f: any) => f.type === "meeting" && !f.completed && new Date(f.dueDate) >= new Date(),
   );
 
   return (
@@ -55,9 +55,15 @@ export default function BriefingPage() {
           <div>
             <h1 className="text-sm font-semibold" style={{ color: C.text }}>
               {contactName}
-              {companyName && <span className="font-normal ml-1.5" style={{ color: C.muted }}>{companyName}</span>}
+              {companyName && (
+                <span className="font-normal ml-1.5" style={{ color: C.muted }}>
+                  {companyName}
+                </span>
+              )}
             </h1>
-            <p className="text-[11px]" style={{ color: C.muted }}>Briefing</p>
+            <p className="text-[11px]" style={{ color: C.muted }}>
+              Briefing
+            </p>
           </div>
         </div>
       </header>
@@ -70,7 +76,11 @@ export default function BriefingPage() {
               <div key={m.id} className="flex items-center gap-1.5 mb-1">
                 <span>📅</span>
                 <span className="font-semibold" style={{ color: C.accentDark }}>
-                  {new Date(m.dueDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                  {new Date(m.dueDate).toLocaleDateString("en-US", {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                  })}
                   {m.time && ` ${m.time}`}
                 </span>
                 <span>{m.content}</span>
@@ -97,12 +107,19 @@ export default function BriefingPage() {
                   onClick={() => saveBriefing.mutate(content)}
                   className="text-xs font-medium text-white px-3 py-1.5 rounded-lg"
                   style={{ backgroundColor: C.accentDark }}
-                >Save</button>
+                >
+                  Save
+                </button>
                 <button
-                  onClick={() => { setEditing(false); setContent(briefing?.content || ""); }}
+                  onClick={() => {
+                    setEditing(false);
+                    setContent(briefing?.content || "");
+                  }}
                   className="text-xs px-3 py-1.5"
                   style={{ color: C.muted }}
-                >Cancel</button>
+                >
+                  Cancel
+                </button>
               </div>
             </div>
           ) : briefing ? (
@@ -114,7 +131,10 @@ export default function BriefingPage() {
               >
                 {briefing.content}
               </div>
-              <div className="flex items-center justify-between mt-4 pt-3" style={{ borderTop: `1px dashed ${C.border}` }}>
+              <div
+                className="flex items-center justify-between mt-4 pt-3"
+                style={{ borderTop: `1px dashed ${C.border}` }}
+              >
                 <span className="text-[10px]" style={{ color: C.muted }}>
                   Updated {new Date(briefing.updatedAt).toLocaleDateString()}
                 </span>
@@ -122,17 +142,26 @@ export default function BriefingPage() {
                   onClick={() => setEditing(true)}
                   className="text-xs font-medium"
                   style={{ color: C.accentDark }}
-                >Edit</button>
+                >
+                  Edit
+                </button>
               </div>
             </div>
           ) : (
             <div className="text-center py-8">
-              <p className="text-sm mb-3" style={{ color: C.muted }}>No briefing yet</p>
+              <p className="text-sm mb-3" style={{ color: C.muted }}>
+                No briefing yet
+              </p>
               <button
-                onClick={() => { setContent(""); setEditing(true); }}
+                onClick={() => {
+                  setContent("");
+                  setEditing(true);
+                }}
                 className="text-xs font-medium text-white px-4 py-2 rounded-lg"
                 style={{ backgroundColor: C.accentDark }}
-              >Create Briefing</button>
+              >
+                Create Briefing
+              </button>
             </div>
           )}
         </div>

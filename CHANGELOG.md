@@ -2,6 +2,13 @@
 
 ## 2026-04-11
 
+### Add ESLint + Prettier
+- ESLint flat config with TypeScript, React hooks, and agent-friendly autofixable rules
+- Prettier configured to match existing code style (2 spaces, double quotes, semicolons, trailing commas)
+- `npm run lint`, `lint:fix`, `format`, `format:check` scripts added
+- Pre-PR hook now checks lint passes before allowing PR creation
+- `no-explicit-any` set to warn (not error) — 46 existing instances, cleanup is separate
+
 ### Redesign Kanban desktop view
 - Desktop Kanban now fits within the 640px main content width instead of full-width horizontal scroll
 - Uses compact pill-style cards (same as mobile) for consistency

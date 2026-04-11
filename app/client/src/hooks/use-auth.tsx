@@ -1,6 +1,8 @@
-import { createContext, ReactNode, useContext } from "react";
-import { useQuery, useMutation, UseMutationResult } from "@tanstack/react-query";
-import { getQueryFn, apiRequest, queryClient } from "../lib/queryClient";
+import type { ReactNode } from "react";
+import { createContext, useContext } from "react";
+import type { UseMutationResult } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "../lib/queryClient";
 
 type AuthUser = { id: number; authenticated: boolean; needsSetup?: boolean };
 
@@ -16,10 +18,7 @@ type AuthContextType = {
 export const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const {
-    data: user,
-    isLoading,
-  } = useQuery<AuthUser | null, Error>({
+  const { data: user, isLoading } = useQuery<AuthUser | null, Error>({
     queryKey: ["/api/user"],
     queryFn: async () => {
       const res = await fetch("/api/user", { credentials: "include" });
@@ -66,7 +65,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   return (
-    <AuthContext.Provider value={{ user: user?.authenticated ? user : null, isLoading, needsSetup, loginMutation, setupMutation, logoutMutation }}>
+    <AuthContext.Provider
+      value={{
+        user: user?.authenticated ? user : null,
+        isLoading,
+        needsSetup,
+        loginMutation,
+        setupMutation,
+        logoutMutation,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

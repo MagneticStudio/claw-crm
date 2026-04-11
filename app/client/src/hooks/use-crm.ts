@@ -19,7 +19,7 @@ export function useCrm() {
       if (previous) {
         queryClient.setQueryData<ContactWithRelations[]>(
           ["/api/contacts"],
-          previous.map((c) => (c.id === id ? { ...c, ...data } as ContactWithRelations : c)),
+          previous.map((c) => (c.id === id ? ({ ...c, ...data } as ContactWithRelations) : c)),
         );
       }
       return { previous };
@@ -71,7 +71,14 @@ export function useCrm() {
   });
 
   const createFollowup = useMutation({
-    mutationFn: async (data: { contactId: number; content: string; dueDate: string; type?: string; time?: string; location?: string }) => {
+    mutationFn: async (data: {
+      contactId: number;
+      content: string;
+      dueDate: string;
+      type?: string;
+      time?: string;
+      location?: string;
+    }) => {
       const res = await apiRequest("POST", "/api/followups", data);
       return res.json();
     },
@@ -95,8 +102,7 @@ export function useCrm() {
 
   const completeFollowup = useMutation({
     mutationFn: async ({ id, outcome }: { id: number; outcome?: string }) => {
-      const res = await apiRequest("POST", `/api/followups/${id}/complete`,
-        outcome ? { outcome } : undefined);
+      const res = await apiRequest("POST", `/api/followups/${id}/complete`, outcome ? { outcome } : undefined);
       return res.json();
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/contacts"] }),

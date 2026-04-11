@@ -11,6 +11,10 @@
     "db:push": "drizzle-kit push",
     "db:seed": "tsx server/seed.ts",
     "mcp": "tsx server/mcp-server.ts",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"client/src/**/*.{ts,tsx}\" \"server/**/*.ts\" \"shared/**/*.ts\"",
+    "format:check": "prettier --check \"client/src/**/*.{ts,tsx}\" \"server/**/*.ts\" \"shared/**/*.ts\"",
     "test": "playwright test",
     "test:ui": "playwright test --ui"
   },
@@ -64,6 +68,7 @@
     "zod-validation-error": "^3.4.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
     "@playwright/test": "^1.58.2",
     "@replit/vite-plugin-runtime-error-modal": "^0.0.3",
     "@tailwindcss/typography": "^0.5.15",
@@ -78,10 +83,16 @@
     "autoprefixer": "^10.4.20",
     "drizzle-kit": "^0.30.4",
     "esbuild": "^0.25.0",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
     "postcss": "^8.4.47",
+    "prettier": "^3.8.2",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.19.1",
     "typescript": "5.6.3",
+    "typescript-eslint": "^8.58.1",
     "vite": "^5.4.14"
   },
   "optionalDependencies": {

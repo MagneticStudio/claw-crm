@@ -82,10 +82,17 @@ export default function SettingsPage() {
   const changePin = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/settings/change-pin", { currentPin, newPin });
-      if (!res.ok) { const body = await res.json(); throw new Error(body.message); }
+      if (!res.ok) {
+        const body = await res.json();
+        throw new Error(body.message);
+      }
       return res.json();
     },
-    onSuccess: () => { setPinMessage("PIN changed"); setCurrentPin(""); setNewPin(""); },
+    onSuccess: () => {
+      setPinMessage("PIN changed");
+      setCurrentPin("");
+      setNewPin("");
+    },
     onError: (err: Error) => setPinMessage(err.message),
   });
 
@@ -95,9 +102,7 @@ export default function SettingsPage() {
     setTimeout(() => setCopied(null), 2000);
   };
 
-  const mcpUrl = settings?.mcpToken
-    ? `${window.location.origin}/mcp/${settings.mcpToken}`
-    : "";
+  const mcpUrl = settings?.mcpToken ? `${window.location.origin}/mcp/${settings.mcpToken}` : "";
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "#f0f8f8" }}>
@@ -106,19 +111,31 @@ export default function SettingsPage() {
           <Link href="/" className="transition-colors hover:opacity-70" style={{ color: C.muted }}>
             <ArrowLeft className="h-4 w-4" />
           </Link>
-          <h1 className="text-[13px] font-semibold tracking-[0.2em] uppercase" style={{ color: C.text }}>Settings</h1>
+          <h1 className="text-[13px] font-semibold tracking-[0.2em] uppercase" style={{ color: C.text }}>
+            Settings
+          </h1>
         </div>
       </header>
 
       <main className="max-w-[640px] mx-auto px-4 py-5 space-y-4">
         {/* Org Name */}
-        <div className="bg-white" style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}>
-          <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>Organization Name</label>
-          <p className="text-[11px] mt-0.5 mb-2" style={{ color: C.muted }}>Displayed in header, login screen, and PWA.</p>
+        <div
+          className="bg-white"
+          style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}
+        >
+          <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>
+            Organization Name
+          </label>
+          <p className="text-[11px] mt-0.5 mb-2" style={{ color: C.muted }}>
+            Displayed in header, login screen, and PWA.
+          </p>
           <div className="flex gap-2">
             <input
               value={orgName}
-              onChange={(e) => { setOrgName(e.target.value); setOrgNameDirty(true); }}
+              onChange={(e) => {
+                setOrgName(e.target.value);
+                setOrgNameDirty(true);
+              }}
               className="flex-1 text-sm rounded-lg px-3 py-1.5 outline-none"
               style={{ border: `1px solid ${C.border}`, color: C.text }}
             />
@@ -127,42 +144,69 @@ export default function SettingsPage() {
               disabled={!orgNameDirty}
               className="text-xs font-medium text-white px-3 py-1.5 rounded-lg disabled:opacity-40"
               style={{ backgroundColor: C.accentDark }}
-            >Save</button>
+            >
+              Save
+            </button>
           </div>
         </div>
 
         {/* Brand Color */}
-        <div className="bg-white" style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}>
-          <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>Brand Color</label>
-          <p className="text-[11px] mt-0.5 mb-2" style={{ color: C.muted }}>Pick a primary color. The UI adapts automatically.</p>
+        <div
+          className="bg-white"
+          style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}
+        >
+          <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>
+            Brand Color
+          </label>
+          <p className="text-[11px] mt-0.5 mb-2" style={{ color: C.muted }}>
+            Pick a primary color. The UI adapts automatically.
+          </p>
           <div className="flex items-center gap-3">
             <input
               type="color"
               value={primaryColor}
-              onChange={(e) => { setPrimaryColor(e.target.value); setColorDirty(true); }}
+              onChange={(e) => {
+                setPrimaryColor(e.target.value);
+                setColorDirty(true);
+              }}
               className="w-10 h-10 rounded-lg cursor-pointer border-0"
               style={{ backgroundColor: primaryColor }}
             />
             <input
               value={primaryColor}
-              onChange={(e) => { setPrimaryColor(e.target.value); setColorDirty(true); }}
+              onChange={(e) => {
+                setPrimaryColor(e.target.value);
+                setColorDirty(true);
+              }}
               className="text-sm font-mono rounded-lg px-3 py-1.5 outline-none w-24"
               style={{ border: `1px solid ${C.border}`, color: C.text }}
             />
-            <div className="flex-1 h-8 rounded-lg" style={{ background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}dd)` }} />
+            <div
+              className="flex-1 h-8 rounded-lg"
+              style={{ background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}dd)` }}
+            />
             <button
               onClick={() => updateColor.mutate(primaryColor)}
               disabled={!colorDirty}
               className="text-xs font-medium text-white px-3 py-1.5 rounded-lg disabled:opacity-40"
               style={{ backgroundColor: C.accentDark }}
-            >Save</button>
+            >
+              Save
+            </button>
           </div>
         </div>
 
         {/* Upcoming Days */}
-        <div className="bg-white" style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}>
-          <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>Upcoming Window</label>
-          <p className="text-[11px] mt-0.5 mb-2" style={{ color: C.muted }}>How many days ahead to show in the Upcoming section.</p>
+        <div
+          className="bg-white"
+          style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}
+        >
+          <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>
+            Upcoming Window
+          </label>
+          <p className="text-[11px] mt-0.5 mb-2" style={{ color: C.muted }}>
+            How many days ahead to show in the Upcoming section.
+          </p>
           <div className="flex gap-1">
             {[1, 2, 3, 7, 14].map((d) => (
               <button
@@ -182,52 +226,101 @@ export default function SettingsPage() {
         </div>
 
         {/* MCP Connection */}
-        <div className="bg-white" style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}>
-          <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>MCP Connection</label>
-          <p className="text-[11px] mt-0.5 mb-2" style={{ color: C.muted }}>Use this URL in Claude's custom connectors to connect AI agents.</p>
+        <div
+          className="bg-white"
+          style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}
+        >
+          <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>
+            MCP Connection
+          </label>
+          <p className="text-[11px] mt-0.5 mb-2" style={{ color: C.muted }}>
+            Use this URL in Claude's custom connectors to connect AI agents.
+          </p>
           <div className="flex items-center gap-2 mb-2">
-            <code className="flex-1 text-[11px] font-mono bg-stone-50 rounded px-2 py-1.5 break-all" style={{ color: C.text }}>
+            <code
+              className="flex-1 text-[11px] font-mono bg-stone-50 rounded px-2 py-1.5 break-all"
+              style={{ color: C.text }}
+            >
               {mcpUrl || "Loading..."}
             </code>
-            <button onClick={() => copyToClipboard(mcpUrl, "mcp")} className="flex-shrink-0 p-1.5 rounded hover:opacity-70" style={{ color: C.accentDark }}>
+            <button
+              onClick={() => copyToClipboard(mcpUrl, "mcp")}
+              className="flex-shrink-0 p-1.5 rounded hover:opacity-70"
+              style={{ color: C.accentDark }}
+            >
               {copied === "mcp" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
             </button>
           </div>
-          <button onClick={() => regenMcpToken.mutate()} className="text-[11px] flex items-center gap-1 hover:opacity-70" style={{ color: C.muted }}>
+          <button
+            onClick={() => regenMcpToken.mutate()}
+            className="text-[11px] flex items-center gap-1 hover:opacity-70"
+            style={{ color: C.muted }}
+          >
             <RefreshCw className="h-3 w-3" /> Regenerate token
           </button>
         </div>
 
         {/* API Key */}
-        <div className="bg-white" style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}>
-          <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>API Key</label>
-          <p className="text-[11px] mt-0.5 mb-2" style={{ color: C.muted }}>For direct REST API access via X-API-Key header.</p>
+        <div
+          className="bg-white"
+          style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}
+        >
+          <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>
+            API Key
+          </label>
+          <p className="text-[11px] mt-0.5 mb-2" style={{ color: C.muted }}>
+            For direct REST API access via X-API-Key header.
+          </p>
           <div className="flex items-center gap-2 mb-2">
-            <code className="flex-1 text-[11px] font-mono bg-stone-50 rounded px-2 py-1.5 break-all" style={{ color: C.text }}>
+            <code
+              className="flex-1 text-[11px] font-mono bg-stone-50 rounded px-2 py-1.5 break-all"
+              style={{ color: C.text }}
+            >
               {settings?.apiKey || "Loading..."}
             </code>
-            <button onClick={() => copyToClipboard(settings?.apiKey || "", "api")} className="flex-shrink-0 p-1.5 rounded hover:opacity-70" style={{ color: C.accentDark }}>
+            <button
+              onClick={() => copyToClipboard(settings?.apiKey || "", "api")}
+              className="flex-shrink-0 p-1.5 rounded hover:opacity-70"
+              style={{ color: C.accentDark }}
+            >
               {copied === "api" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
             </button>
           </div>
-          <button onClick={() => regenApiKey.mutate()} className="text-[11px] flex items-center gap-1 hover:opacity-70" style={{ color: C.muted }}>
+          <button
+            onClick={() => regenApiKey.mutate()}
+            className="text-[11px] flex items-center gap-1 hover:opacity-70"
+            style={{ color: C.muted }}
+          >
             <RefreshCw className="h-3 w-3" /> Regenerate key
           </button>
         </div>
 
         {/* Change PIN */}
-        <div className="bg-white" style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}>
-          <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>Change PIN</label>
+        <div
+          className="bg-white"
+          style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}
+        >
+          <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>
+            Change PIN
+          </label>
           <div className="flex gap-2 mt-2">
             <input
-              type="password" inputMode="numeric" maxLength={6} placeholder="Current"
-              value={currentPin} onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, ""))}
+              type="password"
+              inputMode="numeric"
+              maxLength={6}
+              placeholder="Current"
+              value={currentPin}
+              onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, ""))}
               className="w-24 text-sm text-center rounded-lg px-2 py-1.5 outline-none font-mono"
               style={{ border: `1px solid ${C.border}`, color: C.text }}
             />
             <input
-              type="password" inputMode="numeric" maxLength={6} placeholder="New"
-              value={newPin} onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))}
+              type="password"
+              inputMode="numeric"
+              maxLength={6}
+              placeholder="New"
+              value={newPin}
+              onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))}
               className="w-24 text-sm text-center rounded-lg px-2 py-1.5 outline-none font-mono"
               style={{ border: `1px solid ${C.border}`, color: C.text }}
             />
@@ -236,11 +329,16 @@ export default function SettingsPage() {
               disabled={currentPin.length < 4 || newPin.length < 4}
               className="text-xs font-medium text-white px-3 py-1.5 rounded-lg disabled:opacity-40"
               style={{ backgroundColor: C.accentDark }}
-            >Change</button>
+            >
+              Change
+            </button>
           </div>
-          {pinMessage && <p className="text-xs mt-1" style={{ color: pinMessage === "PIN changed" ? C.accentDark : "#c0392b" }}>{pinMessage}</p>}
+          {pinMessage && (
+            <p className="text-xs mt-1" style={{ color: pinMessage === "PIN changed" ? C.accentDark : "#c0392b" }}>
+              {pinMessage}
+            </p>
+          )}
         </div>
-
       </main>
     </div>
   );

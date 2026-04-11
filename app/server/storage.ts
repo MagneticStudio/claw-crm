@@ -1,11 +1,25 @@
 import {
-  users, type User,
-  companies, type Company, type InsertCompany,
-  contacts, type Contact, type InsertContact, type ContactWithRelations,
-  interactions, type Interaction, type InsertInteraction,
-  followups, type Followup, type InsertFollowup,
-  rules, type Rule, type InsertRule,
-  ruleViolations, type RuleViolation, type InsertRuleViolation,
+  users,
+  type User,
+  companies,
+  type Company,
+  type InsertCompany,
+  contacts,
+  type Contact,
+  type InsertContact,
+  type ContactWithRelations,
+  interactions,
+  type Interaction,
+  type InsertInteraction,
+  followups,
+  type Followup,
+  type InsertFollowup,
+  rules,
+  type Rule,
+  type InsertRule,
+  ruleViolations,
+  type RuleViolation,
+  type InsertRuleViolation,
   activityLog,
   briefings,
 } from "@shared/schema";
@@ -13,7 +27,7 @@ import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { db } from "./db";
 import { pool } from "./db";
-import { eq, desc, asc, and, isNull, lte, gte } from "drizzle-orm";
+import { eq, desc, asc, and, isNull, lte } from "drizzle-orm";
 import { sseManager } from "./sse";
 
 // Lazy import to avoid circular dependency
@@ -23,25 +37,28 @@ async function triggerRulesEvaluation(contactId: number) {
     const module = await import("./rules-engine");
     evaluateRulesForContact = module.evaluateRulesForContact;
   }
-  evaluateRulesForContact(contactId).catch((err) =>
-    console.error("Reactive rules evaluation failed:", err)
-  );
+  evaluateRulesForContact(contactId).catch((err) => console.error("Reactive rules evaluation failed:", err));
 }
 
 const PostgresSessionStore = connectPg(session);
 
 export class Storage {
-  sessionStore: any;
+  sessionStore: session.Store;
 
   constructor() {
     this.sessionStore = new PostgresSessionStore({ pool, createTableIfMissing: true });
   }
 
   // --- Activity Log (core helper — used by all mutations) ---
-  async logActivity(event: string, detail: string, opts?: { contactId?: number; source?: string; metadata?: Record<string, unknown> }): Promise<void> {
+  async logActivity(
+    event: string,
+    detail: string,
+    opts?: { contactId?: number; source?: string; metadata?: Record<string, unknown> },
+  ): Promise<void> {
     try {
       await db.insert(activityLog).values({
-        event, detail,
+        event,
+        detail,
         contactId: opts?.contactId ?? null,
         source: opts?.source || "system",
         metadata: opts?.metadata,
@@ -69,11 +86,17 @@ export class Storage {
   }
 
   async createUser(pin: string, apiKey: string, mcpToken?: string, orgName?: string): Promise<User> {
-    const [user] = await db.insert(users).values({ pin, apiKey, mcpToken: mcpToken || "", orgName: orgName || "Claw CRM" }).returning();
+    const [user] = await db
+      .insert(users)
+      .values({ pin, apiKey, mcpToken: mcpToken || "", orgName: orgName || "Claw CRM" })
+      .returning();
     return user;
   }
 
-  async updateUser(id: number, data: Partial<{ pin: string; apiKey: string; mcpToken: string; orgName: string; primaryColor: string }>): Promise<User | undefined> {
+  async updateUser(
+    id: number,
+    data: Partial<{ pin: string; apiKey: string; mcpToken: string; orgName: string; primaryColor: string }>,
+  ): Promise<User | undefined> {
     const [user] = await db.update(users).set(data).where(eq(users.id, id)).returning();
     return user;
   }
@@ -123,8 +146,15 @@ export class Storage {
     const [company, contactInteractions, contactFollowups, contactViolations] = await Promise.all([
       contact.companyId ? this.getCompany(contact.companyId) : Promise.resolve(null),
       db.select().from(interactions).where(eq(interactions.contactId, contact.id)).orderBy(asc(interactions.date)),
-      db.select().from(followups).where(and(eq(followups.contactId, contact.id), isNull(followups.cancelledAt))).orderBy(asc(followups.dueDate)),
-      db.select().from(ruleViolations).where(and(eq(ruleViolations.contactId, contact.id), isNull(ruleViolations.resolvedAt))),
+      db
+        .select()
+        .from(followups)
+        .where(and(eq(followups.contactId, contact.id), isNull(followups.cancelledAt)))
+        .orderBy(asc(followups.dueDate)),
+      db
+        .select()
+        .from(ruleViolations)
+        .where(and(eq(ruleViolations.contactId, contact.id), isNull(ruleViolations.resolvedAt))),
     ]);
 
     const result: ContactWithRelations = {
@@ -145,17 +175,28 @@ export class Storage {
   async createContact(data: InsertContact): Promise<Contact> {
     const [contact] = await db.insert(contacts).values(data).returning();
     sseManager.broadcast({ type: "contact_created", contactId: contact.id });
-    this.logActivity("contact.created", `Created ${contact.firstName} ${contact.lastName}`, { contactId: contact.id, source: "agent" });
+    this.logActivity("contact.created", `Created ${contact.firstName} ${contact.lastName}`, {
+      contactId: contact.id,
+      source: "agent",
+    });
     return contact;
   }
 
   async updateContact(id: number, data: Partial<InsertContact>): Promise<Contact | undefined> {
-    const [contact] = await db.update(contacts).set({ ...data, updatedAt: new Date() }).where(eq(contacts.id, id)).returning();
+    const [contact] = await db
+      .update(contacts)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(contacts.id, id))
+      .returning();
     if (contact) {
       sseManager.broadcast({ type: "contact_updated", contactId: id });
       triggerRulesEvaluation(id);
       const changes = Object.keys(data).join(", ");
-      this.logActivity("contact.updated", `Updated ${contact.firstName} ${contact.lastName}: ${changes}`, { contactId: id, source: "agent", metadata: data as any });
+      this.logActivity("contact.updated", `Updated ${contact.firstName} ${contact.lastName}: ${changes}`, {
+        contactId: id,
+        source: "agent",
+        metadata: data as Record<string, unknown>,
+      });
     }
     return contact;
   }
@@ -165,7 +206,11 @@ export class Storage {
     const result = await db.delete(contacts).where(eq(contacts.id, id)).returning();
     if (result.length > 0) {
       sseManager.broadcast({ type: "contact_deleted", contactId: id });
-      if (contact) this.logActivity("contact.deleted", `Deleted ${contact.firstName} ${contact.lastName}`, { contactId: id, source: "agent" });
+      if (contact)
+        this.logActivity("contact.deleted", `Deleted ${contact.firstName} ${contact.lastName}`, {
+          contactId: id,
+          source: "agent",
+        });
     }
     return result.length > 0;
   }
@@ -182,7 +227,11 @@ export class Storage {
     triggerRulesEvaluation(data.contactId);
     const contact = await this.getContact(data.contactId);
     const name = contact ? `${contact.firstName} ${contact.lastName}` : `contact ${data.contactId}`;
-    this.logActivity("interaction.created", `Added ${data.type || "note"} for ${name}: ${(data.content as string).slice(0, 80)}`, { contactId: data.contactId });
+    this.logActivity(
+      "interaction.created",
+      `Added ${data.type || "note"} for ${name}: ${(data.content as string).slice(0, 80)}`,
+      { contactId: data.contactId },
+    );
     return interaction;
   }
 
@@ -206,12 +255,21 @@ export class Storage {
 
   // --- Items (follow-ups, meetings, etc.) ---
   async getFollowups(contactId?: number): Promise<Followup[]> {
-    if (contactId) return db.select().from(followups).where(and(eq(followups.contactId, contactId), isNull(followups.cancelledAt))).orderBy(asc(followups.dueDate));
+    if (contactId)
+      return db
+        .select()
+        .from(followups)
+        .where(and(eq(followups.contactId, contactId), isNull(followups.cancelledAt)))
+        .orderBy(asc(followups.dueDate));
     return db.select().from(followups).where(isNull(followups.cancelledAt)).orderBy(asc(followups.dueDate));
   }
 
   async getOverdueFollowups(): Promise<Followup[]> {
-    return db.select().from(followups).where(and(eq(followups.completed, false), isNull(followups.cancelledAt), lte(followups.dueDate, new Date()))).orderBy(asc(followups.dueDate));
+    return db
+      .select()
+      .from(followups)
+      .where(and(eq(followups.completed, false), isNull(followups.cancelledAt), lte(followups.dueDate, new Date())))
+      .orderBy(asc(followups.dueDate));
   }
 
   async createFollowup(data: InsertFollowup): Promise<Followup> {
@@ -220,7 +278,11 @@ export class Storage {
     triggerRulesEvaluation(data.contactId);
     const contact = await this.getContact(data.contactId);
     const name = contact ? `${contact.firstName} ${contact.lastName}` : `contact ${data.contactId}`;
-    this.logActivity("followup.created", `Created ${data.type || "task"} for ${name}: ${(data.content as string).slice(0, 80)}`, { contactId: data.contactId });
+    this.logActivity(
+      "followup.created",
+      `Created ${data.type || "task"} for ${name}: ${(data.content as string).slice(0, 80)}`,
+      { contactId: data.contactId },
+    );
     return followup;
   }
 
@@ -229,19 +291,29 @@ export class Storage {
     if (followup) {
       sseManager.broadcast({ type: "followup_updated", contactId: followup.contactId });
       const changes = Object.keys(data).join(", ");
-      this.logActivity("followup.updated", `Updated ${followup.type || "task"} ${id}: ${changes}`, { contactId: followup.contactId });
+      this.logActivity("followup.updated", `Updated ${followup.type || "task"} ${id}: ${changes}`, {
+        contactId: followup.contactId,
+      });
     }
     return followup;
   }
 
   async completeFollowup(id: number): Promise<Followup | undefined> {
-    const [followup] = await db.update(followups).set({ completed: true, completedAt: new Date() }).where(eq(followups.id, id)).returning();
+    const [followup] = await db
+      .update(followups)
+      .set({ completed: true, completedAt: new Date() })
+      .where(eq(followups.id, id))
+      .returning();
     if (followup) {
       sseManager.broadcast({ type: "followup_completed", contactId: followup.contactId });
       triggerRulesEvaluation(followup.contactId);
       const contact = await this.getContact(followup.contactId);
       const name = contact ? `${contact.firstName} ${contact.lastName}` : `contact ${followup.contactId}`;
-      this.logActivity("followup.completed", `Completed ${followup.type || "task"} for ${name}: ${followup.content.slice(0, 80)}`, { contactId: followup.contactId });
+      this.logActivity(
+        "followup.completed",
+        `Completed ${followup.type || "task"} for ${name}: ${followup.content.slice(0, 80)}`,
+        { contactId: followup.contactId },
+      );
     }
     return followup;
   }
@@ -250,7 +322,9 @@ export class Storage {
     const [deleted] = await db.delete(followups).where(eq(followups.id, id)).returning();
     if (deleted) {
       sseManager.broadcast({ type: "followup_deleted", contactId: deleted.contactId });
-      this.logActivity("followup.deleted", `Deleted ${deleted.type || "task"}: ${deleted.content.slice(0, 80)}`, { contactId: deleted.contactId });
+      this.logActivity("followup.deleted", `Deleted ${deleted.type || "task"}: ${deleted.content.slice(0, 80)}`, {
+        contactId: deleted.contactId,
+      });
     }
     return !!deleted;
   }
@@ -273,7 +347,11 @@ export class Storage {
   }
 
   async updateRule(id: number, data: Partial<InsertRule>): Promise<Rule | undefined> {
-    const [rule] = await db.update(rules).set({ ...data, updatedAt: new Date() }).where(eq(rules.id, id)).returning();
+    const [rule] = await db
+      .update(rules)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(rules.id, id))
+      .returning();
     if (rule) this.logActivity("rule.updated", `Updated rule: ${rule.name}`, { source: "agent" });
     return rule;
   }
@@ -287,31 +365,64 @@ export class Storage {
 
   // --- Rule Violations ---
   async getViolations(contactId?: number): Promise<RuleViolation[]> {
-    if (contactId) return db.select().from(ruleViolations).where(and(eq(ruleViolations.contactId, contactId), isNull(ruleViolations.resolvedAt))).orderBy(desc(ruleViolations.createdAt));
-    return db.select().from(ruleViolations).where(isNull(ruleViolations.resolvedAt)).orderBy(desc(ruleViolations.createdAt));
+    if (contactId)
+      return db
+        .select()
+        .from(ruleViolations)
+        .where(and(eq(ruleViolations.contactId, contactId), isNull(ruleViolations.resolvedAt)))
+        .orderBy(desc(ruleViolations.createdAt));
+    return db
+      .select()
+      .from(ruleViolations)
+      .where(isNull(ruleViolations.resolvedAt))
+      .orderBy(desc(ruleViolations.createdAt));
   }
 
   async createViolation(data: InsertRuleViolation): Promise<RuleViolation> {
     const [violation] = await db.insert(ruleViolations).values(data).returning();
     sseManager.broadcast({ type: "violation_created", contactId: data.contactId, violationId: violation.id });
-    this.logActivity("violation.created", data.message, { contactId: data.contactId, source: `rule:${data.ruleId}`, metadata: { ruleId: data.ruleId, severity: data.severity } });
+    this.logActivity("violation.created", data.message, {
+      contactId: data.contactId,
+      source: `rule:${data.ruleId}`,
+      metadata: { ruleId: data.ruleId, severity: data.severity },
+    });
     return violation;
   }
 
   async resolveViolation(id: number): Promise<RuleViolation | undefined> {
-    const [violation] = await db.update(ruleViolations).set({ resolvedAt: new Date() }).where(eq(ruleViolations.id, id)).returning();
+    const [violation] = await db
+      .update(ruleViolations)
+      .set({ resolvedAt: new Date() })
+      .where(eq(ruleViolations.id, id))
+      .returning();
     if (violation) sseManager.broadcast({ type: "violation_resolved", contactId: violation.contactId });
     return violation;
   }
 
   async resolveViolationsForRule(ruleId: number, contactId: number): Promise<void> {
-    await db.update(ruleViolations).set({ resolvedAt: new Date() })
-      .where(and(eq(ruleViolations.ruleId, ruleId), eq(ruleViolations.contactId, contactId), isNull(ruleViolations.resolvedAt)));
+    await db
+      .update(ruleViolations)
+      .set({ resolvedAt: new Date() })
+      .where(
+        and(
+          eq(ruleViolations.ruleId, ruleId),
+          eq(ruleViolations.contactId, contactId),
+          isNull(ruleViolations.resolvedAt),
+        ),
+      );
   }
 
   async hasActiveViolation(ruleId: number, contactId: number): Promise<boolean> {
-    const [existing] = await db.select().from(ruleViolations)
-      .where(and(eq(ruleViolations.ruleId, ruleId), eq(ruleViolations.contactId, contactId), isNull(ruleViolations.resolvedAt)))
+    const [existing] = await db
+      .select()
+      .from(ruleViolations)
+      .where(
+        and(
+          eq(ruleViolations.ruleId, ruleId),
+          eq(ruleViolations.contactId, contactId),
+          isNull(ruleViolations.resolvedAt),
+        ),
+      )
       .limit(1);
     return !!existing;
   }

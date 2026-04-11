@@ -27,7 +27,16 @@ if [ -z "$RECENT_SCREENSHOTS" ]; then
   ERRORS="$ERRORS No recent E2E test screenshots — run the E2E test skill first."
 fi
 
-# 3. Check PR is assigned to Parker
+# 3. Check lint passes (errors only — warnings are OK)
+cd "$CLAUDE_PROJECT_DIR/app" 2>/dev/null
+npx eslint . --quiet 2>/dev/null
+LINT_EXIT=$?
+cd "$CLAUDE_PROJECT_DIR" 2>/dev/null
+if [ "$LINT_EXIT" -ne 0 ]; then
+  ERRORS="$ERRORS Lint errors found — run 'npm run lint:fix' in app/ first."
+fi
+
+# 4. Check PR is assigned to Parker
 if ! echo "$COMMAND" | grep -q "parkervoss"; then
   ERRORS="$ERRORS PR must be assigned to parkervoss (add --assignee parkervoss)."
 fi

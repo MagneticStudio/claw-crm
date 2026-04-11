@@ -1,6 +1,6 @@
 import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod";
+import type { z } from "zod";
 
 // --- Shared constants (single source of truth for valid values) ---
 export const STAGES = ["LEAD", "MEETING", "PROPOSAL", "NEGOTIATION", "LIVE", "PASS", "RELATIONSHIP"] as const;
@@ -9,7 +9,14 @@ export const INTERACTION_TYPES = ["note", "meeting", "email", "call"] as const;
 export const TASK_TYPES = ["task", "meeting"] as const;
 export const SEVERITIES = ["info", "warning", "critical"] as const;
 export const MEETING_TYPES = ["call", "video", "in-person", "coffee"] as const;
-export const CONDITION_TYPES = ["no_interaction_for_days", "followup_past_due", "no_followup_after_meeting", "meeting_within_hours", "status_is", "stage_is"] as const;
+export const CONDITION_TYPES = [
+  "no_interaction_for_days",
+  "followup_past_due",
+  "no_followup_after_meeting",
+  "meeting_within_hours",
+  "status_is",
+  "stage_is",
+] as const;
 export const EXCEPTION_TYPES = ["has_future_followup", "stage_in"] as const;
 
 // User model — single user, PIN auth + settings
@@ -68,7 +75,9 @@ export type Contact = typeof contacts.$inferSelect;
 // Interactions
 export const interactions = pgTable("interactions", {
   id: serial("id").primaryKey(),
-  contactId: integer("contact_id").notNull().references(() => contacts.id, { onDelete: "cascade" }),
+  contactId: integer("contact_id")
+    .notNull()
+    .references(() => contacts.id, { onDelete: "cascade" }),
   date: timestamp("date").notNull(),
   content: text("content").notNull(),
   type: text("type").notNull().default("note"), // note | meeting | email | call
@@ -82,7 +91,9 @@ export type Interaction = typeof interactions.$inferSelect;
 // Items (follow-ups, meetings, etc. — unified by type)
 export const followups = pgTable("followups", {
   id: serial("id").primaryKey(),
-  contactId: integer("contact_id").notNull().references(() => contacts.id, { onDelete: "cascade" }),
+  contactId: integer("contact_id")
+    .notNull()
+    .references(() => contacts.id, { onDelete: "cascade" }),
   type: text("type").notNull().default("task"), // task | meeting | (plugin-defined)
   dueDate: timestamp("due_date").notNull(),
   content: text("content").notNull(),
@@ -95,7 +106,12 @@ export const followups = pgTable("followups", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const insertFollowupSchema = createInsertSchema(followups).omit({ id: true, completedAt: true, cancelledAt: true, createdAt: true });
+export const insertFollowupSchema = createInsertSchema(followups).omit({
+  id: true,
+  completedAt: true,
+  cancelledAt: true,
+  createdAt: true,
+});
 export type InsertFollowup = z.infer<typeof insertFollowupSchema>;
 export type Followup = typeof followups.$inferSelect;
 
@@ -112,29 +128,44 @@ export const rules = pgTable("rules", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const insertRuleSchema = createInsertSchema(rules).omit({ id: true, lastEvaluatedAt: true, createdAt: true, updatedAt: true });
+export const insertRuleSchema = createInsertSchema(rules).omit({
+  id: true,
+  lastEvaluatedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
 export type InsertRule = z.infer<typeof insertRuleSchema>;
 export type Rule = typeof rules.$inferSelect;
 
 // Rule violations
 export const ruleViolations = pgTable("rule_violations", {
   id: serial("id").primaryKey(),
-  ruleId: integer("rule_id").notNull().references(() => rules.id, { onDelete: "cascade" }),
-  contactId: integer("contact_id").notNull().references(() => contacts.id, { onDelete: "cascade" }),
+  ruleId: integer("rule_id")
+    .notNull()
+    .references(() => rules.id, { onDelete: "cascade" }),
+  contactId: integer("contact_id")
+    .notNull()
+    .references(() => contacts.id, { onDelete: "cascade" }),
   message: text("message").notNull(),
   severity: text("severity").notNull().default("warning"),
   resolvedAt: timestamp("resolved_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const insertRuleViolationSchema = createInsertSchema(ruleViolations).omit({ id: true, resolvedAt: true, createdAt: true });
+export const insertRuleViolationSchema = createInsertSchema(ruleViolations).omit({
+  id: true,
+  resolvedAt: true,
+  createdAt: true,
+});
 export type InsertRuleViolation = z.infer<typeof insertRuleViolationSchema>;
 export type RuleViolation = typeof ruleViolations.$inferSelect;
 
 // Briefings — one per contact, stores prep notes
 export const briefings = pgTable("briefings", {
   id: serial("id").primaryKey(),
-  contactId: integer("contact_id").notNull().references(() => contacts.id, { onDelete: "cascade" }),
+  contactId: integer("contact_id")
+    .notNull()
+    .references(() => contacts.id, { onDelete: "cascade" }),
   content: text("content").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

@@ -32,14 +32,20 @@ export default function AuthPage() {
     }
 
     if (needsSetup) {
-      setupMutation.mutate({ pin }, {
-        onSuccess: (data) => setApiKey(data.apiKey),
-        onError: (err) => setError(err.message),
-      });
+      setupMutation.mutate(
+        { pin },
+        {
+          onSuccess: (data) => setApiKey(data.apiKey),
+          onError: (err) => setError(err.message),
+        },
+      );
     } else {
-      loginMutation.mutate({ pin }, {
-        onError: (err) => setError(err.message),
-      });
+      loginMutation.mutate(
+        { pin },
+        {
+          onError: (err) => setError(err.message),
+        },
+      );
     }
   };
 
@@ -47,17 +53,31 @@ export default function AuthPage() {
 
   if (apiKey) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4"
-        style={{ background: "linear-gradient(135deg, #2bbcb3, #30bfb7, #3cc8c0)" }}>
+      <div
+        className="flex flex-col items-center justify-center min-h-screen p-4"
+        style={{ background: "linear-gradient(135deg, #2bbcb3, #30bfb7, #3cc8c0)" }}
+      >
         <div className="w-full max-w-sm bg-white rounded-xl shadow-lg p-8 text-center">
-          <h1 className="text-lg font-semibold" style={{ color: "#1a2f2f" }}>Setup Complete</h1>
-          <p className="text-sm mt-1" style={{ color: "#5a7a7a" }}>Save your API key for agent access:</p>
-          <code className="block p-3 rounded-lg text-xs break-all font-mono mt-4 mb-4"
-            style={{ backgroundColor: "#e6f7f6", color: "#1a9e96" }}>{apiKey}</code>
-          <p className="text-xs mb-6" style={{ color: "#5a7a7a" }}>This won't be shown again.</p>
-          <button onClick={() => navigate("/")}
+          <h1 className="text-lg font-semibold" style={{ color: "#1a2f2f" }}>
+            Setup Complete
+          </h1>
+          <p className="text-sm mt-1" style={{ color: "#5a7a7a" }}>
+            Save your API key for agent access:
+          </p>
+          <code
+            className="block p-3 rounded-lg text-xs break-all font-mono mt-4 mb-4"
+            style={{ backgroundColor: "#e6f7f6", color: "#1a9e96" }}
+          >
+            {apiKey}
+          </code>
+          <p className="text-xs mb-6" style={{ color: "#5a7a7a" }}>
+            This won't be shown again.
+          </p>
+          <button
+            onClick={() => navigate("/")}
             className="w-full text-white py-2.5 rounded-lg text-sm font-medium transition-colors"
-            style={{ backgroundColor: "#2bbcb3" }}>
+            style={{ backgroundColor: "#2bbcb3" }}
+          >
             Continue to CRM
           </button>
         </div>
@@ -66,8 +86,10 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4"
-      style={{ background: "linear-gradient(135deg, #2bbcb3, #30bfb7, #3cc8c0)" }}>
+    <div
+      className="flex flex-col items-center justify-center min-h-screen p-4"
+      style={{ background: "linear-gradient(135deg, #2bbcb3, #30bfb7, #3cc8c0)" }}
+    >
       <div className="w-full max-w-sm p-8 text-center">
         <div className="mb-8">
           <h1 className="text-xl font-semibold tracking-[0.2em] text-white uppercase">{orgName}</h1>
