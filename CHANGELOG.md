@@ -2,6 +2,15 @@
 
 ## 2026-04-11
 
+### Clean up all lint warnings to 0
+- Typed rules-engine JSONB fields (RuleCondition, RuleException, RuleAction)
+- Typed mcp-client.ts API responses with generics
+- Replaced all `catch (err: any)` with `catch (err: unknown)`
+- Added express-session/express type augmentations
+- Fixed all client-side any casts (briefing, metadata, stage includes, badges)
+- Suppressed react-refresh false positives for hooks/context/UI files
+- Final count: 0 errors, 0 warnings
+
 ### Add ESLint + Prettier
 - ESLint flat config with TypeScript, React hooks, and agent-friendly autofixable rules
 - Prettier configured to match existing code style (2 spaces, double quotes, semicolons, trailing commas)
