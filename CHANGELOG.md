@@ -2,6 +2,10 @@
 
 ## 2026-04-11
 
+### Add lint + format checks to CI, branch protection
+- CI now runs `eslint --max-warnings 0` and `prettier --check` before build/test
+- Branch protection enabled on main: requires PR, CI pass, no force push
+
 ### Clean up all lint warnings to 0
 - Typed rules-engine JSONB fields (RuleCondition, RuleException, RuleAction)
 - Typed mcp-client.ts API responses with generics

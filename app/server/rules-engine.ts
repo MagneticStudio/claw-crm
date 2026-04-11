@@ -148,11 +148,7 @@ function checkCondition(
   return violated;
 }
 
-function checkException(
-  exception: RuleException,
-  contact: Contact,
-  contactFollowups: Followup[],
-): boolean {
+function checkException(exception: RuleException, contact: Contact, contactFollowups: Followup[]): boolean {
   switch (exception.type) {
     case "has_future_followup":
       return contactFollowups.some((f) => !f.completed && new Date(f.dueDate) >= new Date());

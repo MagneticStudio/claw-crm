@@ -36,6 +36,7 @@ npm run test         # Playwright E2E tests
 ## Code quality
 - Run `npm run lint:fix` after making changes. It autofixes type imports, const/let, and equality operators.
 - Run `npm run format` if you've written new files or made large edits.
+- CI runs lint with `--max-warnings 0` — warnings that pass locally will fail the PR. Fix all warnings before pushing.
 - The pre-PR hook checks lint passes. Fix lint errors before creating a PR.
 - `@typescript-eslint/no-explicit-any` is a warning. Prefer `unknown` with type narrowing for new code, but don't refactor existing `any` unless specifically asked.
 - Prefix unused parameters with `_` (e.g., `_req`, `_err`) to satisfy no-unused-vars.
