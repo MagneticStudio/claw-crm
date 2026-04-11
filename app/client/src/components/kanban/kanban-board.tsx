@@ -14,7 +14,14 @@ import { KanbanCard } from "./kanban-card";
 import type { ContactWithRelations } from "@shared/schema";
 import type { UseMutationResult } from "@tanstack/react-query";
 
-const COLUMN_ORDER = ["LEAD", "MEETING", "PROPOSAL", "NEGOTIATION", "LIVE", "RELATIONSHIP", "PASS"];
+const COLUMN_ORDER = ["LEAD", "MEETING", "PROPOSAL", "NEGOTIATION", "LIVE", "RELATIONSHIP"];
+
+// Desktop: 3 columns, each with 2 stages stacked vertically (snake flow)
+const DESKTOP_PAIRS: [string, string][] = [
+  ["LEAD", "MEETING"],
+  ["PROPOSAL", "NEGOTIATION"],
+  ["LIVE", "RELATIONSHIP"],
+];
 
 const STAGE_ACCENT: Record<string, string> = {
   LIVE: "#2e7d32",
@@ -105,16 +112,26 @@ export function KanbanBoard({ contacts, updateContact }: KanbanBoardProps) {
           ))}
         </div>
       ) : (
-        /* Desktop: horizontal columns */
-        <div className="flex gap-3 overflow-x-auto px-4 py-4" style={{ minHeight: "calc(100vh - 120px)" }}>
-          {COLUMN_ORDER.map((stage) => (
-            <KanbanColumn
-              key={stage}
-              stage={stage}
-              contacts={grouped[stage]}
-              accentColor={STAGE_ACCENT[stage] || "#5a7a7a"}
-            />
-          ))}
+        /* Desktop: 3 columns with stacked stage pairs, compact cards */
+        <div className="max-w-[640px] mx-auto px-4 py-4">
+          <div className="grid grid-cols-3 gap-2">
+            {DESKTOP_PAIRS.map(([top, bottom]) => (
+              <div key={top} className="flex flex-col gap-2">
+                <KanbanColumn
+                  stage={top}
+                  contacts={grouped[top]}
+                  accentColor={STAGE_ACCENT[top] || "#5a7a7a"}
+                  compact
+                />
+                <KanbanColumn
+                  stage={bottom}
+                  contacts={grouped[bottom]}
+                  accentColor={STAGE_ACCENT[bottom] || "#5a7a7a"}
+                  compact
+                />
+              </div>
+            ))}
+          </div>
         </div>
       )}
       <DragOverlay>
@@ -123,7 +140,7 @@ export function KanbanBoard({ contacts, updateContact }: KanbanBoardProps) {
             contact={activeContact}
             accentColor={STAGE_ACCENT[activeContact.stage] || "#5a7a7a"}
             isDragOverlay
-            compact={isMobile}
+            compact
           />
         ) : null}
       </DragOverlay>

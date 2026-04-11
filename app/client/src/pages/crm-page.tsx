@@ -134,7 +134,7 @@ export default function CrmPage() {
     <div className="min-h-screen" style={{ backgroundColor: "#f0f8f8" }}>
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: `1px solid ${C.border}` }}>
-        <div className={`${viewMode === "list" ? "max-w-[640px]" : ""} mx-auto px-4 py-3 flex items-center justify-between`}>
+        <div className="max-w-[640px] mx-auto px-4 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-[13px] font-semibold tracking-[0.2em] uppercase" style={{ color: C.text }}>
               {orgName}
