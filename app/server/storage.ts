@@ -43,7 +43,7 @@ async function triggerRulesEvaluation(contactId: number) {
 const PostgresSessionStore = connectPg(session);
 
 export class Storage {
-  sessionStore: any;
+  sessionStore: session.Store;
 
   constructor() {
     this.sessionStore = new PostgresSessionStore({ pool, createTableIfMissing: true });
@@ -195,7 +195,7 @@ export class Storage {
       this.logActivity("contact.updated", `Updated ${contact.firstName} ${contact.lastName}: ${changes}`, {
         contactId: id,
         source: "agent",
-        metadata: data as any,
+        metadata: data as Record<string, unknown>,
       });
     }
     return contact;

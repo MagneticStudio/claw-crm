@@ -51,7 +51,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const user = await storage.getFirstUser();
     if (!user) return res.status(404).json({ message: "No user" });
     const { orgName, primaryColor, upcomingDays } = req.body;
-    const updates: any = {};
+    const updates: Record<string, string | number> = {};
     if (orgName !== undefined) updates.orgName = orgName;
     if (primaryColor !== undefined) updates.primaryColor = primaryColor;
     if (upcomingDays !== undefined) updates.upcomingDays = upcomingDays;
@@ -384,9 +384,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (req.query.contactId) conditions.push(eq(activityLog.contactId, parseInt(req.query.contactId as string)));
     if (req.query.event) conditions.push(eq(activityLog.event, req.query.event as string));
     if (req.query.source) conditions.push(eq(activityLog.source, req.query.source as string));
-    let query = db.select().from(activityLog).orderBy(desc(activityLog.createdAt));
-    if (conditions.length > 0) query = query.where(and(...conditions)) as any;
-    const result = await (query as any).limit(parseInt(req.query.limit as string) || 50);
+    const baseQuery = db.select().from(activityLog).orderBy(desc(activityLog.createdAt));
+    const filtered = conditions.length > 0 ? baseQuery.where(and(...conditions)) : baseQuery;
+    const result = await filtered.limit(parseInt(req.query.limit as string) || 50);
     res.json(result);
   });
 

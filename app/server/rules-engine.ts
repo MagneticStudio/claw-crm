@@ -182,7 +182,7 @@ function buildMessage(
 }
 
 export function startRulesScheduler(intervalMs: number = 15 * 60 * 1000): NodeJS.Timeout {
-  console.log(`Rules engine: scheduled evaluation every ${intervalMs / 1000 / 60} minutes`);
+  console.warn(`Rules engine: scheduled evaluation every ${intervalMs / 1000 / 60} minutes`);
   evaluateAllRules().catch((err) => console.error("Rules evaluation failed:", err));
   return setInterval(() => {
     evaluateAllRules().catch((err) => console.error("Rules evaluation failed:", err));

@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
@@ -52,13 +53,18 @@ const severityEnum = z.enum(SEVERITIES);
 const meetingTypeEnum = z.enum(MEETING_TYPES);
 const conditionTypeEnum = z.enum(CONDITION_TYPES);
 
+/** Extract a message string from an unknown thrown value */
+function errMsg(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
 /** Build an actionable error message with guidance on how to fix the call */
-function actionableError(operation: string, err: any, hints?: string): string {
-  const base = `Error ${operation}: ${err.message}`;
+function actionableError(operation: string, err: unknown, hints?: string): string {
+  const base = `Error ${operation}: ${errMsg(err)}`;
   if (hints) return `${base}\n\nHint: ${hints}`;
 
   // Auto-detect common issues and add guidance
-  const msg = err.message?.toLowerCase() || "";
+  const msg = (err instanceof Error ? err.message : "").toLowerCase();
   if (msg.includes("invalid input syntax for type integer"))
     return `${base}\n\nHint: The ID parameter must be a number. Use search_contacts to find valid IDs.`;
   if (msg.includes("not null") || msg.includes("violates not-null"))
@@ -325,7 +331,7 @@ Good for: talking points, recent news, open items before a meeting.
         };
 
         return { content: [{ type: "text" as const, text: JSON.stringify(dashboard, null, 2) }] };
-      } catch (err: any) {
+      } catch (err: unknown) {
         return { content: [{ type: "text" as const, text: actionableError("loading dashboard", err) }], isError: true };
       }
     },
@@ -382,7 +388,7 @@ Good for: talking points, recent news, open items before a meeting.
             { type: "text" as const, text: JSON.stringify({ results: summary, totalCount, hasMore }, null, 2) },
           ],
         };
-      } catch (err: any) {
+      } catch (err: unknown) {
         return {
           content: [{ type: "text" as const, text: actionableError("searching contacts", err) }],
           isError: true,
@@ -402,7 +408,7 @@ Good for: talking points, recent news, open items before a meeting.
         const contact = await storage.getContactWithRelations(contactId);
         if (!contact) return notFoundError("Contact", contactId, "search_contacts");
         return { content: [{ type: "text" as const, text: JSON.stringify(contact, null, 2) }] };
-      } catch (err: any) {
+      } catch (err: unknown) {
         return {
           content: [{ type: "text" as const, text: actionableError(`reading contact ${contactId}`, err) }],
           isError: true,
@@ -438,7 +444,7 @@ Good for: talking points, recent news, open items before a meeting.
             { type: "text" as const, text: JSON.stringify({ results: enriched, totalCount, hasMore }, null, 2) },
           ],
         };
-      } catch (err: any) {
+      } catch (err: unknown) {
         return {
           content: [{ type: "text" as const, text: actionableError("listing violations", err) }],
           isError: true,
@@ -509,7 +515,7 @@ After creating the contact, use add_interaction to log the key events (meetings,
             },
           ],
         };
-      } catch (err: any) {
+      } catch (err: unknown) {
         return { content: [{ type: "text" as const, text: actionableError("creating contact", err) }], isError: true };
       }
     },
@@ -543,7 +549,7 @@ After creating the contact, use add_interaction to log the key events (meetings,
         const c = await storage.updateContact(contactId, filtered);
         if (!c) return notFoundError("Contact", contactId, "search_contacts");
         return { content: [{ type: "text" as const, text: `Updated: ${c.firstName} ${c.lastName}` }] };
-      } catch (err: any) {
+      } catch (err: unknown) {
         return { content: [{ type: "text" as const, text: actionableError("updating contact", err) }], isError: true };
       }
     },
@@ -576,8 +582,8 @@ Do NOT log follow-up tasks here — use create_task for those.`,
           type: type || "note",
         });
         return { content: [{ type: "text" as const, text: `Logged ${i.type} for contact ${contactId}` }] };
-      } catch (err: any) {
-        if (err.message?.includes("foreign key"))
+      } catch (err: unknown) {
+        if (errMsg(err).includes("foreign key"))
           return {
             content: [
               {
@@ -676,8 +682,8 @@ For meetings (type "meeting"): scheduled events with optional time/location.
             ],
           };
         }
-      } catch (err: any) {
-        if (err.message?.includes("foreign key"))
+      } catch (err: unknown) {
+        if (errMsg(err).includes("foreign key"))
           return {
             content: [
               {
@@ -715,7 +721,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
           return { content: [{ type: "text" as const, text: `Completed and logged: "${outcome.trim()}"` }] };
         }
         return { content: [{ type: "text" as const, text: `Completed: "${fu.content}"` }] };
-      } catch (err: any) {
+      } catch (err: unknown) {
         return {
           content: [{ type: "text" as const, text: actionableError("completing follow-up", err) }],
           isError: true,
@@ -741,7 +747,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
             { type: "text" as const, text: `Deleted contact: ${name} (ID: ${contactId}) and all associated data` },
           ],
         };
-      } catch (err: any) {
+      } catch (err: unknown) {
         return { content: [{ type: "text" as const, text: actionableError("deleting contact", err) }], isError: true };
       }
     },
@@ -756,7 +762,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
         const deleted = await storage.deleteFollowup(followupId);
         if (!deleted) return notFoundError("Follow-up", followupId, "get_contact (check the followups array)");
         return { content: [{ type: "text" as const, text: `Deleted follow-up ${followupId}` }] };
-      } catch (err: any) {
+      } catch (err: unknown) {
         return {
           content: [{ type: "text" as const, text: actionableError("deleting follow-up", err) }],
           isError: true,
@@ -774,7 +780,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
         const deleted = await storage.deleteInteraction(interactionId);
         if (!deleted) return notFoundError("Interaction", interactionId, "get_contact (check the interactions array)");
         return { content: [{ type: "text" as const, text: `Deleted interaction ${interactionId}` }] };
-      } catch (err: any) {
+      } catch (err: unknown) {
         return {
           content: [{ type: "text" as const, text: actionableError("deleting interaction", err) }],
           isError: true,
@@ -826,7 +832,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
             { type: "text" as const, text: JSON.stringify({ results: enriched, totalCount, hasMore }, null, 2) },
           ],
         };
-      } catch (err: any) {
+      } catch (err: unknown) {
         return { content: [{ type: "text" as const, text: actionableError("listing meetings", err) }], isError: true };
       }
     },
@@ -843,7 +849,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
       sseManager.broadcast({ type: "followup_deleted", contactId: item.contactId });
       storage.logActivity("meeting.cancelled", "Cancelled meeting", { contactId: item.contactId, source: "agent" });
       return { content: [{ type: "text" as const, text: `Cancelled meeting ${meetingId}` }] };
-    } catch (err: any) {
+    } catch (err: unknown) {
       return { content: [{ type: "text" as const, text: actionableError("cancelling meeting", err) }], isError: true };
     }
   });
@@ -874,8 +880,8 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
             { type: "text" as const, text: `Briefing saved for contact ${contactId} (${content.length} chars)` },
           ],
         };
-      } catch (err: any) {
-        if (err.message?.includes("foreign key"))
+      } catch (err: unknown) {
+        if (errMsg(err).includes("foreign key"))
           return {
             content: [
               {
@@ -906,7 +912,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
             ],
           };
         return { content: [{ type: "text" as const, text: b.content }] };
-      } catch (err: any) {
+      } catch (err: unknown) {
         return { content: [{ type: "text" as const, text: actionableError("reading briefing", err) }], isError: true };
       }
     },
@@ -928,7 +934,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
         return {
           content: [{ type: "text" as const, text: JSON.stringify({ results: items, totalCount, hasMore }, null, 2) }],
         };
-      } catch (err: any) {
+      } catch (err: unknown) {
         return { content: [{ type: "text" as const, text: actionableError("listing rules", err) }], isError: true };
       }
     },
@@ -964,7 +970,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
           enabled: true,
         });
         return { content: [{ type: "text" as const, text: `Created rule: "${rule.name}" (ID: ${rule.id})` }] };
-      } catch (err: any) {
+      } catch (err: unknown) {
         return { content: [{ type: "text" as const, text: actionableError("creating rule", err) }], isError: true };
       }
     },
@@ -998,7 +1004,7 @@ Available exception types: ${EXCEPTION_TYPES.join(", ")}`,
         if (conditionParams !== undefined || exceptions !== undefined) {
           const existing = await storage.getRule(ruleId);
           if (!existing) return notFoundError("Rule", ruleId, "list_rules");
-          const condition = existing.condition as any;
+          const condition = existing.condition as Record<string, unknown>;
           if (conditionParams) condition.params = conditionParams;
           if (exceptions) condition.exceptions = exceptions;
           updates.condition = condition;
@@ -1007,7 +1013,7 @@ Available exception types: ${EXCEPTION_TYPES.join(", ")}`,
         const rule = await storage.updateRule(ruleId, updates);
         if (!rule) return notFoundError("Rule", ruleId, "list_rules");
         return { content: [{ type: "text" as const, text: `Updated rule: "${rule.name}"` }] };
-      } catch (err: any) {
+      } catch (err: unknown) {
         return { content: [{ type: "text" as const, text: actionableError("updating rule", err) }], isError: true };
       }
     },
@@ -1018,7 +1024,7 @@ Available exception types: ${EXCEPTION_TYPES.join(", ")}`,
       const deleted = await storage.deleteRule(ruleId);
       if (!deleted) return notFoundError("Rule", ruleId, "list_rules");
       return { content: [{ type: "text" as const, text: `Deleted rule ${ruleId}` }] };
-    } catch (err: any) {
+    } catch (err: unknown) {
       return { content: [{ type: "text" as const, text: actionableError("deleting rule", err) }], isError: true };
     }
   });

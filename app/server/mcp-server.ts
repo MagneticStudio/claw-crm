@@ -179,8 +179,8 @@ server.tool(
           },
         ],
       };
-    } catch (err: any) {
-      return { content: [{ type: "text" as const, text: `Error creating contact: ${err.message}` }], isError: true };
+    } catch (err: unknown) {
+      return { content: [{ type: "text" as const, text: `Error creating contact: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
     }
   },
 );
@@ -219,8 +219,8 @@ server.tool(
       return {
         content: [{ type: "text" as const, text: `Updated contact: ${contact.firstName} ${contact.lastName}` }],
       };
-    } catch (err: any) {
-      return { content: [{ type: "text" as const, text: `Error updating contact: ${err.message}` }], isError: true };
+    } catch (err: unknown) {
+      return { content: [{ type: "text" as const, text: `Error updating contact: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
     }
   },
 );
@@ -246,8 +246,8 @@ server.tool(
         type: type || "note",
       });
       return { content: [{ type: "text" as const, text: `Logged ${interaction.type} for contact ${contactId}` }] };
-    } catch (err: any) {
-      return { content: [{ type: "text" as const, text: `Error logging interaction: ${err.message}` }], isError: true };
+    } catch (err: unknown) {
+      return { content: [{ type: "text" as const, text: `Error logging interaction: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
     }
   },
 );
@@ -303,8 +303,8 @@ For meetings (type "meeting"): scheduled events with optional time/location.`,
           { type: "text" as const, text: `Follow-up set for ${parsedDate.toLocaleDateString()}: "${content}"` },
         ],
       };
-    } catch (err: any) {
-      return { content: [{ type: "text" as const, text: `Error creating task: ${err.message}` }], isError: true };
+    } catch (err: unknown) {
+      return { content: [{ type: "text" as const, text: `Error creating task: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
     }
   },
 );
@@ -341,9 +341,9 @@ server.tool(
       }
 
       return { content: [{ type: "text" as const, text: `Completed: "${followup.content}"` }] };
-    } catch (err: any) {
+    } catch (err: unknown) {
       return {
-        content: [{ type: "text" as const, text: `Error completing follow-up: ${err.message}` }],
+        content: [{ type: "text" as const, text: `Error completing follow-up: ${err instanceof Error ? err.message : String(err)}` }],
         isError: true,
       };
     }
@@ -412,8 +412,8 @@ server.tool(
         enabled: true,
       });
       return { content: [{ type: "text" as const, text: `Created rule: "${rule.name}" (ID: ${rule.id})` }] };
-    } catch (err: any) {
-      return { content: [{ type: "text" as const, text: `Error creating rule: ${err.message}` }], isError: true };
+    } catch (err: unknown) {
+      return { content: [{ type: "text" as const, text: `Error creating rule: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
     }
   },
 );
@@ -439,8 +439,8 @@ server.tool(
           isError: true,
         };
       return { content: [{ type: "text" as const, text: `Updated rule: "${rule.name}"` }] };
-    } catch (err: any) {
-      return { content: [{ type: "text" as const, text: `Error updating rule: ${err.message}` }], isError: true };
+    } catch (err: unknown) {
+      return { content: [{ type: "text" as const, text: `Error updating rule: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
     }
   },
 );
@@ -454,8 +454,8 @@ server.tool("delete_rule", "Delete a business rule", { ruleId: z.number().descri
         isError: true,
       };
     return { content: [{ type: "text" as const, text: `Deleted rule ${ruleId}` }] };
-  } catch (err: any) {
-    return { content: [{ type: "text" as const, text: `Error deleting rule: ${err.message}` }], isError: true };
+  } catch (err: unknown) {
+    return { content: [{ type: "text" as const, text: `Error deleting rule: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
   }
 });
 

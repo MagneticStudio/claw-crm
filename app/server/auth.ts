@@ -4,6 +4,18 @@ import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
 
+declare module "express-session" {
+  interface SessionData {
+    userId: number;
+  }
+}
+
+declare module "express" {
+  interface Request {
+    userId?: number;
+  }
+}
+
 const scryptAsync = promisify(scrypt);
 
 export async function hashPin(pin: string): Promise<string> {
@@ -28,7 +40,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
       .getUserByApiKey(apiKey)
       .then((user) => {
         if (user) {
-          (req as any).userId = user.id;
+          req.userId = user.id;
           return next();
         }
         res.status(401).json({ message: "Invalid API key" });
@@ -40,8 +52,8 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   }
 
   // Check session
-  if (req.session && (req.session as any).userId) {
-    (req as any).userId = (req.session as any).userId;
+  if (req.session && req.session.userId) {
+    req.userId = req.session.userId;
     return next();
   }
 
@@ -83,7 +95,7 @@ export function setupAuth(app: Express) {
     const orgName = req.body.orgName || "Claw CRM";
     const user = await storage.createUser(hashedPin, apiKey, mcpToken, orgName);
 
-    (req.session as any).userId = user.id;
+    req.session.userId = user.id;
     res.status(201).json({ id: user.id, apiKey: user.apiKey, mcpToken: user.mcpToken });
   });
 
@@ -104,7 +116,7 @@ export function setupAuth(app: Express) {
       return res.status(401).json({ message: "Invalid PIN" });
     }
 
-    (req.session as any).userId = user.id;
+    req.session.userId = user.id;
     res.json({ id: user.id });
   });
 
@@ -126,8 +138,8 @@ export function setupAuth(app: Express) {
     }
 
     // Check session
-    if (req.session && (req.session as any).userId) {
-      return res.json({ id: (req.session as any).userId, authenticated: true });
+    if (req.session && req.session.userId) {
+      return res.json({ id: req.session.userId, authenticated: true });
     }
 
     // Check if setup is needed

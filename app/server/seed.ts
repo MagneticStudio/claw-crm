@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import "dotenv/config";
 import { db } from "./db";
 import { companies, contacts, interactions, followups, rules } from "@shared/schema";
