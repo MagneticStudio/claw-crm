@@ -17,6 +17,7 @@ import {
   CONDITION_TYPES,
   EXCEPTION_TYPES,
 } from "@shared/schema";
+import type { InsertContact } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, isNull, gte, lte, asc, sql } from "drizzle-orm";
 import { sseManager } from "./sse";
@@ -506,7 +507,7 @@ After creating the contact, use add_interaction to log the key events (meetings,
         if (!cleaned.status) cleaned.status = "ACTIVE";
         if (!cleaned.stage) cleaned.stage = "LEAD";
         if (companyName) cleaned.companyId = await findOrCreateCompany(companyName);
-        const c = await storage.createContact(cleaned as any);
+        const c = await storage.createContact(cleaned as InsertContact);
         return {
           content: [
             {
@@ -997,7 +998,7 @@ Available exception types: ${EXCEPTION_TYPES.join(", ")}`,
     },
     async ({ ruleId, conditionParams, exceptions, ...data }) => {
       try {
-        const updates: Record<string, any> = Object.fromEntries(
+        const updates: Record<string, unknown> = Object.fromEntries(
           Object.entries(data).filter(([, v]) => v !== undefined),
         );
 
