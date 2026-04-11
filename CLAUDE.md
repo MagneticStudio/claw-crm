@@ -6,12 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 cd app
 npm run dev          # Dev server at localhost:3000
-npm run build        # Production build (vite + esbuild)
-npm run check        # TypeScript check (tsc --noEmit)
+npm run build        # Production build (vite + esbuild) — USE THIS to verify code compiles
 npm run db:push      # Push schema to Postgres (drizzle-kit)
 npm run db:seed      # Seed database (PIN: 1234)
 npm run test         # Playwright E2E tests
 ```
+
+**Do NOT run `npm run check` (tsc --noEmit).** It OOMs on this machine even at 8GB heap. Use `npm run build` instead — esbuild catches import/syntax errors and is what Railway uses for deploys.
 
 ## Architecture
 - Express + React + Postgres, all source in `app/`

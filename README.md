@@ -76,24 +76,33 @@ curl -H "X-API-Key: <key>" https://your-domain.com/api/contacts
 
 | Tool | Description |
 |------|-------------|
-| `get_crm_guide` | Returns full agent usage guide. Recommended first call. |
-| `search_contacts` | Find by name, company, stage, or status |
+| `get_crm_guide` | Returns agent usage guide + live CRM snapshot (counts, violations, meetings). Recommended first call. |
+| `get_dashboard` | High-level CRM summary: contacts by stage, overdue tasks, upcoming meetings, violations, recent activity. |
+| `search_contacts` | Find by name, company, stage, or status. Paginated. |
 | `get_contact` | Full contact with all related data |
 | `create_contact` | Add a new contact. Search first to avoid duplicates. |
 | `update_contact` | Modify contact fields |
 | `delete_contact` | Permanently delete a contact and all related data |
 | `add_interaction` | Log a note, email, meeting, or call |
 | `delete_interaction` | Remove a timeline entry |
-| `set_followup` | Create a follow-up task with due date |
+| `create_task` | Create a follow-up task or meeting (replaces `set_followup` + `set_meeting`) |
 | `complete_followup` | Mark done + log outcome to timeline |
-| `delete_followup` | Remove a task without completing it |
-| `list_rules` | All business rules |
+| `delete_followup` | Remove a task or meeting without completing it |
+| `list_rules` | All business rules. Paginated. |
 | `create_rule` | Add a business rule |
 | `update_rule` | Modify rule logic, params, exceptions, or enable/disable |
 | `delete_rule` | Remove a rule |
-| `list_violations` | Active rule violations |
+| `list_violations` | Active rule violations, enriched with contact names. Paginated. |
 
-Additional tools: `set_meeting`, `get_upcoming_meetings`, `cancel_meeting`, `save_briefing`, `get_briefing`.
+Additional tools: `get_upcoming_meetings` (paginated, with contact names), `cancel_meeting`, `save_briefing`, `get_briefing`.
+
+### MCP Tool Design
+
+Tools follow [Anthropic's best practices for agent tools](https://www.anthropic.com/engineering/writing-tools-for-agents):
+- **Enum validation**: Stage, status, severity, and type parameters use Zod enums derived from shared constants in `shared/schema.ts`
+- **Actionable errors**: Not-found errors tell you which tool to use to find valid IDs; common DB errors get auto-detected hints
+- **Pagination**: List tools accept `limit`/`offset` and return `{ results, totalCount, hasMore }`
+- **Enriched responses**: Violations and meetings include `contactName` alongside `contactId` to avoid N+1 lookups
 
 ---
 
