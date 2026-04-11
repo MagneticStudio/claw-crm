@@ -26,8 +26,6 @@ export function KanbanCard({ contact, accentColor, isDragOverlay, compact }: Kan
     .filter((f) => !f.completed && !f.cancelledAt)
     .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0];
 
-  const initials = `${contact.firstName[0]}${contact.lastName[0]}`;
-
   const companyFirstWord = contact.company?.name?.split(/\s+/)[0] || "";
 
   // Compact pill for mobile swimlanes
@@ -35,6 +33,7 @@ export function KanbanCard({ contact, accentColor, isDragOverlay, compact }: Kan
     const bubble = (
       <div
         className="flex-shrink-0 select-none cursor-grab active:cursor-grabbing"
+        data-contact-id={contact.id}
         style={{ opacity: isDragging ? 0.4 : 1 }}
       >
         <div
@@ -73,6 +72,7 @@ export function KanbanCard({ contact, accentColor, isDragOverlay, compact }: Kan
   const cardContent = (
     <div
       className="bg-white rounded-xl px-3 py-2.5 mb-2 cursor-grab active:cursor-grabbing select-none"
+      data-contact-id={contact.id}
       style={{
         border: `1px solid ${C.border}`,
         boxShadow: isDragOverlay ? "0 8px 24px rgba(0,0,0,0.15)" : "0 1px 3px rgba(0,0,0,0.04)",

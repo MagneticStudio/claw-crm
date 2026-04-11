@@ -239,7 +239,21 @@ export default function CrmPage() {
       )}
 
       {viewMode === "kanban" ? (
-        <KanbanBoard contacts={kanbanContacts} updateContact={updateContact} />
+        <KanbanBoard contacts={kanbanContacts} updateContact={updateContact} onContactTap={(id) => {
+          setActiveStage("ALL");
+          setViewMode("list");
+          // Poll for the element to appear in the DOM after React renders the list
+          let attempts = 0;
+          const tryScroll = () => {
+            const el = document.getElementById(`contact-${id}`);
+            if (el) {
+              el.scrollIntoView({ behavior: "smooth", block: "center" });
+            } else if (attempts++ < 20) {
+              requestAnimationFrame(tryScroll);
+            }
+          };
+          requestAnimationFrame(tryScroll);
+        }} />
       ) : (
         <main className="max-w-[640px] mx-auto px-4 py-5">
           {/* Upcoming — all follow-ups and meetings in one list */}
