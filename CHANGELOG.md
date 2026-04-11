@@ -2,6 +2,13 @@
 
 ## 2026-04-11
 
+### Redesign Kanban desktop view
+- Desktop Kanban now fits within the 640px main content width instead of full-width horizontal scroll
+- Uses compact pill-style cards (same as mobile) for consistency
+- Stages stacked in pairs as a snake layout: LEAD/MEETING → PROPOSAL/NEGOTIATION → LIVE/RELATIONSHIP
+- Removed PASS stage from both desktop and mobile Kanban views
+- Header stays at 640px max-width in both list and kanban modes
+
 ### MCP tool upgrades
 - **New `get_dashboard` tool**: One-call CRM snapshot — contacts by stage, overdue tasks, upcoming meetings (48h), violations by severity, recent activity. All with contact names pre-resolved.
 - **New `create_task` tool**: Consolidates `set_followup` and `set_meeting` into a single tool with a `type` parameter ("task" or "meeting"). Meeting-specific fields (meetingType, time, location) are optional params.

@@ -141,6 +141,7 @@ export function ContactBlock({
 
   return (
     <div
+      id={`contact-${contact.id}`}
       className={`relative bg-white mb-2 ${isInactive ? "opacity-50 hover:opacity-75" : ""}`}
       style={{ border: `1px solid ${C.border}`, borderRadius: "10px", padding: "0.75rem 1rem" }}
     >

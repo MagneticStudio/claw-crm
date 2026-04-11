@@ -134,7 +134,7 @@ export default function CrmPage() {
     <div className="min-h-screen" style={{ backgroundColor: "#f0f8f8" }}>
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: `1px solid ${C.border}` }}>
-        <div className={`${viewMode === "list" ? "max-w-[640px]" : ""} mx-auto px-4 py-3 flex items-center justify-between`}>
+        <div className="max-w-[640px] mx-auto px-4 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-[13px] font-semibold tracking-[0.2em] uppercase" style={{ color: C.text }}>
               {orgName}
@@ -239,7 +239,21 @@ export default function CrmPage() {
       )}
 
       {viewMode === "kanban" ? (
-        <KanbanBoard contacts={kanbanContacts} updateContact={updateContact} />
+        <KanbanBoard contacts={kanbanContacts} updateContact={updateContact} onContactTap={(id) => {
+          setActiveStage("ALL");
+          setViewMode("list");
+          // Poll for the element to appear in the DOM after React renders the list
+          let attempts = 0;
+          const tryScroll = () => {
+            const el = document.getElementById(`contact-${id}`);
+            if (el) {
+              el.scrollIntoView({ behavior: "smooth", block: "center" });
+            } else if (attempts++ < 20) {
+              requestAnimationFrame(tryScroll);
+            }
+          };
+          requestAnimationFrame(tryScroll);
+        }} />
       ) : (
         <main className="max-w-[640px] mx-auto px-4 py-5">
           {/* Upcoming — all follow-ups and meetings in one list */}

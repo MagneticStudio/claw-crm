@@ -22,7 +22,7 @@ if [ "$CHANGELOG_CHANGED" -eq 0 ]; then
 fi
 
 # 2. Check for recent E2E test screenshots (within last 30 minutes)
-RECENT_SCREENSHOTS=$(find .playwright-mcp -name "*.png" -mmin -30 2>/dev/null | head -1)
+RECENT_SCREENSHOTS=$(find e2e-screenshots -name "*.png" -mmin -30 2>/dev/null | head -1)
 if [ -z "$RECENT_SCREENSHOTS" ]; then
   ERRORS="$ERRORS No recent E2E test screenshots — run the E2E test skill first."
 fi

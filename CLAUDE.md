@@ -23,7 +23,9 @@ npm run test         # Playwright E2E tests
 ## Conventions
 - Stage = pipeline position: LEAD → MEETING → PROPOSAL → NEGOTIATION → LIVE → PASS, plus RELATIONSHIP
 - Status = ACTIVE or HOLD. HOLD is NOT a stage.
+- Valid values for stages, statuses, etc. are defined as shared constants in `shared/schema.ts`.
 - Feature branches + PRs only. Never push to main.
+- MCP tool `create_task` handles both follow-ups (type "task") and meetings (type "meeting").
 - Follow-ups are tasks. When completed, log the outcome as an interaction.
 - Meetings are future events. After they happen, log as an interaction.
 - Style: Montserrat font, teal palette (#2bbcb3), 640px max-width, 12px border-radius cards.
