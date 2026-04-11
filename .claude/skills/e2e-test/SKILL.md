@@ -5,7 +5,7 @@ Run this skill before creating any PR. It verifies the app works end-to-end by u
 ## Prerequisites
 - Dev server running (`npm run dev` from `app/`)
 - Database seeded (`npm run db:seed` — PIN is 1234)
-- Playwright MCP available for browser automation
+- Claude-in-Chrome browser extension (primary). Playwright MCP is a fallback only.
 
 ## Steps
 
@@ -21,7 +21,7 @@ curl -s http://localhost:3000/api/user  # should return 401 (not authenticated)
 - Should redirect to `/auth` with "MAGNETIC ADVISORS" and "Enter PIN"
 - Enter PIN `1234`, click Unlock
 - Should see the CRM page with contacts loaded
-- **Screenshot the CRM page**
+- **Screenshot the CRM page** → save to `e2e-screenshots/`
 
 ### 3. UI: Add a note
 - Find the first contact's input field (`placeholder*="note"`)
@@ -68,8 +68,10 @@ curl -s http://localhost:3000/api/user  # should return 401 (not authenticated)
 - **Screenshot the updated badge**
 
 ### 7. MCP: Search contacts
-- Call the MCP endpoint POST `/mcp/{MCP_TOKEN}` with `tools/call` → `search_contacts` (token from .env or server config)
-- Verify it returns contact data with names, stages, statuses
+- Get the MCP token: `curl -s -b <cookie-jar> http://localhost:3000/api/settings | python3 -c "import sys,json; print(json.load(sys.stdin)['mcpToken'])"`
+- Initialize MCP session with `method: "initialize"` (must include `Accept: application/json, text/event-stream` header)
+- Call `search_contacts` with a known contact name
+- Verify response contains `results` array with contact data (name, stage, status) and `totalCount`
 
 ### 8. MCP: Add interaction via agent
 - Call `add_interaction` via MCP with a test note
@@ -79,7 +81,7 @@ curl -s http://localhost:3000/api/user  # should return 401 (not authenticated)
 
 ### 9. MCP: Get dashboard
 - Call `get_dashboard` via MCP
-- Verify it returns `totalContacts`, `activeContacts`, `stageCounts`
+- Verify it returns `totalContacts`, `byStage`, `overdueTasks`, and `activeViolations`
 
 ### 10. Cleanup
 - Kill the dev server
@@ -87,6 +89,9 @@ curl -s http://localhost:3000/api/user  # should return 401 (not authenticated)
 
 ## Success Criteria
 All 10 steps pass. Screenshots captured for visual verification. If any step fails, fix the issue before creating the PR.
+
+## Screenshot Storage
+Save screenshots to `e2e-screenshots/` in the project root. The pre-PR hook checks for recent screenshots (last 30 minutes) in `e2e-screenshots/`.
 
 ## How to Invoke
 ```
