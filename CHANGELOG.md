@@ -2,6 +2,12 @@
 
 ## 2026-04-11
 
+### Simplify header: filter + menu dropdowns
+- Replaced 6 header buttons + pill row with 2 icons: filter and menu
+- Filter dropdown: stages in pipeline order with counts, single-select, tap to toggle
+- Menu dropdown: list/kanban toggle, rules, settings, activity log, logout — all with icons + labels
+- Filter icon tints accent color when a stage filter is active
+
 ### Add lint + format checks to CI, branch protection
 - CI now runs `eslint --max-warnings 0` and `prettier --check` before build/test
 - Branch protection enabled on main: requires PR, CI pass, no force push

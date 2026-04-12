@@ -32,6 +32,7 @@ npm run test         # Playwright E2E tests
 - Follow-ups are tasks. When completed, log the outcome as an interaction.
 - Meetings are future events. After they happen, log as an interaction.
 - Style: Montserrat font, teal palette (#2bbcb3), 640px max-width, 12px border-radius cards.
+- Keep the UI minimal — every visible element must earn its place. Prefer hidden menus over persistent buttons.
 
 ## Code quality
 - Run `npm run lint:fix` after making changes. It autofixes type imports, const/let, and equality operators.
