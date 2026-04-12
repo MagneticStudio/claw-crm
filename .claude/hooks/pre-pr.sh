@@ -21,10 +21,14 @@ if [ "$CHANGELOG_CHANGED" -eq 0 ]; then
   ERRORS="$ERRORS CHANGELOG.md not updated."
 fi
 
-# 2. Check for recent E2E test screenshots (within last 30 minutes)
-RECENT_SCREENSHOTS=$(find e2e-screenshots -name "*.png" -mmin -30 2>/dev/null | head -1)
-if [ -z "$RECENT_SCREENSHOTS" ]; then
-  ERRORS="$ERRORS No recent E2E test screenshots — run the E2E test skill first."
+# 2. Check for recent E2E run manifest (within last 30 minutes, result = pass)
+RUN_MANIFEST="e2e-screenshots/run.json"
+if [ ! -f "$RUN_MANIFEST" ]; then
+  ERRORS="$ERRORS No E2E run manifest — run the E2E test skill first."
+elif ! find "$RUN_MANIFEST" -mmin -30 2>/dev/null | grep -q .; then
+  ERRORS="$ERRORS E2E run manifest is stale (>30 min) — re-run the E2E test skill."
+elif ! python3 -c "import json; d=json.load(open('$RUN_MANIFEST')); exit(0 if d.get('result')=='pass' else 1)" 2>/dev/null; then
+  ERRORS="$ERRORS E2E run manifest shows failures — fix them before creating a PR."
 fi
 
 # 3. Check lint passes (errors only — warnings are OK)

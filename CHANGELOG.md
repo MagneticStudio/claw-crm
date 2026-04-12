@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-04-12
+
+### Improve E2E testing and add grill-me skill
+- E2E screenshots now named by step (`01-crm-loaded.png`, etc.) and wiped at start of each run
+- E2E skill writes a `run.json` manifest with branch, timestamp, and per-step results
+- Pre-PR hook validates the manifest (exists, recent, passing) instead of just checking for any recent PNG
+- `e2e-screenshots/` added to .gitignore — ephemeral proof, not committed artifacts
+- CLAUDE.md updated: after adding a major feature, update E2E skill with new steps before running it
+- New `/grill-me` skill: structured Q&A to stress-test a plan or design before implementation
+
 ## 2026-04-11
 
 ### Simplify header: filter + menu dropdowns

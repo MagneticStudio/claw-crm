@@ -44,8 +44,9 @@ npm run test         # Playwright E2E tests
 
 ## Before submitting a PR
 1. Run the E2E test skill (`.claude/skills/e2e-test/SKILL.md`): start dev server, test UI + MCP flows, screenshot each step. Do not create PR if any step fails.
-2. Update README.md if the PR changes architecture, adds tools, or changes how things work.
-3. Add a CHANGELOG.md entry describing what changed.
+2. If the PR adds a major user-facing feature, add new steps to the E2E test skill covering the feature's key flows before running it.
+3. Update README.md if the PR changes architecture, adds tools, or changes how things work.
+4. Add a CHANGELOG.md entry describing what changed.
 
 ## Watch out for
 - Dates render in UTC (fmtDate in `lib/utils.ts`). Using `format()` from date-fns causes off-by-one timezone bugs.
