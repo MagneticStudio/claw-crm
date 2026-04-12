@@ -7,6 +7,36 @@ Run this skill before creating any PR. It verifies the app works end-to-end by u
 - Database seeded (`npm run db:seed` — PIN is 1234)
 - Claude-in-Chrome browser extension (primary). Playwright MCP is a fallback only.
 
+## Screenshot Protocol
+
+Before running any steps, wipe the screenshot directory and start fresh:
+```bash
+rm -rf e2e-screenshots && mkdir -p e2e-screenshots
+```
+
+Name every screenshot by step number and description:
+- `e2e-screenshots/01-crm-loaded.png`
+- `e2e-screenshots/02-note-added.png`
+- `e2e-screenshots/03-task-created.png`
+- etc.
+
+After all steps complete, write a manifest file:
+```bash
+# e2e-screenshots/run.json
+{
+  "branch": "<current git branch>",
+  "timestamp": "<ISO 8601>",
+  "steps": {
+    "01-crm-loaded": "pass",
+    "02-note-added": "pass",
+    ...
+  },
+  "result": "pass"   // or "fail"
+}
+```
+
+The pre-PR hook validates this manifest exists and is recent.
+
 ## Steps
 
 ### 1. Start dev server
@@ -21,28 +51,28 @@ curl -s http://localhost:3000/api/user  # should return 401 (not authenticated)
 - Should redirect to `/auth` with "MAGNETIC ADVISORS" and "Enter PIN"
 - Enter PIN `1234`, click Unlock
 - Should see the CRM page with contacts loaded
-- **Screenshot the CRM page** → save to `e2e-screenshots/`
+- **Screenshot** → `e2e-screenshots/01-crm-loaded.png`
 
 ### 3. UI: Add a note
 - Find the first contact's input field (`placeholder*="note"`)
 - Type: `E2E test note: verified app works`
 - Press Enter
 - Verify the note appears in the contact's timeline with today's date
-- **Screenshot the contact showing the new note**
+- **Screenshot** → `e2e-screenshots/02-note-added.png`
 
 ### 4. UI: Create a task (follow-up)
 - In the same input, type: `/fu 12/31 E2E test task`
 - Verify the command hint appears ("task ready")
 - Press Enter
 - Verify a task item appears with □ checkbox, `12/31`, and the text
-- **Screenshot the task**
+- **Screenshot** → `e2e-screenshots/03-task-created.png`
 
 ### 4b. UI: Create a meeting
 - Type: `/mtg 12/25 2pm E2E test meeting @ Test Location`
 - Verify the command hint appears in blue ("meeting ready")
 - Press Enter
 - Verify a meeting item appears with 📅 icon, `12/25 2:00 PM`, content, and location
-- **Screenshot the meeting**
+- **Screenshot** → `e2e-screenshots/04-meeting-created.png`
 
 ### 4c. UI: Edit a follow-up date
 - Click on the task created in step 4 to enter edit mode
@@ -51,7 +81,7 @@ curl -s http://localhost:3000/api/user  # should return 401 (not authenticated)
 - Verify the flash says "Updated"
 - **Reload the page** (navigate to `/` again)
 - After reload, find the same follow-up and verify the date is the NEW date, not the original
-- **Screenshot the follow-up showing the persisted date change**
+- **Screenshot** → `e2e-screenshots/05-date-edit-persisted.png`
 
 ### 5. UI: Complete the task
 - Click the square checkbox on the follow-up
@@ -59,13 +89,13 @@ curl -s http://localhost:3000/api/user  # should return 401 (not authenticated)
 - Type an outcome: `E2E test: follow-up completed successfully`
 - Click Done
 - Verify the follow-up disappears and the outcome appears in the timeline
-- **Screenshot the timeline showing the outcome**
+- **Screenshot** → `e2e-screenshots/06-task-completed.png`
 
 ### 6. UI: Change stage via command
 - Type `/stage PROPOSAL` in a contact's input
 - Press Enter
 - Verify the stage badge updates to PROPOSAL
-- **Screenshot the updated badge**
+- **Screenshot** → `e2e-screenshots/07-stage-changed.png`
 
 ### 7. MCP: Search contacts
 - Get the MCP token: `curl -s -b <cookie-jar> http://localhost:3000/api/settings | python3 -c "import sys,json; print(json.load(sys.stdin)['mcpToken'])"`
@@ -77,7 +107,7 @@ curl -s http://localhost:3000/api/user  # should return 401 (not authenticated)
 - Call `add_interaction` via MCP with a test note
 - Navigate to the CRM page in the browser
 - Verify the agent's note appears in the contact's timeline (SSE push)
-- **Screenshot showing the agent-written note appeared in the UI**
+- **Screenshot** → `e2e-screenshots/08-mcp-agent-note.png`
 
 ### 9. MCP: Get dashboard
 - Call `get_dashboard` via MCP
@@ -85,13 +115,11 @@ curl -s http://localhost:3000/api/user  # should return 401 (not authenticated)
 
 ### 10. Cleanup
 - Kill the dev server
+- Write `e2e-screenshots/run.json` manifest with branch, timestamp, and per-step results
 - Report: PASS or FAIL with details of any failures
 
 ## Success Criteria
 All 10 steps pass. Screenshots captured for visual verification. If any step fails, fix the issue before creating the PR.
-
-## Screenshot Storage
-Save screenshots to `e2e-screenshots/` in the project root. The pre-PR hook checks for recent screenshots (last 30 minutes) in `e2e-screenshots/`.
 
 ## How to Invoke
 ```
