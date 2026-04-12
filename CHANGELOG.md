@@ -2,6 +2,10 @@
 
 ## 2026-04-12
 
+### README rewrite for open source
+- Rewrote README as a public splash page: product pitch first, technical details after
+- Added 3 screenshots: notebook view, settings (MCP connection), rules engine (live violations)
+
 ### Improve E2E testing and add grill-me skill
 - E2E screenshots now named by step (`01-crm-loaded.png`, etc.) and wiped at start of each run
 - E2E skill writes a `run.json` manifest with branch, timestamp, and per-step results
