@@ -1,4 +1,4 @@
-const CACHE_NAME = 'magnetic-crm-v1';
+const CACHE_NAME = 'claw-crm-v1';
 const SHELL_ASSETS = ['/'];
 
 // Cache the app shell on install

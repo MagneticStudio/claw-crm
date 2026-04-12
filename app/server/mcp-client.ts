@@ -4,9 +4,13 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import type { ContactWithRelations, RuleViolation, Rule, Interaction, Followup } from "@shared/schema";
 
-const CRM_URL = process.env.CRM_URL || "https://crm.magneticadvisors.ai";
+const CRM_URL = process.env.CRM_URL;
 const API_KEY = process.env.CRM_API_KEY || "";
 
+if (!CRM_URL) {
+  console.error("CRM_URL is required — set it in your environment or Claude Desktop config");
+  process.exit(1);
+}
 if (!API_KEY) {
   console.error("CRM_API_KEY is required");
   process.exit(1);

@@ -229,6 +229,6 @@
 - MCP server with 20+ tools
 - Rules engine: reactive + scheduled evaluation
 - SSE real-time updates
-- Seeded with 11 contacts from Magnetic Advisors pipeline
-- Deployed to Railway at crm.magneticadvisors.ai
+- Seeded with demo contacts and pipeline data
+- Deployed to Railway
 - PWA for iOS + Pake Mac desktop app
