@@ -17,7 +17,8 @@ async function seed() {
   await db.insert(users).values({ pin, apiKey, mcpToken, orgName: "Claw CRM" }).returning();
   console.log(`Created user — PIN: 1234, API key: ${apiKey}, MCP token: ${mcpToken}`);
 
-  const d = (m: number, day: number) => toNoonUTC(new Date(2026, m - 1, day));
+  /** Days from today → noon UTC. Negative = past, positive = future. */
+  const d = (daysFromToday: number) => toNoonUTC(new Date(Date.now() + daysFromToday * 86_400_000));
 
   // Companies
   const companyData = [
@@ -60,32 +61,32 @@ async function seed() {
   await db.insert(interactions).values([
     {
       contactId: sarah.id,
-      date: d(1, 15),
+      date: d(-87),
       content: "Intro call. Sarah interested in AI advisory for portfolio companies.",
       type: "meeting",
     },
     {
       contactId: sarah.id,
-      date: d(2, 1),
+      date: d(-70),
       content: "Proposal sent. 3-month engagement, 4 portfolio companies.",
       type: "email",
     },
     {
       contactId: sarah.id,
-      date: d(2, 10),
+      date: d(-61),
       content: "Sarah signed. Kicking off with first portfolio company next week.",
       type: "note",
     },
     {
       contactId: sarah.id,
-      date: d(3, 15),
+      date: d(-28),
       content: "Monthly check-in. Two companies showing strong AI adoption progress.",
       type: "meeting",
     },
   ]);
   await db.insert(followups).values({
     contactId: sarah.id,
-    dueDate: d(4, 1),
+    dueDate: d(2),
     content: "Prep Q2 portfolio review deck",
     type: "task",
     completed: false,
@@ -112,21 +113,21 @@ async function seed() {
   await db.insert(interactions).values([
     {
       contactId: marcus.id,
-      date: d(3, 5),
+      date: d(-38),
       content: "Intro via Sarah Chen. Marcus wants AI enablement for engineering team.",
       type: "note",
     },
     {
       contactId: marcus.id,
-      date: d(3, 12),
+      date: d(-31),
       content: "Discovery call. 45 min. Team of 30 engineers, mostly Python. Want to integrate LLMs into QA pipeline.",
       type: "meeting",
     },
-    { contactId: marcus.id, date: d(3, 20), content: "Proposal sent. 6-week sprint, $25K.", type: "email" },
+    { contactId: marcus.id, date: d(-23), content: "Proposal sent. 6-week sprint, $25K.", type: "email" },
   ]);
   await db.insert(followups).values({
     contactId: marcus.id,
-    dueDate: d(4, 3),
+    dueDate: d(5),
     content: "Follow up on proposal — Marcus said he'd review over weekend",
     type: "task",
     completed: false,
@@ -154,20 +155,20 @@ async function seed() {
   await db.insert(interactions).values([
     {
       contactId: elena.id,
-      date: d(3, 1),
+      date: d(-42),
       content: "Cold outreach via LinkedIn. Elena responded same day — interested.",
       type: "email",
     },
     {
       contactId: elena.id,
-      date: d(3, 10),
+      date: d(-33),
       content:
         "First call. 30 min. Elena described maintenance challenges across 500 sites. AI could predict panel failures.",
       type: "meeting",
     },
     {
       contactId: elena.id,
-      date: d(3, 22),
+      date: d(-21),
       content: "Elena introduced Mike Torres (CTO). Scheduling a technical deep-dive.",
       type: "email",
     },
@@ -175,14 +176,14 @@ async function seed() {
   await db.insert(followups).values([
     {
       contactId: elena.id,
-      dueDate: d(4, 2),
+      dueDate: d(3),
       content: "Schedule technical call with Mike Torres",
       type: "task",
       completed: false,
     },
     {
       contactId: elena.id,
-      dueDate: d(4, 8),
+      dueDate: d(9),
       content: "Coffee with Elena",
       type: "meeting",
       time: "10:00 AM",
@@ -212,39 +213,39 @@ async function seed() {
   await db.insert(interactions).values([
     {
       contactId: james.id,
-      date: d(2, 15),
+      date: d(-56),
       content: "David Kim intro'd. James looking for AI strategy consultant across their portfolio.",
       type: "note",
     },
     {
       contactId: james.id,
-      date: d(2, 25),
+      date: d(-46),
       content: "Zoom call. James outlined 12-company portfolio. Wants phased approach starting with 3 companies.",
       type: "meeting",
     },
     {
       contactId: james.id,
-      date: d(3, 5),
+      date: d(-38),
       content: "Proposal sent. $75K for Phase 1 (3 companies, 12 weeks).",
       type: "email",
     },
     {
       contactId: james.id,
-      date: d(3, 18),
-      content: "James: 'Proposal looks good. Need to run it by our investment committee. They meet April 5.'",
+      date: d(-25),
+      content: "James: 'Proposal looks good. Need to run it by our investment committee.'",
       type: "email",
     },
     {
       contactId: james.id,
-      date: d(3, 25),
+      date: d(-18),
       content: "Followed up. James confirmed committee meeting is on track.",
       type: "email",
     },
   ]);
   await db.insert(followups).values({
     contactId: james.id,
-    dueDate: d(4, 7),
-    content: "Check in after investment committee meeting (April 5)",
+    dueDate: d(8),
+    content: "Check in after investment committee meeting",
     type: "task",
     completed: false,
   });
@@ -269,15 +270,15 @@ async function seed() {
   await db.insert(interactions).values([
     {
       contactId: priya.id,
-      date: d(3, 20),
+      date: d(-23),
       content: "Met at YC Demo Day. Priya interested in AI ops advisory.",
       type: "meeting",
     },
-    { contactId: priya.id, date: d(3, 22), content: "Sent follow-up email with case study.", type: "email" },
+    { contactId: priya.id, date: d(-21), content: "Sent follow-up email with case study.", type: "email" },
   ]);
   await db
     .insert(followups)
-    .values({ contactId: priya.id, dueDate: d(4, 5), content: "Schedule intro call", type: "task", completed: false });
+    .values({ contactId: priya.id, dueDate: d(6), content: "Schedule intro call", type: "task", completed: false });
 
   // --- David Kim — Pacific Ventures (MEETING, HOLD) ---
   const [david] = await db
@@ -299,14 +300,14 @@ async function seed() {
   await db.insert(interactions).values([
     {
       contactId: david.id,
-      date: d(2, 10),
+      date: d(-61),
       content:
         "Caught up at climate tech conference. David not ready for advisory engagement but referred Northbridge.",
       type: "meeting",
     },
     {
       contactId: david.id,
-      date: d(3, 1),
+      date: d(-42),
       content: "Moved to HOLD. Good relationship, not a current prospect.",
       type: "note",
     },
@@ -332,20 +333,20 @@ async function seed() {
   await db.insert(interactions).values([
     {
       contactId: rachel.id,
-      date: d(2, 14),
+      date: d(-57),
       content: "Caught up over lunch. Rachel's company is growing fast.",
       type: "meeting",
     },
     {
       contactId: rachel.id,
-      date: d(3, 10),
+      date: d(-33),
       content: "Shared an article on AI in media. Rachel replied: 'Great read, thanks!'",
       type: "email",
     },
   ]);
   await db
     .insert(followups)
-    .values({ contactId: rachel.id, dueDate: d(4, 15), content: "Coffee catch-up", type: "task", completed: false });
+    .values({ contactId: rachel.id, dueDate: d(16), content: "Coffee catch-up", type: "task", completed: false });
 
   // --- Tom Nakamura — Sterling Advisors (PASS) ---
   const [tom] = await db
@@ -367,19 +368,19 @@ async function seed() {
   await db.insert(interactions).values([
     {
       contactId: tom.id,
-      date: d(2, 5),
+      date: d(-66),
       content: "Cold email. Tom replied, interested in AI for due diligence.",
       type: "email",
     },
     {
       contactId: tom.id,
-      date: d(2, 15),
+      date: d(-56),
       content: "Call. Realized they want a full-time AI hire, not advisory. Not a fit.",
       type: "meeting",
     },
     {
       contactId: tom.id,
-      date: d(2, 16),
+      date: d(-55),
       content: "Moved to PASS. Offered to help with job spec if needed.",
       type: "note",
     },
