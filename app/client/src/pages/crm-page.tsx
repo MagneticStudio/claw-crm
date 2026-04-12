@@ -4,7 +4,21 @@ import { useCrm } from "@/hooks/use-crm";
 import { useSSE } from "@/hooks/use-sse";
 import { useAuth } from "@/hooks/use-auth";
 import { ContactBlock } from "@/components/contact-block";
-import { Loader2, LogOut, Settings, Square, Activity, X, ChevronDown, Zap, LayoutList, Kanban } from "lucide-react";
+import {
+  Loader2,
+  LogOut,
+  Settings,
+  Square,
+  Activity,
+  X,
+  ChevronDown,
+  Zap,
+  LayoutList,
+  Kanban,
+  SlidersHorizontal,
+  Menu,
+  Check,
+} from "lucide-react";
 import { KanbanBoard } from "@/components/kanban/kanban-board";
 import { Link } from "wouter";
 import { format, isPast, isToday, differenceInDays } from "date-fns";
@@ -12,7 +26,8 @@ import type { Followup, ActivityLogEntry, Briefing } from "@shared/schema";
 import { fmtDate } from "@/lib/utils";
 import { useConfig, useColors } from "@/App";
 
-const STAGES = ["ALL", "NEGOTIATION", "PROPOSAL", "MEETING", "LEAD", "LIVE", "RELATIONSHIP", "PASS"] as const;
+// Pipeline order (funnel flow, top to bottom)
+const STAGES = ["ALL", "LEAD", "MEETING", "PROPOSAL", "NEGOTIATION", "LIVE", "RELATIONSHIP", "PASS"] as const;
 
 const STAGE_ACCENT: Record<string, string> = {
   LIVE: "#2e7d32",
@@ -58,6 +73,8 @@ export default function CrmPage() {
   useEffect(() => {
     localStorage.setItem("crm-view-mode", viewMode);
   }, [viewMode]);
+  const [showFilter, setShowFilter] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   useSSE();
 
   const sortedContacts = useMemo(() => {
@@ -182,83 +199,167 @@ export default function CrmPage() {
               {allFollowups.length > 0 && ` · ${allFollowups.length} follow-up${allFollowups.length !== 1 ? "s" : ""}`}
             </p>
           </div>
-          <div className="flex items-center gap-1">
-            {/* View mode toggle */}
-            <div className="flex items-center rounded-lg mr-1" style={{ border: `1px solid ${C.border}` }}>
-              <button
-                onClick={() => setViewMode("list")}
-                className="p-1.5 rounded-l-lg transition-colors"
-                style={{
-                  backgroundColor: viewMode === "list" ? C.accent : "transparent",
-                  color: viewMode === "list" ? "#fff" : C.muted,
-                }}
-                title="List view"
-              >
-                <LayoutList className="h-3.5 w-3.5" />
-              </button>
-              <button
-                onClick={() => setViewMode("kanban")}
-                className="p-1.5 rounded-r-lg transition-colors"
-                style={{
-                  backgroundColor: viewMode === "kanban" ? C.accent : "transparent",
-                  color: viewMode === "kanban" ? "#fff" : C.muted,
-                }}
-                title="Kanban view"
-              >
-                <Kanban className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            <Link href="/rules" className="p-2 transition-colors" style={{ color: C.muted }} title="Rules">
-              <Zap className="h-4 w-4" />
-            </Link>
-            <Link href="/settings" className="p-2 transition-colors" style={{ color: C.muted }} title="Settings">
-              <Settings className="h-4 w-4" />
-            </Link>
+          <div className="flex items-center gap-0.5 relative">
+            {/* Filter button */}
             <button
-              onClick={() => setShowActivityDrawer(!showActivityDrawer)}
-              className="p-2 transition-colors relative"
-              style={{ color: C.muted }}
-              title="Activity Log"
+              onClick={() => {
+                setShowFilter(!showFilter);
+                setShowMenu(false);
+              }}
+              className="p-2 transition-colors"
+              style={{ color: activeStage !== "ALL" ? C.accent : C.muted }}
+              title="Filter by stage"
             >
-              <Activity className="h-4 w-4" />
+              <SlidersHorizontal className="h-4 w-4" />
             </button>
+
+            {/* Menu button */}
             <button
-              onClick={() => logoutMutation.mutate()}
+              onClick={() => {
+                setShowMenu(!showMenu);
+                setShowFilter(false);
+              }}
               className="p-2 transition-colors"
               style={{ color: C.muted }}
+              title="Menu"
             >
-              <LogOut className="h-4 w-4" />
+              <Menu className="h-4 w-4" />
             </button>
+
+            {/* Filter dropdown */}
+            {showFilter && (
+              <>
+                <div className="fixed inset-0 z-[59]" onClick={() => setShowFilter(false)} />
+                <div
+                  className="absolute right-8 top-10 z-[60] py-1"
+                  style={{
+                    backgroundColor: "#fff",
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 12,
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                    minWidth: 180,
+                  }}
+                >
+                  {STAGES.map((stage) => {
+                    const count = stageCounts[stage] || 0;
+                    const isActive = activeStage === stage;
+                    const label = stage === "ALL" ? "All" : stage.charAt(0) + stage.slice(1).toLowerCase();
+                    return (
+                      <button
+                        key={stage}
+                        onClick={() => {
+                          setActiveStage(isActive && stage !== "ALL" ? "ALL" : stage);
+                          setShowFilter(false);
+                        }}
+                        className="w-full flex items-center justify-between px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-50"
+                        style={{
+                          color: stage !== "ALL" && count === 0 ? `${C.muted}80` : isActive ? C.accent : C.text,
+                          fontWeight: isActive ? 600 : 400,
+                        }}
+                      >
+                        <span>{label}</span>
+                        <span className="flex items-center gap-2">
+                          {stage !== "ALL" && (
+                            <span className="text-[11px]" style={{ color: C.muted }}>
+                              {count}
+                            </span>
+                          )}
+                          {isActive && <Check className="h-3.5 w-3.5" style={{ color: C.accent }} />}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {/* Menu dropdown */}
+            {showMenu && (
+              <>
+                <div className="fixed inset-0 z-[59]" onClick={() => setShowMenu(false)} />
+                <div
+                  className="absolute right-0 top-10 z-[60] py-1"
+                  style={{
+                    backgroundColor: "#fff",
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 12,
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                    minWidth: 200,
+                  }}
+                >
+                  {/* View toggle */}
+                  <button
+                    onClick={() => {
+                      setViewMode("list");
+                      setShowMenu(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-50"
+                    style={{ color: viewMode === "list" ? C.accent : C.text }}
+                  >
+                    <LayoutList className="h-4 w-4" style={{ color: viewMode === "list" ? C.accent : C.muted }} />
+                    <span style={{ fontWeight: viewMode === "list" ? 600 : 400 }}>List view</span>
+                    {viewMode === "list" && <Check className="h-3.5 w-3.5 ml-auto" style={{ color: C.accent }} />}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setViewMode("kanban");
+                      setShowMenu(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-50"
+                    style={{ color: viewMode === "kanban" ? C.accent : C.text }}
+                  >
+                    <Kanban className="h-4 w-4" style={{ color: viewMode === "kanban" ? C.accent : C.muted }} />
+                    <span style={{ fontWeight: viewMode === "kanban" ? 600 : 400 }}>Kanban view</span>
+                    {viewMode === "kanban" && <Check className="h-3.5 w-3.5 ml-auto" style={{ color: C.accent }} />}
+                  </button>
+
+                  <div className="my-1" style={{ borderTop: `1px solid ${C.border}` }} />
+
+                  <Link
+                    href="/rules"
+                    onClick={() => setShowMenu(false)}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-50"
+                    style={{ color: C.text }}
+                  >
+                    <Zap className="h-4 w-4" style={{ color: C.muted }} />
+                    <span>Rules</span>
+                  </Link>
+                  <Link
+                    href="/settings"
+                    onClick={() => setShowMenu(false)}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-50"
+                    style={{ color: C.text }}
+                  >
+                    <Settings className="h-4 w-4" style={{ color: C.muted }} />
+                    <span>Settings</span>
+                  </Link>
+                  <button
+                    onClick={() => {
+                      setShowActivityDrawer(!showActivityDrawer);
+                      setShowMenu(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-50"
+                    style={{ color: C.text }}
+                  >
+                    <Activity className="h-4 w-4" style={{ color: C.muted }} />
+                    <span>Activity Log</span>
+                  </button>
+
+                  <div className="my-1" style={{ borderTop: `1px solid ${C.border}` }} />
+
+                  <button
+                    onClick={() => logoutMutation.mutate()}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-50"
+                    style={{ color: C.text }}
+                  >
+                    <LogOut className="h-4 w-4" style={{ color: C.muted }} />
+                    <span>Log out</span>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
-
-        {/* Stage filter pills — list view only */}
-        {viewMode === "list" && (
-          <div className="max-w-[640px] mx-auto px-4 pb-2.5 flex gap-1.5 overflow-x-auto">
-            {STAGES.map((stage) => {
-              const count = stageCounts[stage] || 0;
-              if (stage !== "ALL" && count === 0) return null;
-              const isActive = activeStage === stage;
-              return (
-                <button
-                  key={stage}
-                  onClick={() => setActiveStage(stage)}
-                  className="px-3 py-1 rounded-full text-[11px] font-medium whitespace-nowrap transition-all"
-                  style={
-                    isActive
-                      ? { backgroundColor: C.accent, color: "#ffffff" }
-                      : { backgroundColor: "transparent", color: C.muted, border: `1px solid ${C.border}` }
-                  }
-                >
-                  {stage === "ALL" ? "All" : stage.charAt(0) + stage.slice(1).toLowerCase()}
-                  <span className="ml-1" style={{ opacity: 0.7 }}>
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        )}
       </header>
 
       {/* Activity drawer */}
