@@ -1,8 +1,84 @@
 # Claw CRM
 
-AI-first personal CRM. A single scrollable notebook view of your entire pipeline — built for one operator, not a sales team. Agents do the work, humans verify.
+**AI-native personal CRM for solo operators.** One scrollable notebook view of your entire pipeline — contacts, interactions, follow-ups, meetings, and rule violations in a single stream. AI agents do the data entry; you make the decisions.
 
----
+![Claw CRM — notebook view](app/client/public/screenshot.png)
+
+## Why Claw
+
+Most CRMs are built for sales teams. Claw is built for one person managing 10-50 high-touch relationships — advisors, investors, founders, partners. No dashboards, no charts, no seat licenses. Just a notebook you scroll through every morning.
+
+- **Notebook view** — your entire pipeline in one scrollable feed, sorted by urgency
+- **Slash commands** — `/fu 4/15 check on proposal`, `/mtg 4/3 2pm Coffee @ Verve`, `/stage PROPOSAL`
+- **AI agents write, you verify** — Claude connects via MCP and manages your CRM through 16+ tools
+- **Rules engine** — business logic stored as data, not code. "Flag contacts with no interaction for 14 days." Agents can create, modify, and delete rules.
+- **Real-time** — SSE pushes every change to the UI instantly, whether you or an agent made it
+- **Privacy-first** — PIN-locked, teal privacy screen on window blur, no pricing or deal terms stored
+
+## Quick Start
+
+```bash
+cd app
+cp .env.example .env   # set DATABASE_URL and SESSION_SECRET
+npm install
+npm run db:push        # push schema to Postgres
+npm run db:seed        # seed with demo data (PIN: 1234)
+npm run dev            # http://localhost:3000
+```
+
+## AI Agent Integration
+
+![Settings — MCP connection and API key](app/client/public/screenshot-settings.png)
+
+Claw exposes a full [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server so Claude (or any MCP-compatible agent) can manage your CRM autonomously.
+
+### Remote MCP (Claude Web, Desktop, Mobile)
+
+**URL**: `https://your-domain.com/mcp/<TOKEN>`
+
+Set up in Claude: **Settings** > **Custom Connectors** > **Add** > paste the MCP URL > leave OAuth blank > **Add**.
+
+### Local MCP (Claude Desktop, Claude Code)
+
+Uses `mcp-client.ts` which calls the REST API over HTTP:
+
+```json
+{
+  "mcpServers": {
+    "claw-crm": {
+      "command": "npx",
+      "args": ["tsx", "/path/to/claw-crm/app/server/mcp-client.ts"],
+      "env": {
+        "CRM_URL": "http://localhost:3000",
+        "CRM_API_KEY": "<your-api-key>"
+      }
+    }
+  }
+}
+```
+
+### MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `get_crm_guide` | Agent usage guide + live CRM snapshot. Recommended first call. |
+| `get_dashboard` | Contacts by stage, overdue tasks, upcoming meetings, violations. |
+| `search_contacts` | Find by name, company, stage, or status. Paginated. |
+| `get_contact` | Full contact with all related data. |
+| `create_contact` | Add a new contact. |
+| `update_contact` | Modify contact fields. |
+| `delete_contact` | Permanently delete a contact and all related data. |
+| `add_interaction` | Log a note, email, meeting, or call. |
+| `delete_interaction` | Remove a timeline entry. |
+| `create_task` | Create a follow-up task or meeting. |
+| `complete_followup` | Mark done + log outcome to timeline. |
+| `delete_followup` | Remove a task or meeting. |
+| `list_rules` / `create_rule` / `update_rule` / `delete_rule` | Manage business rules. |
+| `list_violations` | Active rule violations with contact names. |
+| `get_upcoming_meetings` / `cancel_meeting` | Meeting management. |
+| `save_briefing` / `get_briefing` | Per-contact prep notes. |
+
+Tools follow [Anthropic's best practices](https://www.anthropic.com/engineering/writing-tools-for-agents): enum validation, actionable errors, pagination, enriched responses.
 
 ## Architecture
 
@@ -14,212 +90,63 @@ AI-first personal CRM. A single scrollable notebook view of your entire pipeline
                               (primary write path — agents)
 ```
 
-- **Core**: Postgres — contacts, companies, interactions, follow-ups, rules, violations, briefings, activity log
-- **Frontend**: React notebook-style view. Inline editing, slash commands, SSE real-time updates
-- **Rules**: Business logic stored as data (JSONB). Evaluated reactively on writes + every 15 minutes.
-- **MCP**: Remote endpoint for AI agents. All tools registered in `server/mcp-remote.ts`.
-- **Deploy**: Railway (auto-deploy from GitHub on merge to main)
-
----
-
-## Running Locally
-
-```bash
-cd app
-cp .env.example .env   # set DATABASE_URL and SESSION_SECRET
-npm install
-npm run db:push        # push schema to Postgres
-npm run db:seed        # seed with contact data (PIN: 1234)
-npm run dev            # http://localhost:3000
-```
-
----
-
-## AI Agent Integration
-
-### Remote MCP (Claude Web, Desktop, Mobile)
-
-The CRM exposes a remote MCP endpoint compatible with Claude's custom connectors.
-
-**URL**: `https://your-domain.com/mcp/<TOKEN>`
-
-Set up in Claude: **Settings** → **Custom Connectors** → **Add** → paste the MCP URL → leave OAuth blank → **Add**.
-
-### Local MCP (Claude Desktop, Claude Code)
-
-Uses `mcp-client.ts` which calls the REST API over HTTPS:
-
-```json
-{
-  "mcpServers": {
-    "claw-crm": {
-      "command": "npx",
-      "args": ["tsx", "/path/to/claw-crm/app/server/mcp-client.ts"],
-      "env": {
-        "CRM_URL": "https://your-domain.com",
-        "CRM_API_KEY": "<your-api-key>"
-      }
-    }
-  }
-}
-```
-
-### REST API
-
-```bash
-curl -H "X-API-Key: <key>" https://your-domain.com/api/contacts
-```
-
----
-
-## MCP Tools (Core)
-
-| Tool | Description |
-|------|-------------|
-| `get_crm_guide` | Returns agent usage guide + live CRM snapshot (counts, violations, meetings). Recommended first call. |
-| `get_dashboard` | High-level CRM summary: contacts by stage, overdue tasks, upcoming meetings, violations, recent activity. |
-| `search_contacts` | Find by name, company, stage, or status. Paginated. |
-| `get_contact` | Full contact with all related data |
-| `create_contact` | Add a new contact. Search first to avoid duplicates. |
-| `update_contact` | Modify contact fields |
-| `delete_contact` | Permanently delete a contact and all related data |
-| `add_interaction` | Log a note, email, meeting, or call |
-| `delete_interaction` | Remove a timeline entry |
-| `create_task` | Create a follow-up task or meeting (replaces `set_followup` + `set_meeting`) |
-| `complete_followup` | Mark done + log outcome to timeline |
-| `delete_followup` | Remove a task or meeting without completing it |
-| `list_rules` | All business rules. Paginated. |
-| `create_rule` | Add a business rule |
-| `update_rule` | Modify rule logic, params, exceptions, or enable/disable |
-| `delete_rule` | Remove a rule |
-| `list_violations` | Active rule violations, enriched with contact names. Paginated. |
-
-Additional tools: `get_upcoming_meetings` (paginated, with contact names), `cancel_meeting`, `save_briefing`, `get_briefing`.
-
-### MCP Tool Design
-
-Tools follow [Anthropic's best practices for agent tools](https://www.anthropic.com/engineering/writing-tools-for-agents):
-- **Enum validation**: Stage, status, severity, and type parameters use Zod enums derived from shared constants in `shared/schema.ts`
-- **Actionable errors**: Not-found errors tell you which tool to use to find valid IDs; common DB errors get auto-detected hints
-- **Pagination**: List tools accept `limit`/`offset` and return `{ results, totalCount, hasMore }`
-- **Enriched responses**: Violations and meetings include `contactName` alongside `contactId` to avoid N+1 lookups
-
----
+**Single write path**: all mutations flow through `server/storage.ts` > SSE broadcast > rules evaluation > activity log. Whether a human types a slash command or an agent calls an MCP tool, the same pipeline runs.
 
 ## Rules Engine
 
-Rules are business logic stored as data, not code. Agents can create, modify, and delete rules via MCP.
+![Rules — business logic as data, with live violations](app/client/public/screenshot-rules.png)
 
-### How Rules Run
-- **Reactively**: after any write to contacts, interactions, follow-ups, or meetings
-- **Scheduled**: every 15 minutes for time-based conditions
-- **Output**: creates/clears `rule_violation` records, pushed via SSE
+Rules are business logic stored as data (JSONB), not code. Agents can create and modify them via MCP.
 
-### Condition Types
+- **Reactive**: evaluated after any write to contacts, interactions, or follow-ups
+- **Scheduled**: runs every 15 minutes for time-based conditions
+- **Output**: creates/clears violation records, pushed to UI via SSE
 
-| Condition | Description | Params |
-|-----------|-------------|--------|
-| `no_interaction_for_days` | No interaction for N days | `{ days: 14 }` |
-| `followup_past_due` | Uncompleted follow-up past due date | `{}` |
-| `no_followup_after_meeting` | No follow-up within N hours of a meeting | `{ hours: 48 }` |
-| `meeting_within_hours` | Contact has a meeting within N hours | `{ hours: 24 }` |
-| `status_is` | Contact has specific status | `{ status: "HOLD" }` |
-| `stage_is` | Contact is in specific stage | `{ stage: "LEAD" }` |
-
-### Exception Types
-
-| Exception | Description |
+| Condition | Description |
 |-----------|-------------|
-| `has_future_followup` | Contact has an active follow-up with a future due date |
-| `stage_in` | Contact is in one of the specified stages (e.g., `{ stages: ["LIVE", "RELATIONSHIP"] }`) |
+| `no_interaction_for_days` | No interaction for N days |
+| `followup_past_due` | Uncompleted follow-up past due date |
+| `no_followup_after_meeting` | No follow-up within N hours of a meeting |
+| `meeting_within_hours` | Meeting within N hours |
+| `status_is` / `stage_is` | Contact has specific status or stage |
 
----
+Exceptions: `has_future_followup`, `stage_in` (exclude specific stages from rules).
 
 ## Data Model
 
-### Pipeline Stages
-`LEAD` → `MEETING` → `PROPOSAL` → `NEGOTIATION` → `LIVE` → `PASS`, plus `RELATIONSHIP`
+### Pipeline
 
-### Contact Statuses
-- **ACTIVE** — in the pipeline, needs attention
-- **HOLD** — paused, not dead
+`LEAD` > `MEETING` > `PROPOSAL` > `NEGOTIATION` > `LIVE` > `PASS`, plus `RELATIONSHIP`
 
-HOLD is a status, not a stage. A contact can be stage PROPOSAL + status HOLD.
+**HOLD** is a status, not a stage. A contact can be stage PROPOSAL + status HOLD.
 
 ### Entities
 
 | Entity | Description |
 |--------|-------------|
 | **Contacts** | People you track. One person per record. |
-| **Companies** | Linked to contacts via `companyId` |
-| **Interactions** | Timeline entries — what happened (past tense) |
-| **Follow-ups** | Tasks — what needs to happen (action items with due dates) |
-| **Meetings** | Future events — scheduled calls, coffees, etc. |
-| **Briefings** | Prep notes — one per contact, upsert |
-| **Rules** | Business logic — conditions + actions stored as JSONB |
-| **Violations** | Alerts — created by rules, cleared when conditions resolve |
-| **Activity Log** | Audit trail — all system, agent, and user actions |
+| **Companies** | Linked to contacts via `companyId`. |
+| **Interactions** | Timeline entries — what happened (past tense). |
+| **Follow-ups** | Action items with due dates. |
+| **Meetings** | Future scheduled events. |
+| **Briefings** | Per-contact prep notes (upsert). |
+| **Rules** | Business logic — conditions + actions as JSONB. |
+| **Violations** | Alerts created by rules, auto-cleared when resolved. |
 
-### Follow-Up Completion Flow
+## Slash Commands
 
-When completing a follow-up, describe what happened. This logs the outcome as an interaction:
-
-```
-Before:  FU by 3/28: check for Idan's reply
-After:   3/28: Checked in with Idan — confirmed coffee next Tuesday
-```
-
-Use `complete_followup(followupId, outcome: "what happened")` to do both in one call.
-
----
-
-## Slash Commands (UI)
-
-| Command | Action | Example |
-|---------|--------|---------|
-| `/fu M/D text` | Create task | `/fu 4/15 check on proposal` |
-| `/f`, `/follow`, `/todo`, `/task` | Same as /fu | `/task 4/1 ping Ari` |
-| `/mtg M/D time text @ location` | Create meeting | `/mtg 4/3 2pm Coffee with Idan @ Century City` |
-| `/meeting` | Same as /mtg | |
-| `/stage STAGE` | Change stage | `/stage PROPOSAL` |
-| `/status STATUS` | Change status | `/status HOLD` |
-| (plain text + Enter) | Add interaction note | `Had coffee with Idan` |
-
-Tasks show □ checkbox (completable). Meetings show 📅 icon.
-
----
-
-## Security
-
-- PIN authentication (4-6 digits, hashed with scrypt)
-- API key via `X-API-Key` header
-- MCP endpoint secured by secret URL token
-- Privacy screen: teal overlay when app window loses focus (screen share protection)
-- Pricing and deal terms are NEVER stored in the CRM
-- Client information is never cross-referenced between contacts
-
----
+| Command | Example |
+|---------|---------|
+| `/fu M/D text` | `/fu 4/15 check on proposal` |
+| `/mtg M/D time text @ location` | `/mtg 4/3 2pm Coffee @ Verve` |
+| `/stage STAGE` | `/stage PROPOSAL` |
+| `/status STATUS` | `/status HOLD` |
+| plain text + Enter | `Had coffee with Idan` (logs as note) |
 
 ## Tech Stack
 
-- **Frontend**: React, Vite, Tailwind CSS, Montserrat + JetBrains Mono
-- **Backend**: Express, Node.js, TypeScript
-- **Database**: PostgreSQL with Drizzle ORM
-- **MCP**: @modelcontextprotocol/sdk (stdio + StreamableHTTP)
-- **Tests**: Playwright E2E
-- **CI**: GitHub Actions (build + test on PR)
-- **Deploy**: Railway (auto-deploy from main)
-- **Desktop**: Pake (Tauri-based native Mac app)
-- **Mobile**: PWA (Add to Home Screen on iOS)
+React, Express, PostgreSQL, Drizzle ORM, Vite, Tailwind CSS, MCP SDK, Playwright E2E, GitHub Actions CI, Railway deploy, PWA (iOS), Pake (Mac desktop).
 
----
+## License
 
-## Features
-
-All features are built directly into the core codebase for simplicity:
-
-| Feature | What it does | Key files |
-|---------|-------------|-----------|
-| **Meetings** | Schedule meetings, upcoming view, MCP tools | `server/routes.ts`, `server/mcp-remote.ts` |
-| **Briefings** | Per-contact prep notes (upsert), badge on contact cards | `server/routes.ts`, `server/mcp-remote.ts`, `shared/schema.ts` |
-| **Activity Log** | Audit trail for all system/agent actions | `server/storage.ts`, `server/routes.ts`, `server/mcp-remote.ts` |
+AGPL-3.0 — see [LICENSE](LICENSE).
