@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useCrm } from "@/hooks/use-crm";
 import { useSSE } from "@/hooks/use-sse";
@@ -18,6 +18,7 @@ import {
   SlidersHorizontal,
   Menu,
   Check,
+  Search,
 } from "lucide-react";
 import { KanbanBoard } from "@/components/kanban/kanban-board";
 import { Link } from "wouter";
@@ -25,6 +26,7 @@ import { format, isPast, isToday, differenceInDays } from "date-fns";
 import type { Followup, ActivityLogEntry, Briefing } from "@shared/schema";
 import { fmtDate } from "@/lib/utils";
 import { useConfig, useColors } from "@/App";
+import { useMiniSearch } from "@/hooks/use-mini-search";
 
 // Pipeline order (funnel flow, top to bottom)
 const STAGES = ["ALL", "LEAD", "MEETING", "PROPOSAL", "NEGOTIATION", "LIVE", "RELATIONSHIP", "PASS"] as const;
@@ -75,6 +77,9 @@ export default function CrmPage() {
   }, [viewMode]);
   const [showFilter, setShowFilter] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [searchActive, setSearchActive] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
   useSSE();
 
   const sortedContacts = useMemo(() => {
@@ -106,10 +111,19 @@ export default function CrmPage() {
     return sorted;
   }, [contacts]);
 
+  const { search, getMatchTerms } = useMiniSearch(contacts);
+  const searchResultIds = useMemo(() => {
+    if (!searchActive || !searchQuery.trim()) return null;
+    return new Set(search(searchQuery).map((r) => r.id));
+  }, [searchActive, searchQuery, search]);
+
   const filteredContacts = useMemo(() => {
+    if (searchResultIds) {
+      return sortedContacts.filter((c) => searchResultIds.has(c.id));
+    }
     if (activeStage === "ALL") return sortedContacts;
     return sortedContacts.filter((c) => c.stage === activeStage);
-  }, [sortedContacts, activeStage]);
+  }, [sortedContacts, activeStage, searchResultIds]);
 
   const stageCounts = useMemo(() => {
     const counts: Record<string, number> = { ALL: contacts.length };
@@ -163,18 +177,30 @@ export default function CrmPage() {
     });
   };
 
-  // Today's meetings count for header
-  const todayMeetingCount = useMemo(() => {
-    return allFollowups.filter(({ followup: fu }) => fu.type === "meeting" && isToday(new Date(fu.dueDate))).length;
-  }, [allFollowups]);
-
   // Activity log
   const { data: activityLog = [] } = useQuery<ActivityLogEntry[]>({
     queryKey: ["/api/activity"],
     staleTime: 30_000,
   });
 
-  const activeCount = contacts.filter((c) => c.status === "ACTIVE").length;
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        if (searchActive) {
+          setSearchActive(false);
+          setSearchQuery("");
+        } else {
+          setSearchActive(true);
+          setShowFilter(false);
+          setShowMenu(false);
+          requestAnimationFrame(() => searchInputRef.current?.focus());
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [searchActive]);
 
   if (isLoading) {
     return (
@@ -189,17 +215,63 @@ export default function CrmPage() {
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: `1px solid ${C.border}` }}>
         <div className="max-w-[640px] mx-auto px-4 py-3 flex items-center justify-between">
-          <div>
-            <h1 className="text-[13px] font-semibold tracking-[0.2em] uppercase" style={{ color: C.text }}>
-              {orgName}
-            </h1>
-            <p className="text-[11px] font-mono mt-0.5" style={{ color: C.muted }}>
-              {activeCount} active
-              {todayMeetingCount > 0 && ` · ${todayMeetingCount} meeting${todayMeetingCount !== 1 ? "s" : ""} today`}
-              {allFollowups.length > 0 && ` · ${allFollowups.length} follow-up${allFollowups.length !== 1 ? "s" : ""}`}
-            </p>
-          </div>
+          {searchActive ? (
+            <div className="flex items-center gap-2 flex-1 mr-2">
+              <Search className="h-4 w-4 flex-shrink-0" style={{ color: C.muted }} />
+              <input
+                ref={searchInputRef}
+                autoFocus
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    setSearchActive(false);
+                    setSearchQuery("");
+                  }
+                }}
+                placeholder="Search contacts..."
+                className="flex-1 text-sm bg-transparent border-none outline-none"
+                style={{ color: C.text }}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="p-1 transition-colors hover:opacity-70"
+                  style={{ color: C.muted }}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          ) : (
+            <div>
+              <h1 className="text-[13px] font-semibold tracking-[0.2em] uppercase" style={{ color: C.text }}>
+                {orgName}
+              </h1>
+            </div>
+          )}
           <div className="flex items-center gap-0.5 relative">
+            {/* Search button */}
+            <button
+              onClick={() => {
+                if (searchActive) {
+                  setSearchActive(false);
+                  setSearchQuery("");
+                } else {
+                  setSearchActive(true);
+                  setShowFilter(false);
+                  setShowMenu(false);
+                  requestAnimationFrame(() => searchInputRef.current?.focus());
+                }
+              }}
+              className="p-2 transition-colors"
+              style={{ color: searchActive ? C.accent : C.muted }}
+              title="Search (⌘K)"
+            >
+              <Search className="h-4 w-4" />
+            </button>
+
             {/* Filter button */}
             <button
               onClick={() => {
@@ -433,7 +505,7 @@ export default function CrmPage() {
       ) : (
         <main className="max-w-[640px] mx-auto px-4 py-5">
           {/* Upcoming — all follow-ups and meetings in one list */}
-          {allFollowups.length > 0 && (
+          {!searchActive && allFollowups.length > 0 && (
             <div
               className="bg-white mb-5"
               style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}
@@ -614,6 +686,7 @@ export default function CrmPage() {
               key={contact.id}
               contact={contact}
               accentColor={STAGE_ACCENT[contact.stage] || "#5a7a7a"}
+              searchTerms={searchActive ? getMatchTerms(contact.id, searchQuery) : undefined}
               onAddInteraction={(content, date, type) =>
                 addInteraction.mutate({ contactId: contact.id, content, date, type })
               }
@@ -631,7 +704,7 @@ export default function CrmPage() {
 
           {filteredContacts.length === 0 && (
             <p className="text-center py-16 text-sm" style={{ color: C.muted }}>
-              No contacts in this stage
+              {searchActive ? "No contacts match your search" : "No contacts in this stage"}
             </p>
           )}
         </main>

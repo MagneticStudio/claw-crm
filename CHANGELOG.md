@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-04-14
+
+### Global search (Issue #55)
+- Added client-side full-text search using MiniSearch (BM25) across contacts, interactions, follow-ups, and more
+- Search icon in header + Cmd+K / Ctrl+K keyboard shortcut to toggle
+- Inline header expansion: search input replaces title area, Escape to dismiss
+- Matches highlighted in yellow across contact name, company, interactions, follow-ups, and details
+- Interactions auto-expand when they contain matching text
+- Search bypasses stage filter; clearing search restores previous view
+- Removed stats line from header for cleaner layout
+
 ## 2026-04-12
 
 ### README rewrite for open source

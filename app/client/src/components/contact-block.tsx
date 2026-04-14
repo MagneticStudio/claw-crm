@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { isPast, isToday, differenceInDays } from "date-fns";
 import { Square, AlertTriangle, Trash2 } from "lucide-react";
 import type { ContactWithRelations } from "@shared/schema";
@@ -26,6 +26,22 @@ function detectCommand(text: string): { type: "fu" | "mtg" | "stage" | "status" 
 
 const COMMAND_COLORS: Record<string, string> = { fu: "#1a9e96", mtg: "#2563eb", stage: "#2e7d32", status: "#d4880f" };
 
+function HighlightText({ text, terms }: { text: string; terms?: string[] }): ReactNode {
+  if (!terms || terms.length === 0) return text;
+  const escaped = terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const regex = new RegExp(`(${escaped.join("|")})`, "gi");
+  const parts = text.split(regex);
+  return parts.map((part, i) =>
+    regex.test(part) ? (
+      <mark key={i} style={{ backgroundColor: "#fef08a", borderRadius: 2, padding: "0 1px" }}>
+        {part}
+      </mark>
+    ) : (
+      part
+    ),
+  );
+}
+
 interface ContactBlockProps {
   contact: ContactWithRelations;
   accentColor: string;
@@ -41,6 +57,7 @@ interface ContactBlockProps {
   onDeleteFollowup: (id: number) => void;
   onCompleteFollowup: (id: number, outcome?: string) => void;
   onUpdateContact: (data: Record<string, unknown>) => void;
+  searchTerms?: string[];
 }
 
 export function ContactBlock({
@@ -54,6 +71,7 @@ export function ContactBlock({
   onDeleteFollowup,
   onCompleteFollowup,
   onUpdateContact,
+  searchTerms,
 }: ContactBlockProps) {
   const C = useColors();
   const isInactive = contact.status !== "ACTIVE";
@@ -94,6 +112,15 @@ export function ContactBlock({
   useEffect(() => {
     setBackgroundText(derivedBackground);
   }, [derivedBackground]);
+
+  useEffect(() => {
+    if (searchTerms && searchTerms.length > 0) {
+      const hasInteractionMatch = contact.interactions.some((i) =>
+        searchTerms.some((t) => i.content.toLowerCase().includes(t.toLowerCase())),
+      );
+      if (hasInteractionMatch) setShowAllInteractions(true);
+    }
+  }, [searchTerms, contact.interactions]);
 
   const showFlash = useCallback((msg: string) => {
     setFlash(msg);
@@ -224,12 +251,12 @@ export function ContactBlock({
       {/* Header */}
       <div className="flex items-center gap-1.5">
         <h2 className="text-sm font-bold leading-tight" style={{ color: C.text }}>
-          {contact.firstName} {contact.lastName}
+          <HighlightText text={`${contact.firstName} ${contact.lastName}`} terms={searchTerms} />
         </h2>
 
         {companyName && (
           <span className="text-xs" style={{ color: C.muted }}>
-            {companyName}
+            <HighlightText text={companyName} terms={searchTerms} />
           </span>
         )}
 
@@ -320,7 +347,7 @@ export function ContactBlock({
             <div className="mt-1 text-[11px]" style={{ color: C.muted }}>
               {!showDetails ? (
                 <div>
-                  {previewLines.join(" · ")}
+                  <HighlightText text={previewLines.join(" · ")} terms={searchTerms} />
                   {hasMore && (
                     <button
                       onClick={() => setShowDetails(true)}
@@ -335,15 +362,29 @@ export function ContactBlock({
                 <div className="leading-relaxed space-y-0.5 pl-3" style={{ borderLeft: `2px solid ${C.border}` }}>
                   {contact.title && (
                     <div>
-                      {contact.title}
-                      {contact.location ? ` · ${contact.location}` : ""}
+                      <HighlightText
+                        text={contact.title + (contact.location ? ` · ${contact.location}` : "")}
+                        terms={searchTerms}
+                      />
                     </div>
                   )}
-                  {!contact.title && contact.location && <div>{contact.location}</div>}
-                  {contact.email && <div>{contact.email}</div>}
+                  {!contact.title && contact.location && (
+                    <div>
+                      <HighlightText text={contact.location} terms={searchTerms} />
+                    </div>
+                  )}
+                  {contact.email && (
+                    <div>
+                      <HighlightText text={contact.email} terms={searchTerms} />
+                    </div>
+                  )}
                   {contact.phone && <div>{contact.phone}</div>}
                   {contact.website && <div>{contact.website}</div>}
-                  {contact.source && <div>Via {contact.source}</div>}
+                  {contact.source && (
+                    <div>
+                      Via <HighlightText text={contact.source} terms={searchTerms} />
+                    </div>
+                  )}
                   {contact.additionalContacts && <div className="italic">{contact.additionalContacts}</div>}
                   {contact.cadence && <div className="font-medium">{contact.cadence}</div>}
                   {editingBackground ? (
@@ -366,7 +407,7 @@ export function ContactBlock({
                       onClick={() => setEditingBackground(true)}
                       className="cursor-text rounded px-1 -mx-1 py-0.5 transition-colors hover:bg-[#e6f7f6] mt-0.5"
                     >
-                      {contact.background}
+                      <HighlightText text={contact.background} terms={searchTerms} />
                     </div>
                   ) : null}
                   <button
@@ -466,7 +507,7 @@ export function ContactBlock({
                         className="group-hover/line:bg-[#e6f7f6] rounded px-0.5 -mx-0.5 transition-colors"
                         style={{ color: C.text }}
                       >
-                        {interaction.content}
+                        <HighlightText text={interaction.content} terms={searchTerms} />
                       </span>
                     </div>
                   );
@@ -636,7 +677,10 @@ export function ContactBlock({
                       {fmtDate(due)}
                       {fu.time ? ` ${fu.time}` : ""}
                     </span>
-                    <span style={{ color: isOverdue ? C.red : C.text }}> {truncated}</span>
+                    <span style={{ color: isOverdue ? C.red : C.text }}>
+                      {" "}
+                      <HighlightText text={truncated} terms={searchTerms} />
+                    </span>
                     {isOverdue && (
                       <span className="font-semibold" style={{ color: C.red }}>
                         {" "}
