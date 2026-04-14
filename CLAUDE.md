@@ -1,55 +1,57 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+See @app/package.json for available scripts. See @app/shared/schema.ts for all enums and constants.
 
 ## Commands
+
+IMPORTANT: All commands run from the `app/` directory.
+
 ```bash
 cd app
-npm run dev          # Dev server at localhost:3000
-npm run build        # Production build (vite + esbuild) — USE THIS to verify code compiles
-npm run lint         # ESLint check (errors fail, warnings OK)
-npm run lint:fix     # ESLint autofix (type imports, const, var, ===)
-npm run format       # Prettier format all source files
-npm run db:push      # Push schema to Postgres (drizzle-kit)
-npm run db:seed      # Seed database (PIN: 1234)
-npm run test         # Playwright E2E tests
+npm run dev            # Dev server at localhost:3000
+npm run build          # Verify compilation (vite + esbuild)
+npm run lint:fix       # Autofix lint (type imports, const, ===)
+npm run format         # Prettier format
+npm run db:push        # Push schema to Postgres
+npm run db:seed        # Seed demo data (PIN: 1234)
+npm run test           # Playwright E2E (full suite)
+npm run test -- tests/auth.spec.ts  # Single test file
 ```
 
-**Do NOT run `npm run check` (tsc --noEmit).** It OOMs on this machine even at 8GB heap. Use `npm run build` instead — esbuild catches import/syntax errors and is what Railway uses for deploys.
+**IMPORTANT: Never run `npm run check` (tsc --noEmit) — it OOMs. Use `npm run build` instead.**
 
 ## Architecture
+
 - Express + React + Postgres, all source in `app/`
-- Single write path: all mutations go through `server/storage.ts` → SSE broadcast → rules evaluation → activity log
-- MCP remote endpoint at `/mcp/:token` (StreamableHTTP). All tools must have try/catch or they crash the session.
-- Rules are data (JSONB in `rules` table), not code. Agents CRUD them via MCP.
+- Single write path: all mutations → `server/storage.ts` → SSE broadcast → rules evaluation → activity log
+- MCP remote endpoint at `/mcp/:token` (StreamableHTTP). All MCP tools must have try/catch or they crash the session.
+- MCP session recovery: stale session IDs auto-create fresh sessions. Don't error on unknown sessions.
+- Rules are data (JSONB), not code. Agents CRUD them via MCP.
+- Railway auto-deploys from main. Root directory is `app/`.
 
 ## Conventions
-- Stage = pipeline position: LEAD → MEETING → PROPOSAL → NEGOTIATION → LIVE → PASS, plus RELATIONSHIP
-- Status = ACTIVE or HOLD. HOLD is NOT a stage.
-- Valid values for stages, statuses, etc. are defined as shared constants in `shared/schema.ts`.
-- Feature branches + PRs only. Never push to main.
+
+- Stage = pipeline position, Status = ACTIVE or HOLD. HOLD is NOT a stage. See `shared/schema.ts` for valid values.
 - MCP tool `create_task` handles both follow-ups (type "task") and meetings (type "meeting").
 - Follow-ups are tasks. When completed, log the outcome as an interaction.
 - Meetings are future events. After they happen, log as an interaction.
-- Style: Montserrat font, teal palette (#2bbcb3), 640px max-width, 12px border-radius cards.
-- Keep the UI minimal — every visible element must earn its place. Prefer hidden menus over persistent buttons.
+- Feature branches + PRs only. **Never push to main.**
+- Style: see @app/tailwind.config.ts for theme. Montserrat font, teal (#2bbcb3), 640px max-width, 12px border-radius. Keep UI minimal — every element must earn its place.
 
 ## Code quality
-- Run `npm run lint:fix` after making changes. It autofixes type imports, const/let, and equality operators.
-- Run `npm run format` if you've written new files or made large edits.
-- CI runs lint with `--max-warnings 0` — warnings that pass locally will fail the PR. Fix all warnings before pushing.
-- The pre-PR hook checks lint passes. Fix lint errors before creating a PR.
-- `@typescript-eslint/no-explicit-any` is a warning. Prefer `unknown` with type narrowing for new code, but don't refactor existing `any` unless specifically asked.
-- Prefix unused parameters with `_` (e.g., `_req`, `_err`) to satisfy no-unused-vars.
+
+- Run `npm run lint:fix` after changes, `npm run format` after new files or large edits.
+- CI runs `--max-warnings 0` — fix all warnings before pushing.
+- Prefer `unknown` with type narrowing over `any` for new code. Prefix unused params with `_`.
 
 ## Before submitting a PR
-1. Run the E2E test skill (`.claude/skills/e2e-test/SKILL.md`): start dev server, test UI + MCP flows, screenshot each step. Do not create PR if any step fails.
-2. If the PR adds a major user-facing feature, add new steps to the E2E test skill covering the feature's key flows before running it.
-3. Update README.md if the PR changes architecture, adds tools, or changes how things work.
-4. Add a CHANGELOG.md entry describing what changed.
 
-## Watch out for
-- Dates render in UTC (fmtDate in `lib/utils.ts`). Using `format()` from date-fns causes off-by-one timezone bugs.
-- MCP session recovery: stale session IDs auto-create fresh sessions. Don't error on unknown sessions.
-- Railway auto-deploys from main. Root directory is `app/`.
-- Never put pricing or deal terms in the CRM. Never cross-reference clients.
+1. Run the E2E test skill (`.claude/skills/e2e-test/SKILL.md`). Do not create PR if any step fails.
+2. If the PR adds a major feature, add new E2E steps covering key flows before running.
+3. Update README.md if architecture, tools, or workflows changed.
+4. Add a CHANGELOG.md entry.
+
+## Gotchas
+
+- Dates: use `fmtDate` from `lib/utils.ts`. Using `format()` from date-fns causes off-by-one timezone bugs.
+- Never store pricing, deal terms, or cross-reference clients.
