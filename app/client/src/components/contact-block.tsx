@@ -123,11 +123,6 @@ export function ContactBlock({
     setBackgroundText(derivedBackground);
   }, [derivedBackground]);
 
-  // Auto-expand interactions when search finds a match in a hidden note
-  useEffect(() => {
-    setShowAllInteractions(!!searchSnippet);
-  }, [searchSnippet]);
-
   const showFlash = useCallback((msg: string) => {
     setFlash(msg);
     setTimeout(() => setFlash(null), 2000);
@@ -441,15 +436,23 @@ export function ContactBlock({
               ? contact.interactions
               : contact.interactions.slice(-VISIBLE_COUNT);
 
+            // Check if the search match is in a hidden interaction
+            const hasHiddenMatch =
+              showToggle &&
+              searchSnippet?.fieldLabel === "Note" &&
+              contact.interactions
+                .slice(0, -VISIBLE_COUNT)
+                .some((i) => i.content.toLowerCase().includes(searchSnippet.text.replace(/^\u2026|\u2026$/g, "").trim().slice(0, 20).toLowerCase()));
+
             return (
               <div className="space-y-0.5 mb-2">
                 {showToggle && (
                   <button
                     onClick={() => setShowAllInteractions(true)}
                     className="text-[11px] font-medium mb-0.5 transition-colors hover:opacity-70"
-                    style={{ color: C.accentDark }}
+                    style={{ color: hasHiddenMatch ? C.accent : C.accentDark, fontWeight: hasHiddenMatch ? 600 : 500 }}
                   >
-                    Show {hiddenCount} earlier...
+                    Show {hiddenCount} earlier...{hasHiddenMatch ? " (match inside)" : ""}
                   </button>
                 )}
                 {showAllInteractions && total > VISIBLE_COUNT && (
