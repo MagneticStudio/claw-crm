@@ -123,6 +123,11 @@ export function ContactBlock({
     setBackgroundText(derivedBackground);
   }, [derivedBackground]);
 
+  // Auto-expand interactions when search finds a match in a hidden note
+  useEffect(() => {
+    setShowAllInteractions(!!searchSnippet);
+  }, [searchSnippet]);
+
   const showFlash = useCallback((msg: string) => {
     setFlash(msg);
     setTimeout(() => setFlash(null), 2000);
