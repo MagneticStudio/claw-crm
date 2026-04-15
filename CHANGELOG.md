@@ -2,6 +2,11 @@
 
 ## 2026-04-15
 
+### Snooze follow-ups by 1/7/14 days
+- Hover over any follow-up to reveal snooze buttons (+1d, +7d, +14d)
+- Works in both the Upcoming panel and per-contact follow-up lists
+- Snooze updates the due date immediately via the existing API (fixes #40)
+
 ### Contact card UI polish
 - Flash notifications no longer overlap stage/status badges — now inline in the header row (fixes #42)
 - Status badge (ACTIVE/HOLD) is always visible and clickable to toggle — no more slash commands needed (fixes #39)
