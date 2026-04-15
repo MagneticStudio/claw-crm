@@ -123,6 +123,7 @@ export function ContactBlock({
   const [showAllInteractions, setShowAllInteractions] = useState(false);
   const [newNote, setNewNote] = useState("");
   const [showStageMenu, setShowStageMenu] = useState(false);
+  const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
   const [editingInteractionId, setEditingInteractionId] = useState<number | null>(null);
   const [editingInteractionText, setEditingInteractionText] = useState("");
@@ -331,21 +332,53 @@ export function ContactBlock({
           )}
         </div>
 
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            const newStatus = contact.status === "ACTIVE" ? "HOLD" : "ACTIVE";
-            onUpdateContact({ status: newStatus });
-            showFlash(`Status → ${newStatus}`);
-          }}
-          className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full transition-colors hover:opacity-80"
-          style={{
-            backgroundColor: contact.status === "HOLD" ? "#f0ecf8" : `${C.accent}15`,
-            color: contact.status === "HOLD" ? "#6c5ce7" : C.accent,
-          }}
-        >
-          {contact.status}
-        </button>
+        <div className="relative">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowStatusMenu(!showStatusMenu);
+              setShowStageMenu(false);
+            }}
+            className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full transition-colors hover:opacity-80"
+            style={{
+              backgroundColor: contact.status === "HOLD" ? "#f0ecf8" : `${C.accent}15`,
+              color: contact.status === "HOLD" ? "#6c5ce7" : C.accent,
+            }}
+          >
+            {contact.status}
+          </button>
+          {showStatusMenu && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setShowStatusMenu(false)} />
+              <div
+                className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg z-20 py-1 min-w-[100px]"
+                style={{ border: `1px solid ${C.border}` }}
+              >
+                {(["ACTIVE", "HOLD"] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => {
+                      if (s !== contact.status) {
+                        onUpdateContact({ status: s });
+                        showFlash(`Status → ${s}`);
+                      }
+                      setShowStatusMenu(false);
+                    }}
+                    className="block w-full text-left px-3 py-1 text-[11px] transition-colors hover:opacity-70"
+                    style={{
+                      color: s === contact.status ? C.text : C.muted,
+                      fontWeight: s === contact.status ? 600 : 400,
+                      backgroundColor:
+                        s === contact.status ? (s === "HOLD" ? "#f0ecf8" : C.accentLight) : "transparent",
+                    }}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
 
         {isStale && <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" style={{ color: C.stale }} />}
         {hasViolations && !isStale && (
