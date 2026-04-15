@@ -670,6 +670,7 @@ export default function CrmPage() {
                   contact={contact}
                   accentColor={STAGE_ACCENT[contact.stage] || "#5a7a7a"}
                   searchSnippet={snippet}
+                  searchTerms={searchQuery.trim().split(/\s+/).filter(Boolean)}
                   onAddInteraction={(content, date, type) =>
                     addInteraction.mutate({ contactId: contact.id, content, date, type })
                   }

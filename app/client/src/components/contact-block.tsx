@@ -52,6 +52,38 @@ function SnippetText({ text, matchRanges }: { text: string; matchRanges: Array<[
   );
 }
 
+function findInlineMatchRanges(text: string, terms: string[]): Array<[number, number]> {
+  const ranges: Array<[number, number]> = [];
+  const lower = text.toLowerCase();
+  for (const term of terms) {
+    const tLower = term.toLowerCase();
+    let pos = 0;
+    while (pos < lower.length) {
+      const idx = lower.indexOf(tLower, pos);
+      if (idx === -1) break;
+      ranges.push([idx, idx + tLower.length]);
+      pos = idx + 1;
+    }
+  }
+  ranges.sort((a, b) => a[0] - b[0]);
+  const merged: Array<[number, number]> = [];
+  for (const r of ranges) {
+    if (merged.length > 0 && r[0] <= merged[merged.length - 1][1]) {
+      merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], r[1]);
+    } else {
+      merged.push([...r]);
+    }
+  }
+  return merged;
+}
+
+function HighlightedText({ text, terms }: { text: string; terms?: string[] }) {
+  if (!terms || terms.length === 0) return <>{text}</>;
+  const ranges = findInlineMatchRanges(text, terms);
+  if (ranges.length === 0) return <>{text}</>;
+  return <SnippetText text={text} matchRanges={ranges} />;
+}
+
 interface ContactBlockProps {
   contact: ContactWithRelations;
   accentColor: string;
@@ -68,6 +100,7 @@ interface ContactBlockProps {
   onCompleteFollowup: (id: number, outcome?: string) => void;
   onUpdateContact: (data: Record<string, unknown>) => void;
   searchSnippet?: SearchSnippet | null;
+  searchTerms?: string[];
 }
 
 export function ContactBlock({
@@ -82,6 +115,7 @@ export function ContactBlock({
   onCompleteFollowup,
   onUpdateContact,
   searchSnippet,
+  searchTerms,
 }: ContactBlockProps) {
   const C = useColors();
   const isInactive = contact.status !== "ACTIVE";
@@ -515,7 +549,7 @@ export function ContactBlock({
                         className="group-hover/line:bg-[#e6f7f6] rounded px-0.5 -mx-0.5 transition-colors"
                         style={{ color: C.text }}
                       >
-                        {interaction.content}
+                        <HighlightedText text={interaction.content} terms={searchTerms} />
                       </span>
                     </div>
                   );
@@ -685,7 +719,9 @@ export function ContactBlock({
                       {fmtDate(due)}
                       {fu.time ? ` ${fu.time}` : ""}
                     </span>
-                    <span style={{ color: isOverdue ? C.red : C.text }}> {truncated}</span>
+                    <span style={{ color: isOverdue ? C.red : C.text }}>
+                      {" "}<HighlightedText text={truncated} terms={searchTerms} />
+                    </span>
                     {isOverdue && (
                       <span className="font-semibold" style={{ color: C.red }}>
                         {" "}
