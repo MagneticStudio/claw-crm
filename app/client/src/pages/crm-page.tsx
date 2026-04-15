@@ -19,6 +19,7 @@ import {
   Menu,
   Check,
   Search,
+  Clock,
 } from "lucide-react";
 import { KanbanBoard } from "@/components/kanban/kanban-board";
 import { Link } from "wouter";
@@ -579,8 +580,14 @@ export default function CrmPage() {
                   const isTodayMeeting = isMeeting && isTodayDue;
                   const isExp = isTodayMeeting && expandedMeetingIds.has(fu.id);
 
+                  const handleUpcomingSnooze = (days: number) => {
+                    const newDate = new Date(due);
+                    newDate.setDate(newDate.getDate() + days);
+                    updateFollowup.mutate({ id: fu.id, dueDate: newDate.toISOString() });
+                  };
+
                   return (
-                    <div key={fu.id}>
+                    <div key={fu.id} className="group/upcoming">
                       <div className="flex items-center gap-2 text-sm">
                         {isMeeting ? (
                           <span
@@ -627,6 +634,23 @@ export default function CrmPage() {
                             {daysUntil}d
                           </span>
                         )}
+                        <span className="hidden group-hover/upcoming:inline-flex items-center gap-1 flex-shrink-0">
+                          <Clock className="h-3 w-3" style={{ color: C.muted }} />
+                          {[1, 7, 14].map((d) => (
+                            <button
+                              key={d}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleUpcomingSnooze(d);
+                              }}
+                              className="text-[10px] px-1.5 py-0.5 rounded-full transition-colors hover:opacity-80"
+                              style={{ backgroundColor: C.accentLight, color: C.accentDark }}
+                              title={`Snooze ${d} day${d > 1 ? "s" : ""}`}
+                            >
+                              +{d}d
+                            </button>
+                          ))}
+                        </span>
                         {isTodayMeeting && (
                           <ChevronDown
                             className={`h-3 w-3 flex-shrink-0 transition-transform cursor-pointer ${isExp ? "rotate-180" : ""}`}

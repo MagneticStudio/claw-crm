@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { isPast, isToday, differenceInDays } from "date-fns";
-import { Square, AlertTriangle, Trash2 } from "lucide-react";
+import { Square, AlertTriangle, Trash2, Clock } from "lucide-react";
 import type { ContactWithRelations } from "@shared/schema";
 import type { SearchSnippet } from "@/hooks/use-contact-search";
 import { fmtDate, fmtDateInput } from "@/lib/utils";
@@ -702,57 +702,83 @@ export function ContactBlock({
               const fullText = fu.content + (fu.location ? ` — ${fu.location}` : "");
               const truncated = fullText.length > maxLen ? fullText.slice(0, maxLen) + "..." : fullText;
 
+              const handleSnooze = (days: number) => {
+                const newDate = new Date(due);
+                newDate.setDate(newDate.getDate() + days);
+                onUpdateFollowup(fu.id, { dueDate: newDate.toISOString() });
+                showFlash(`Snoozed to ${fmtDate(newDate)}`);
+              };
+
               return (
-                <div key={fu.id} className="flex items-start gap-1 text-xs">
-                  {isMeeting ? (
-                    <span className="flex-shrink-0 text-sm mt-px" title="Meeting">
-                      {icon}
-                    </span>
-                  ) : (
-                    <button
+                <div key={fu.id} className="group/fu">
+                  <div className="flex items-start gap-1 text-xs">
+                    {isMeeting ? (
+                      <span className="flex-shrink-0 text-sm mt-px" title="Meeting">
+                        {icon}
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setCompletingFollowupId(fu.id);
+                          setCompletingFollowupText(fu.content);
+                        }}
+                        className="flex-shrink-0 hover:opacity-70 mt-px"
+                        title="Complete"
+                        style={{ color: fuColor }}
+                      >
+                        <Square className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    <span
+                      className="cursor-pointer hover:underline decoration-dotted underline-offset-2 min-w-0"
                       onClick={() => {
-                        setCompletingFollowupId(fu.id);
-                        setCompletingFollowupText(fu.content);
+                        setEditingFollowupId(fu.id);
+                        setEditingFollowupText(fu.content);
+                        setEditingFollowupDate(fmtDateInput(due));
                       }}
-                      className="flex-shrink-0 hover:opacity-70 mt-px"
-                      title="Complete"
-                      style={{ color: fuColor }}
                     >
-                      <Square className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                  <span
-                    className="cursor-pointer hover:underline decoration-dotted underline-offset-2 min-w-0"
-                    onClick={() => {
-                      setEditingFollowupId(fu.id);
-                      setEditingFollowupText(fu.content);
-                      setEditingFollowupDate(fmtDateInput(due));
-                    }}
-                  >
-                    <span className="font-semibold" style={{ color: fuColor }}>
-                      {fmtDate(due)}
-                      {fu.time ? ` ${fu.time}` : ""}
-                    </span>
-                    <span style={{ color: isOverdue ? C.red : C.text }}>
-                      {" "}
-                      <HighlightedText text={truncated} terms={searchTerms} />
-                    </span>
-                    {isOverdue && (
-                      <span className="font-semibold" style={{ color: C.red }}>
-                        {" "}
-                        OVERDUE
+                      <span className="font-semibold" style={{ color: fuColor }}>
+                        {fmtDate(due)}
+                        {fu.time ? ` ${fu.time}` : ""}
                       </span>
-                    )}
-                    {isTodayDue && (
-                      <span className="font-semibold" style={{ color: C.stale }}>
+                      <span style={{ color: isOverdue ? C.red : C.text }}>
                         {" "}
-                        TODAY
+                        <HighlightedText text={truncated} terms={searchTerms} />
                       </span>
-                    )}
-                    {!isOverdue && !isTodayDue && daysUntil <= 7 && (
-                      <span style={{ color: C.muted }}> {daysUntil}d</span>
-                    )}
-                  </span>
+                      {isOverdue && (
+                        <span className="font-semibold" style={{ color: C.red }}>
+                          {" "}
+                          OVERDUE
+                        </span>
+                      )}
+                      {isTodayDue && (
+                        <span className="font-semibold" style={{ color: C.stale }}>
+                          {" "}
+                          TODAY
+                        </span>
+                      )}
+                      {!isOverdue && !isTodayDue && daysUntil <= 7 && (
+                        <span style={{ color: C.muted }}> {daysUntil}d</span>
+                      )}
+                    </span>
+                    <span className="hidden group-hover/fu:inline-flex items-center gap-1 ml-auto flex-shrink-0">
+                      <Clock className="h-3 w-3" style={{ color: C.muted }} />
+                      {[1, 7, 14].map((d) => (
+                        <button
+                          key={d}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSnooze(d);
+                          }}
+                          className="text-[10px] px-1.5 py-0.5 rounded-full transition-colors hover:opacity-80"
+                          style={{ backgroundColor: C.accentLight, color: C.accentDark }}
+                          title={`Snooze ${d} day${d > 1 ? "s" : ""}`}
+                        >
+                          +{d}d
+                        </button>
+                      ))}
+                    </span>
+                  </div>
                 </div>
               );
             })}
