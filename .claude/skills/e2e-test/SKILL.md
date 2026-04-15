@@ -97,29 +97,50 @@ curl -s http://localhost:3000/api/user  # should return 401 (not authenticated)
 - Verify the stage badge updates to PROPOSAL
 - **Screenshot** → `e2e-screenshots/07-stage-changed.png`
 
-### 7. MCP: Search contacts
+### 7. UI: Search contacts (Cmd+K)
+- Click the search icon (magnifying glass) in the header, OR press Cmd+K
+- Verify the header switches to an inline search input with a close (X) button
+- Verify the Upcoming panel is hidden
+- Type a known contact's first name (at least 2 characters)
+- Verify the contact list filters in real-time to show only matching contacts
+- **Screenshot** → `e2e-screenshots/09-search-by-name.png`
+
+### 7b. UI: Search by interaction/followup content
+- Clear the search and type a word that appears in a contact's interaction note or followup (not in any contact name)
+- Verify matching contacts appear with a teal snippet line below the contact name
+- Verify the snippet shows the field label (e.g., "Note:", "Task:") and the matched term highlighted in yellow
+- **Screenshot** → `e2e-screenshots/10-search-snippet.png`
+
+### 7c. UI: Exit search
+- Press Escape or click the X button
+- Verify the header returns to showing the org name and icons
+- Verify the Upcoming panel reappears (if there are upcoming items)
+- Verify the previous stage filter is restored
+- **Screenshot** → `e2e-screenshots/11-search-exited.png`
+
+### 8. MCP: Search contacts
 - Get the MCP token: `curl -s -b <cookie-jar> http://localhost:3000/api/settings | python3 -c "import sys,json; print(json.load(sys.stdin)['mcpToken'])"`
 - Initialize MCP session with `method: "initialize"` (must include `Accept: application/json, text/event-stream` header)
 - Call `search_contacts` with a known contact name
 - Verify response contains `results` array with contact data (name, stage, status) and `totalCount`
 
-### 8. MCP: Add interaction via agent
+### 9. MCP: Add interaction via agent
 - Call `add_interaction` via MCP with a test note
 - Navigate to the CRM page in the browser
 - Verify the agent's note appears in the contact's timeline (SSE push)
-- **Screenshot** → `e2e-screenshots/08-mcp-agent-note.png`
+- **Screenshot** → `e2e-screenshots/12-mcp-agent-note.png`
 
-### 9. MCP: Get dashboard
+### 10. MCP: Get dashboard
 - Call `get_dashboard` via MCP
 - Verify it returns `totalContacts`, `byStage`, `overdueTasks`, and `activeViolations`
 
-### 10. Cleanup
+### 11. Cleanup
 - Kill the dev server
 - Write `e2e-screenshots/run.json` manifest with branch, timestamp, and per-step results
 - Report: PASS or FAIL with details of any failures
 
 ## Success Criteria
-All 10 steps pass. Screenshots captured for visual verification. If any step fails, fix the issue before creating the PR.
+All 11 steps pass. Screenshots captured for visual verification. If any step fails, fix the issue before creating the PR.
 
 ## How to Invoke
 ```

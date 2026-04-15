@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { isPast, isToday, differenceInDays } from "date-fns";
 import { Square, AlertTriangle, Trash2 } from "lucide-react";
 import type { ContactWithRelations } from "@shared/schema";
+import type { SearchSnippet } from "@/hooks/use-contact-search";
 import { fmtDate, fmtDateInput } from "@/lib/utils";
 import { useColors, BADGES } from "@/App";
 
@@ -26,6 +27,31 @@ function detectCommand(text: string): { type: "fu" | "mtg" | "stage" | "status" 
 
 const COMMAND_COLORS: Record<string, string> = { fu: "#1a9e96", mtg: "#2563eb", stage: "#2e7d32", status: "#d4880f" };
 
+function SnippetText({ text, matchRanges }: { text: string; matchRanges: Array<[number, number]> }) {
+  if (matchRanges.length === 0) return <span>{text}</span>;
+  const parts: Array<{ text: string; highlight: boolean }> = [];
+  let pos = 0;
+  for (const [start, end] of matchRanges) {
+    if (start > pos) parts.push({ text: text.slice(pos, start), highlight: false });
+    parts.push({ text: text.slice(start, end), highlight: true });
+    pos = end;
+  }
+  if (pos < text.length) parts.push({ text: text.slice(pos), highlight: false });
+  return (
+    <span>
+      {parts.map((p, i) =>
+        p.highlight ? (
+          <mark key={i} style={{ backgroundColor: "#fef08a", color: "inherit", borderRadius: 2, padding: "0 1px" }}>
+            {p.text}
+          </mark>
+        ) : (
+          <span key={i}>{p.text}</span>
+        ),
+      )}
+    </span>
+  );
+}
+
 interface ContactBlockProps {
   contact: ContactWithRelations;
   accentColor: string;
@@ -41,6 +67,7 @@ interface ContactBlockProps {
   onDeleteFollowup: (id: number) => void;
   onCompleteFollowup: (id: number, outcome?: string) => void;
   onUpdateContact: (data: Record<string, unknown>) => void;
+  searchSnippet?: SearchSnippet | null;
 }
 
 export function ContactBlock({
@@ -54,6 +81,7 @@ export function ContactBlock({
   onDeleteFollowup,
   onCompleteFollowup,
   onUpdateContact,
+  searchSnippet,
 }: ContactBlockProps) {
   const C = useColors();
   const isInactive = contact.status !== "ACTIVE";
@@ -302,6 +330,19 @@ export function ContactBlock({
           ) : null,
         )}
       </div>
+
+      {/* Search snippet */}
+      {searchSnippet && (
+        <div
+          className="mt-1.5 rounded-md px-2.5 py-1.5 text-[11px] truncate"
+          style={{ backgroundColor: C.accentLight, color: C.text }}
+        >
+          <span className="font-semibold mr-1" style={{ color: C.muted }}>
+            {searchSnippet.fieldLabel}:
+          </span>
+          <SnippetText text={searchSnippet.text} matchRanges={searchSnippet.matchRanges} />
+        </div>
+      )}
 
       {/* Details preview — first two lines, then "more..." */}
       {hasDetails &&

@@ -21,6 +21,7 @@ import type { InsertContact } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, isNull, gte, lte, asc, sql } from "drizzle-orm";
 import { sseManager } from "./sse";
+import { searchService } from "./search";
 import type { Express, Request, Response } from "express";
 import { randomUUID } from "crypto";
 
@@ -341,9 +342,12 @@ Good for: talking points, recent news, open items before a meeting.
   // --- Read Tools ---
   server.tool(
     "search_contacts",
-    "Search contacts by name, company, stage, or status. Returns a summary list with pagination.",
+    "Full-text search across all contact data including notes, tasks, and briefings. Returns a ranked summary list with pagination.",
     {
-      query: z.string().optional().describe("Search term (matches name, company, or email)"),
+      query: z
+        .string()
+        .optional()
+        .describe("Search term (full-text search across name, company, notes, tasks, briefings, email, and more)"),
       stage: stageEnum.optional().describe(`Filter by stage: ${STAGES.join(", ")}`),
       status: statusEnum.optional().describe(`Filter by status: ${STATUSES.join(", ")}`),
       limit: z.number().optional().describe("Max results to return (default 25)"),
@@ -351,6 +355,50 @@ Good for: talking points, recent news, open items before a meeting.
     },
     async ({ query, stage, status, limit, offset }) => {
       try {
+        const l = limit || 25;
+        const o = offset || 0;
+
+        // Use BM25 search when query is provided
+        if (query && query.length >= 2) {
+          const searchResult = await searchService.search(query, { stage, status, limit: l, offset: o });
+          const summary = searchResult.results
+            .map((r) => {
+              const c = searchService.getContact(r.contactId);
+              if (!c) return null;
+              return {
+                id: c.id,
+                name: `${c.firstName} ${c.lastName}`,
+                company: c.company?.name,
+                stage: c.stage,
+                status: c.status,
+                email: c.email,
+                lastInteraction:
+                  c.interactions.length > 0
+                    ? {
+                        date: c.interactions[c.interactions.length - 1].date,
+                        content: c.interactions[c.interactions.length - 1].content,
+                      }
+                    : null,
+                activeFollowups: c.followups.filter((f) => !f.completed).length,
+                violations: c.violations.length,
+              };
+            })
+            .filter(Boolean);
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify(
+                  { results: summary, totalCount: searchResult.totalCount, hasMore: searchResult.hasMore },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        }
+
+        // No query or too short — fall back to listing with optional filters
         let results = await storage.getContactsWithRelations();
         if (query) {
           const q = query.toLowerCase();
@@ -364,7 +412,7 @@ Good for: talking points, recent news, open items before a meeting.
         if (stage) results = results.filter((c) => c.stage === stage);
         if (status) results = results.filter((c) => c.status === status);
 
-        const { items, totalCount, hasMore } = paginate(results, limit || 25, offset || 0);
+        const { items, totalCount, hasMore } = paginate(results, l, o);
 
         const summary = items.map((c) => ({
           id: c.id,

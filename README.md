@@ -63,7 +63,7 @@ Uses `mcp-client.ts` which calls the REST API over HTTP:
 |------|-------------|
 | `get_crm_guide` | Agent usage guide + live CRM snapshot. Recommended first call. |
 | `get_dashboard` | Contacts by stage, overdue tasks, upcoming meetings, violations. |
-| `search_contacts` | Find by name, company, stage, or status. Paginated. |
+| `search_contacts` | BM25 full-text search across all contact data (names, notes, tasks, briefings). Ranked, paginated. |
 | `get_contact` | Full contact with all related data. |
 | `create_contact` | Add a new contact. |
 | `update_contact` | Modify contact fields. |

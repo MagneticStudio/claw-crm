@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useCrm } from "@/hooks/use-crm";
 import { useSSE } from "@/hooks/use-sse";
@@ -18,6 +18,7 @@ import {
   SlidersHorizontal,
   Menu,
   Check,
+  Search,
 } from "lucide-react";
 import { KanbanBoard } from "@/components/kanban/kanban-board";
 import { Link } from "wouter";
@@ -25,6 +26,7 @@ import { format, isPast, isToday, differenceInDays } from "date-fns";
 import type { Followup, ActivityLogEntry, Briefing } from "@shared/schema";
 import { fmtDate } from "@/lib/utils";
 import { useConfig, useColors } from "@/App";
+import { useContactSearch } from "@/hooks/use-contact-search";
 
 // Pipeline order (funnel flow, top to bottom)
 const STAGES = ["ALL", "LEAD", "MEETING", "PROPOSAL", "NEGOTIATION", "LIVE", "RELATIONSHIP", "PASS"] as const;
@@ -75,7 +77,47 @@ export default function CrmPage() {
   }, [viewMode]);
   const [showFilter, setShowFilter] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [isSearchMode, setIsSearchMode] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [, setPreSearchViewMode] = useState<"list" | "kanban" | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   useSSE();
+
+  const searchResults = useContactSearch(contacts, isSearchMode ? searchQuery : "");
+
+  const enterSearch = useCallback(() => {
+    setViewMode((v) => {
+      if (v === "kanban") setPreSearchViewMode("kanban");
+      return v === "kanban" ? "list" : v;
+    });
+    setIsSearchMode(true);
+    setSearchQuery("");
+    setTimeout(() => searchInputRef.current?.focus(), 0);
+  }, []);
+
+  const exitSearch = useCallback(() => {
+    setIsSearchMode(false);
+    setSearchQuery("");
+    setPreSearchViewMode((prev) => {
+      if (prev) setViewMode(prev);
+      return null;
+    });
+  }, []);
+
+  // Cmd+K / Ctrl+K shortcut
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        enterSearch();
+      }
+      if (e.key === "Escape") {
+        exitSearch();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [enterSearch, exitSearch]);
 
   const sortedContacts = useMemo(() => {
     const sorted = [...contacts].sort((a, b) => {
@@ -163,18 +205,11 @@ export default function CrmPage() {
     });
   };
 
-  // Today's meetings count for header
-  const todayMeetingCount = useMemo(() => {
-    return allFollowups.filter(({ followup: fu }) => fu.type === "meeting" && isToday(new Date(fu.dueDate))).length;
-  }, [allFollowups]);
-
   // Activity log
   const { data: activityLog = [] } = useQuery<ActivityLogEntry[]>({
     queryKey: ["/api/activity"],
     staleTime: 30_000,
   });
-
-  const activeCount = contacts.filter((c) => c.status === "ACTIVE").length;
 
   if (isLoading) {
     return (
@@ -189,176 +224,194 @@ export default function CrmPage() {
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: `1px solid ${C.border}` }}>
         <div className="max-w-[640px] mx-auto px-4 py-3 flex items-center justify-between">
-          <div>
-            <h1 className="text-[13px] font-semibold tracking-[0.2em] uppercase" style={{ color: C.text }}>
-              {orgName}
-            </h1>
-            <p className="text-[11px] font-mono mt-0.5" style={{ color: C.muted }}>
-              {activeCount} active
-              {todayMeetingCount > 0 && ` · ${todayMeetingCount} meeting${todayMeetingCount !== 1 ? "s" : ""} today`}
-              {allFollowups.length > 0 && ` · ${allFollowups.length} follow-up${allFollowups.length !== 1 ? "s" : ""}`}
-            </p>
-          </div>
-          <div className="flex items-center gap-0.5 relative">
-            {/* Filter button */}
-            <button
-              onClick={() => {
-                setShowFilter(!showFilter);
-                setShowMenu(false);
-              }}
-              className="p-2 transition-colors"
-              style={{ color: activeStage !== "ALL" ? C.accent : C.muted }}
-              title="Filter by stage"
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-            </button>
+          {isSearchMode ? (
+            <div className="flex items-center gap-2 flex-1 mr-2">
+              <Search className="h-4 w-4 flex-shrink-0" style={{ color: C.muted }} />
+              <input
+                ref={searchInputRef}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search contacts..."
+                className="flex-1 text-sm bg-transparent outline-none"
+                style={{ color: C.text }}
+                autoFocus
+              />
+              <button onClick={exitSearch} className="p-1 flex-shrink-0" style={{ color: C.muted }}>
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <>
+              <h1 className="text-[13px] font-semibold tracking-[0.2em] uppercase" style={{ color: C.text }}>
+                {orgName}
+              </h1>
+              <div className="flex items-center gap-0.5 relative">
+                {/* Search button */}
+                <button onClick={enterSearch} className="p-2 transition-colors" style={{ color: C.muted }} title="⌘K">
+                  <Search className="h-4 w-4" />
+                </button>
 
-            {/* Menu button */}
-            <button
-              onClick={() => {
-                setShowMenu(!showMenu);
-                setShowFilter(false);
-              }}
-              className="p-2 transition-colors"
-              style={{ color: C.muted }}
-              title="Menu"
-            >
-              <Menu className="h-4 w-4" />
-            </button>
-
-            {/* Filter dropdown */}
-            {showFilter && (
-              <>
-                <div className="fixed inset-0 z-[59]" onClick={() => setShowFilter(false)} />
-                <div
-                  className="absolute right-8 top-10 z-[60] py-1"
-                  style={{
-                    backgroundColor: "#fff",
-                    border: `1px solid ${C.border}`,
-                    borderRadius: 12,
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-                    minWidth: 180,
+                {/* Filter button */}
+                <button
+                  onClick={() => {
+                    setShowFilter(!showFilter);
+                    setShowMenu(false);
                   }}
+                  className="p-2 transition-colors"
+                  style={{ color: activeStage !== "ALL" ? C.accent : C.muted }}
+                  title="Filter by stage"
                 >
-                  {STAGES.map((stage) => {
-                    const count = stageCounts[stage] || 0;
-                    const isActive = activeStage === stage;
-                    const label = stage === "ALL" ? "All" : stage.charAt(0) + stage.slice(1).toLowerCase();
-                    return (
-                      <button
-                        key={stage}
-                        onClick={() => {
-                          setActiveStage(isActive && stage !== "ALL" ? "ALL" : stage);
-                          setShowFilter(false);
-                        }}
-                        className="w-full flex items-center justify-between px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-50"
-                        style={{
-                          color: stage !== "ALL" && count === 0 ? `${C.muted}80` : isActive ? C.accent : C.text,
-                          fontWeight: isActive ? 600 : 400,
-                        }}
-                      >
-                        <span>{label}</span>
-                        <span className="flex items-center gap-2">
-                          {stage !== "ALL" && (
-                            <span className="text-[11px]" style={{ color: C.muted }}>
-                              {count}
+                  <SlidersHorizontal className="h-4 w-4" />
+                </button>
+
+                {/* Menu button */}
+                <button
+                  onClick={() => {
+                    setShowMenu(!showMenu);
+                    setShowFilter(false);
+                  }}
+                  className="p-2 transition-colors"
+                  style={{ color: C.muted }}
+                  title="Menu"
+                >
+                  <Menu className="h-4 w-4" />
+                </button>
+
+                {/* Filter dropdown */}
+                {showFilter && (
+                  <>
+                    <div className="fixed inset-0 z-[59]" onClick={() => setShowFilter(false)} />
+                    <div
+                      className="absolute right-8 top-10 z-[60] py-1"
+                      style={{
+                        backgroundColor: "#fff",
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 12,
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                        minWidth: 180,
+                      }}
+                    >
+                      {STAGES.map((stage) => {
+                        const count = stageCounts[stage] || 0;
+                        const isActive = activeStage === stage;
+                        const label = stage === "ALL" ? "All" : stage.charAt(0) + stage.slice(1).toLowerCase();
+                        return (
+                          <button
+                            key={stage}
+                            onClick={() => {
+                              setActiveStage(isActive && stage !== "ALL" ? "ALL" : stage);
+                              setShowFilter(false);
+                            }}
+                            className="w-full flex items-center justify-between px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-50"
+                            style={{
+                              color: stage !== "ALL" && count === 0 ? `${C.muted}80` : isActive ? C.accent : C.text,
+                              fontWeight: isActive ? 600 : 400,
+                            }}
+                          >
+                            <span>{label}</span>
+                            <span className="flex items-center gap-2">
+                              {stage !== "ALL" && (
+                                <span className="text-[11px]" style={{ color: C.muted }}>
+                                  {count}
+                                </span>
+                              )}
+                              {isActive && <Check className="h-3.5 w-3.5" style={{ color: C.accent }} />}
                             </span>
-                          )}
-                          {isActive && <Check className="h-3.5 w-3.5" style={{ color: C.accent }} />}
-                        </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+
+                {/* Menu dropdown */}
+                {showMenu && (
+                  <>
+                    <div className="fixed inset-0 z-[59]" onClick={() => setShowMenu(false)} />
+                    <div
+                      className="absolute right-0 top-10 z-[60] py-1"
+                      style={{
+                        backgroundColor: "#fff",
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 12,
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                        minWidth: 200,
+                      }}
+                    >
+                      {/* View toggle */}
+                      <button
+                        onClick={() => {
+                          setViewMode("list");
+                          setShowMenu(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-50"
+                        style={{ color: viewMode === "list" ? C.accent : C.text }}
+                      >
+                        <LayoutList className="h-4 w-4" style={{ color: viewMode === "list" ? C.accent : C.muted }} />
+                        <span style={{ fontWeight: viewMode === "list" ? 600 : 400 }}>List view</span>
+                        {viewMode === "list" && <Check className="h-3.5 w-3.5 ml-auto" style={{ color: C.accent }} />}
                       </button>
-                    );
-                  })}
-                </div>
-              </>
-            )}
+                      <button
+                        onClick={() => {
+                          setViewMode("kanban");
+                          setShowMenu(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-50"
+                        style={{ color: viewMode === "kanban" ? C.accent : C.text }}
+                      >
+                        <Kanban className="h-4 w-4" style={{ color: viewMode === "kanban" ? C.accent : C.muted }} />
+                        <span style={{ fontWeight: viewMode === "kanban" ? 600 : 400 }}>Kanban view</span>
+                        {viewMode === "kanban" && <Check className="h-3.5 w-3.5 ml-auto" style={{ color: C.accent }} />}
+                      </button>
 
-            {/* Menu dropdown */}
-            {showMenu && (
-              <>
-                <div className="fixed inset-0 z-[59]" onClick={() => setShowMenu(false)} />
-                <div
-                  className="absolute right-0 top-10 z-[60] py-1"
-                  style={{
-                    backgroundColor: "#fff",
-                    border: `1px solid ${C.border}`,
-                    borderRadius: 12,
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-                    minWidth: 200,
-                  }}
-                >
-                  {/* View toggle */}
-                  <button
-                    onClick={() => {
-                      setViewMode("list");
-                      setShowMenu(false);
-                    }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-50"
-                    style={{ color: viewMode === "list" ? C.accent : C.text }}
-                  >
-                    <LayoutList className="h-4 w-4" style={{ color: viewMode === "list" ? C.accent : C.muted }} />
-                    <span style={{ fontWeight: viewMode === "list" ? 600 : 400 }}>List view</span>
-                    {viewMode === "list" && <Check className="h-3.5 w-3.5 ml-auto" style={{ color: C.accent }} />}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setViewMode("kanban");
-                      setShowMenu(false);
-                    }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-50"
-                    style={{ color: viewMode === "kanban" ? C.accent : C.text }}
-                  >
-                    <Kanban className="h-4 w-4" style={{ color: viewMode === "kanban" ? C.accent : C.muted }} />
-                    <span style={{ fontWeight: viewMode === "kanban" ? 600 : 400 }}>Kanban view</span>
-                    {viewMode === "kanban" && <Check className="h-3.5 w-3.5 ml-auto" style={{ color: C.accent }} />}
-                  </button>
+                      <div className="my-1" style={{ borderTop: `1px solid ${C.border}` }} />
 
-                  <div className="my-1" style={{ borderTop: `1px solid ${C.border}` }} />
+                      <Link
+                        href="/rules"
+                        onClick={() => setShowMenu(false)}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-50"
+                        style={{ color: C.text }}
+                      >
+                        <Zap className="h-4 w-4" style={{ color: C.muted }} />
+                        <span>Rules</span>
+                      </Link>
+                      <Link
+                        href="/settings"
+                        onClick={() => setShowMenu(false)}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-50"
+                        style={{ color: C.text }}
+                      >
+                        <Settings className="h-4 w-4" style={{ color: C.muted }} />
+                        <span>Settings</span>
+                      </Link>
+                      <button
+                        onClick={() => {
+                          setShowActivityDrawer(!showActivityDrawer);
+                          setShowMenu(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-50"
+                        style={{ color: C.text }}
+                      >
+                        <Activity className="h-4 w-4" style={{ color: C.muted }} />
+                        <span>Activity Log</span>
+                      </button>
 
-                  <Link
-                    href="/rules"
-                    onClick={() => setShowMenu(false)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-50"
-                    style={{ color: C.text }}
-                  >
-                    <Zap className="h-4 w-4" style={{ color: C.muted }} />
-                    <span>Rules</span>
-                  </Link>
-                  <Link
-                    href="/settings"
-                    onClick={() => setShowMenu(false)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-50"
-                    style={{ color: C.text }}
-                  >
-                    <Settings className="h-4 w-4" style={{ color: C.muted }} />
-                    <span>Settings</span>
-                  </Link>
-                  <button
-                    onClick={() => {
-                      setShowActivityDrawer(!showActivityDrawer);
-                      setShowMenu(false);
-                    }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-50"
-                    style={{ color: C.text }}
-                  >
-                    <Activity className="h-4 w-4" style={{ color: C.muted }} />
-                    <span>Activity Log</span>
-                  </button>
+                      <div className="my-1" style={{ borderTop: `1px solid ${C.border}` }} />
 
-                  <div className="my-1" style={{ borderTop: `1px solid ${C.border}` }} />
-
-                  <button
-                    onClick={() => logoutMutation.mutate()}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-50"
-                    style={{ color: C.text }}
-                  >
-                    <LogOut className="h-4 w-4" style={{ color: C.muted }} />
-                    <span>Log out</span>
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+                      <button
+                        onClick={() => logoutMutation.mutate()}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-50"
+                        style={{ color: C.text }}
+                      >
+                        <LogOut className="h-4 w-4" style={{ color: C.muted }} />
+                        <span>Log out</span>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </header>
 
@@ -433,7 +486,7 @@ export default function CrmPage() {
       ) : (
         <main className="max-w-[640px] mx-auto px-4 py-5">
           {/* Upcoming — all follow-ups and meetings in one list */}
-          {allFollowups.length > 0 && (
+          {!isSearchMode && allFollowups.length > 0 && (
             <div
               className="bg-white mb-5"
               style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}
@@ -609,30 +662,61 @@ export default function CrmPage() {
           )}
 
           {/* Contact cards */}
-          {filteredContacts.map((contact) => (
-            <ContactBlock
-              key={contact.id}
-              contact={contact}
-              accentColor={STAGE_ACCENT[contact.stage] || "#5a7a7a"}
-              onAddInteraction={(content, date, type) =>
-                addInteraction.mutate({ contactId: contact.id, content, date, type })
-              }
-              onUpdateInteraction={(id, data) => updateInteraction.mutate({ id, ...data })}
-              onDeleteInteraction={(id) => deleteInteraction.mutate(id)}
-              onCreateFollowup={(content, dueDate, opts) =>
-                createFollowup.mutate({ contactId: contact.id, content, dueDate, ...opts })
-              }
-              onUpdateFollowup={(id, data) => updateFollowup.mutate({ id, ...data })}
-              onDeleteFollowup={(id) => deleteFollowup.mutate(id)}
-              onCompleteFollowup={(id, outcome) => completeFollowup.mutate({ id, outcome })}
-              onUpdateContact={(data) => updateContact.mutate({ id: contact.id, ...data })}
-            />
-          ))}
-
-          {filteredContacts.length === 0 && (
-            <p className="text-center py-16 text-sm" style={{ color: C.muted }}>
-              No contacts in this stage
-            </p>
+          {isSearchMode && searchQuery.length >= 2 ? (
+            <>
+              {searchResults.map(({ contact, snippet }) => (
+                <ContactBlock
+                  key={contact.id}
+                  contact={contact}
+                  accentColor={STAGE_ACCENT[contact.stage] || "#5a7a7a"}
+                  searchSnippet={snippet}
+                  onAddInteraction={(content, date, type) =>
+                    addInteraction.mutate({ contactId: contact.id, content, date, type })
+                  }
+                  onUpdateInteraction={(id, data) => updateInteraction.mutate({ id, ...data })}
+                  onDeleteInteraction={(id) => deleteInteraction.mutate(id)}
+                  onCreateFollowup={(content, dueDate, opts) =>
+                    createFollowup.mutate({ contactId: contact.id, content, dueDate, ...opts })
+                  }
+                  onUpdateFollowup={(id, data) => updateFollowup.mutate({ id, ...data })}
+                  onDeleteFollowup={(id) => deleteFollowup.mutate(id)}
+                  onCompleteFollowup={(id, outcome) => completeFollowup.mutate({ id, outcome })}
+                  onUpdateContact={(data) => updateContact.mutate({ id: contact.id, ...data })}
+                />
+              ))}
+              {searchResults.length === 0 && (
+                <p className="text-center py-16 text-sm" style={{ color: C.muted }}>
+                  No results
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              {(isSearchMode ? sortedContacts : filteredContacts).map((contact) => (
+                <ContactBlock
+                  key={contact.id}
+                  contact={contact}
+                  accentColor={STAGE_ACCENT[contact.stage] || "#5a7a7a"}
+                  onAddInteraction={(content, date, type) =>
+                    addInteraction.mutate({ contactId: contact.id, content, date, type })
+                  }
+                  onUpdateInteraction={(id, data) => updateInteraction.mutate({ id, ...data })}
+                  onDeleteInteraction={(id) => deleteInteraction.mutate(id)}
+                  onCreateFollowup={(content, dueDate, opts) =>
+                    createFollowup.mutate({ contactId: contact.id, content, dueDate, ...opts })
+                  }
+                  onUpdateFollowup={(id, data) => updateFollowup.mutate({ id, ...data })}
+                  onDeleteFollowup={(id) => deleteFollowup.mutate(id)}
+                  onCompleteFollowup={(id, outcome) => completeFollowup.mutate({ id, outcome })}
+                  onUpdateContact={(data) => updateContact.mutate({ id: contact.id, ...data })}
+                />
+              ))}
+              {filteredContacts.length === 0 && !isSearchMode && (
+                <p className="text-center py-16 text-sm" style={{ color: C.muted }}>
+                  No contacts in this stage
+                </p>
+              )}
+            </>
           )}
         </main>
       )}
