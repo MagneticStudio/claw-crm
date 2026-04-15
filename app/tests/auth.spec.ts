@@ -12,7 +12,7 @@ test.describe("Authentication", () => {
     await page.locator("button", { hasText: "Unlock" }).click();
 
     // Should redirect to CRM page and show contacts
-    await expect(page.locator("text=active")).toBeVisible({ timeout: 5000 });
+    await expect(page.locator("text=Upcoming")).toBeVisible({ timeout: 5000 });
   });
 
   test("rejects invalid PIN", async ({ page }) => {
