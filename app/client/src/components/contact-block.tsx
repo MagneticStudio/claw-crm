@@ -474,9 +474,15 @@ export function ContactBlock({
             const hasHiddenMatch =
               showToggle &&
               searchSnippet?.fieldLabel === "Note" &&
-              contact.interactions
-                .slice(0, -VISIBLE_COUNT)
-                .some((i) => i.content.toLowerCase().includes(searchSnippet.text.replace(/^\u2026|\u2026$/g, "").trim().slice(0, 20).toLowerCase()));
+              contact.interactions.slice(0, -VISIBLE_COUNT).some((i) =>
+                i.content.toLowerCase().includes(
+                  searchSnippet.text
+                    .replace(/^\u2026|\u2026$/g, "")
+                    .trim()
+                    .slice(0, 20)
+                    .toLowerCase(),
+                ),
+              );
 
             return (
               <div className="space-y-0.5 mb-2">
@@ -720,7 +726,8 @@ export function ContactBlock({
                       {fu.time ? ` ${fu.time}` : ""}
                     </span>
                     <span style={{ color: isOverdue ? C.red : C.text }}>
-                      {" "}<HighlightedText text={truncated} terms={searchTerms} />
+                      {" "}
+                      <HighlightedText text={truncated} terms={searchTerms} />
                     </span>
                     {isOverdue && (
                       <span className="font-semibold" style={{ color: C.red }}>
