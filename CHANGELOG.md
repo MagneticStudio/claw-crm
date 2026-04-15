@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-04-15
+
+### Contact card UI polish
+- Flash notifications no longer overlap stage/status badges — now inline in the header row (fixes #42)
+- Status badge (ACTIVE/HOLD) is always visible and clickable to toggle — no more slash commands needed (fixes #39)
+- Date picker in followup edit mode styled with teal accent, rounded corners, Montserrat font (fixes #41)
+
 ## 2026-04-14
 
 ### Full-text search with BM25 ranking

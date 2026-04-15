@@ -274,17 +274,16 @@ export function ContactBlock({
       className={`relative bg-white mb-2 ${isInactive ? "opacity-50 hover:opacity-75" : ""}`}
       style={{ border: `1px solid ${C.border}`, borderRadius: "10px", padding: "0.75rem 1rem" }}
     >
-      {flash && (
-        <div
-          className="absolute top-2 right-3 text-[10px] font-medium px-2 py-0.5 rounded z-10 animate-pulse"
-          style={{ color: C.accentDark, backgroundColor: C.accentLight }}
-        >
-          {flash}
-        </div>
-      )}
-
       {/* Header */}
       <div className="flex items-center gap-1.5">
+        {flash && (
+          <span
+            className="text-[10px] font-medium px-2 py-0.5 rounded animate-pulse order-last ml-auto"
+            style={{ color: C.accentDark, backgroundColor: C.accentLight }}
+          >
+            {flash}
+          </span>
+        )}
         <h2 className="text-sm font-bold leading-tight" style={{ color: C.text }}>
           {contact.firstName} {contact.lastName}
         </h2>
@@ -332,17 +331,21 @@ export function ContactBlock({
           )}
         </div>
 
-        {isInactive && contact.status !== contact.stage && (
-          <span
-            className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
-            style={{
-              backgroundColor: contact.status === "HOLD" ? "#f0ecf8" : C.redBg,
-              color: contact.status === "HOLD" ? "#6c5ce7" : C.red,
-            }}
-          >
-            {contact.status}
-          </span>
-        )}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            const newStatus = contact.status === "ACTIVE" ? "HOLD" : "ACTIVE";
+            onUpdateContact({ status: newStatus });
+            showFlash(`Status → ${newStatus}`);
+          }}
+          className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full transition-colors hover:opacity-80"
+          style={{
+            backgroundColor: contact.status === "HOLD" ? "#f0ecf8" : `${C.accent}15`,
+            color: contact.status === "HOLD" ? "#6c5ce7" : C.accent,
+          }}
+        >
+          {contact.status}
+        </button>
 
         {isStale && <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" style={{ color: C.stale }} />}
         {hasViolations && !isStale && (
@@ -645,8 +648,13 @@ export function ContactBlock({
                       type="date"
                       value={editingFollowupDate}
                       onChange={(e) => setEditingFollowupDate(e.target.value)}
-                      className="text-xs rounded px-1 py-0.5 outline-none w-[110px] flex-shrink-0"
-                      style={{ border: `1px solid ${C.border}`, color: C.text }}
+                      className="text-xs px-1.5 py-1 outline-none w-[120px] flex-shrink-0 font-[Montserrat]"
+                      style={{
+                        border: `1px solid ${C.accent}40`,
+                        borderRadius: 8,
+                        color: C.accentDark,
+                        backgroundColor: C.accentLight,
+                      }}
                     />
                     <input
                       autoFocus
