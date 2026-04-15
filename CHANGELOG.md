@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-04-14
+
+### Full-text search with BM25 ranking
+- Added Cmd+K search with instant contact filtering across all fields (names, notes, tasks, briefings, email, etc.)
+- Server-side MiniSearch (BM25) engine powers both the UI and MCP `search_contacts` tool
+- Weighted field ranking: name/company 5x, tasks 3x, notes 2x, metadata 1x
+- Prefix matching + fuzzy typo tolerance (edit distance ~20%)
+- Preview snippets with teal background + yellow match highlights for non-name matches
+- Search ignores active stage filter; hides Upcoming panel; auto-switches kanban to list view
+- New `GET /api/search` REST endpoint; lazy index rebuild on data mutations
+- Removed stats line from header; added search icon with ⌘K tooltip
+- Client bundle reduced ~20KB (MiniSearch moved server-side)
+- E2E test steps added for search flows
+
 ## 2026-04-12
 
 ### README rewrite for open source

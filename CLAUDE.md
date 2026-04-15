@@ -46,8 +46,8 @@ npm run test -- tests/auth.spec.ts  # Single test file
 
 ## Before submitting a PR
 
-1. Run the E2E test skill (`.claude/skills/e2e-test/SKILL.md`). Do not create PR if any step fails.
-2. If the PR adds a major feature, add new E2E steps covering key flows before running.
+1. **If the PR adds a major feature, add new E2E steps to `.claude/skills/e2e-test/SKILL.md` covering key flows BEFORE running tests.** This is not optional — every user-facing feature must have E2E coverage.
+2. Run the E2E test skill (`.claude/skills/e2e-test/SKILL.md`). Do not create PR if any step fails.
 3. Update README.md if architecture, tools, or workflows changed.
 4. Add a CHANGELOG.md entry.
 

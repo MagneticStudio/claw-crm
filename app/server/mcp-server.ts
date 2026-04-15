@@ -12,6 +12,7 @@ import {
   CONDITION_TYPES,
   EXCEPTION_TYPES,
 } from "@shared/schema";
+import { searchService } from "./search";
 
 // Zod enums from shared constants
 const stageEnum = z.enum(STAGES);
@@ -30,23 +31,69 @@ const server = new McpServer({
 
 server.tool(
   "search_contacts",
-  "Search contacts by name, company, stage, or status. Returns a paginated summary list.",
+  "Full-text search across all contact data including notes, tasks, and briefings. Returns a ranked summary list with pagination.",
   {
-    query: z.string().optional().describe("Search term (matches name, company, or email)"),
+    query: z
+      .string()
+      .optional()
+      .describe("Search term (full-text search across name, company, notes, tasks, briefings, email, and more)"),
     stage: stageEnum.optional().describe(`Filter by stage: ${STAGES.join(", ")}`),
     status: statusEnum.optional().describe(`Filter by status: ${STATUSES.join(", ")}`),
     limit: z.number().optional().describe("Max results to return (default 25)"),
     offset: z.number().optional().describe("Skip this many results (default 0)"),
   },
   async ({ query, stage, status, limit, offset }) => {
-    let contacts = await storage.getContactsWithRelations();
+    const l = limit || 25;
+    const o = offset || 0;
 
+    // Use BM25 search when query is provided and long enough
+    if (query && query.length >= 2) {
+      const searchResult = await searchService.search(query, { stage, status, limit: l, offset: o });
+      const summary = searchResult.results
+        .map((r) => {
+          const c = searchService.getContact(r.contactId);
+          if (!c) return null;
+          return {
+            id: c.id,
+            name: `${c.firstName} ${c.lastName}`,
+            company: c.company?.name,
+            stage: c.stage,
+            status: c.status,
+            email: c.email,
+            lastInteraction:
+              c.interactions.length > 0
+                ? {
+                    date: c.interactions[c.interactions.length - 1].date,
+                    content: c.interactions[c.interactions.length - 1].content,
+                  }
+                : null,
+            activeFollowups: c.followups.filter((f) => !f.completed).length,
+            violations: c.violations.length,
+          };
+        })
+        .filter(Boolean);
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(
+              { results: summary, totalCount: searchResult.totalCount, hasMore: searchResult.hasMore },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    }
+
+    // No query or too short — fall back to listing with optional filters
+    let contacts = await storage.getContactsWithRelations();
     if (query) {
       const q = query.toLowerCase();
       contacts = contacts.filter(
         (c) =>
           `${c.firstName} ${c.lastName}`.toLowerCase().includes(q) ||
-          c.company?.name.toLowerCase().includes(q) ||
+          c.company?.name?.toLowerCase().includes(q) ||
           c.email?.toLowerCase().includes(q),
       );
     }
@@ -54,8 +101,6 @@ server.tool(
     if (status) contacts = contacts.filter((c) => c.status === status);
 
     const total = contacts.length;
-    const l = limit || 25;
-    const o = offset || 0;
     const sliced = contacts.slice(o, o + l);
 
     const summary = sliced.map((c) => ({

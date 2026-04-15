@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { isPast, isToday, differenceInDays } from "date-fns";
 import { Square, AlertTriangle, Trash2 } from "lucide-react";
 import type { ContactWithRelations } from "@shared/schema";
+import type { SearchSnippet } from "@/hooks/use-contact-search";
 import { fmtDate, fmtDateInput } from "@/lib/utils";
 import { useColors, BADGES } from "@/App";
 
@@ -26,6 +27,63 @@ function detectCommand(text: string): { type: "fu" | "mtg" | "stage" | "status" 
 
 const COMMAND_COLORS: Record<string, string> = { fu: "#1a9e96", mtg: "#2563eb", stage: "#2e7d32", status: "#d4880f" };
 
+function SnippetText({ text, matchRanges }: { text: string; matchRanges: Array<[number, number]> }) {
+  if (matchRanges.length === 0) return <span>{text}</span>;
+  const parts: Array<{ text: string; highlight: boolean }> = [];
+  let pos = 0;
+  for (const [start, end] of matchRanges) {
+    if (start > pos) parts.push({ text: text.slice(pos, start), highlight: false });
+    parts.push({ text: text.slice(start, end), highlight: true });
+    pos = end;
+  }
+  if (pos < text.length) parts.push({ text: text.slice(pos), highlight: false });
+  return (
+    <span>
+      {parts.map((p, i) =>
+        p.highlight ? (
+          <mark key={i} style={{ backgroundColor: "#fef08a", color: "inherit", borderRadius: 2, padding: "0 1px" }}>
+            {p.text}
+          </mark>
+        ) : (
+          <span key={i}>{p.text}</span>
+        ),
+      )}
+    </span>
+  );
+}
+
+function findInlineMatchRanges(text: string, terms: string[]): Array<[number, number]> {
+  const ranges: Array<[number, number]> = [];
+  const lower = text.toLowerCase();
+  for (const term of terms) {
+    const tLower = term.toLowerCase();
+    let pos = 0;
+    while (pos < lower.length) {
+      const idx = lower.indexOf(tLower, pos);
+      if (idx === -1) break;
+      ranges.push([idx, idx + tLower.length]);
+      pos = idx + 1;
+    }
+  }
+  ranges.sort((a, b) => a[0] - b[0]);
+  const merged: Array<[number, number]> = [];
+  for (const r of ranges) {
+    if (merged.length > 0 && r[0] <= merged[merged.length - 1][1]) {
+      merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], r[1]);
+    } else {
+      merged.push([...r]);
+    }
+  }
+  return merged;
+}
+
+function HighlightedText({ text, terms }: { text: string; terms?: string[] }) {
+  if (!terms || terms.length === 0) return <>{text}</>;
+  const ranges = findInlineMatchRanges(text, terms);
+  if (ranges.length === 0) return <>{text}</>;
+  return <SnippetText text={text} matchRanges={ranges} />;
+}
+
 interface ContactBlockProps {
   contact: ContactWithRelations;
   accentColor: string;
@@ -41,6 +99,8 @@ interface ContactBlockProps {
   onDeleteFollowup: (id: number) => void;
   onCompleteFollowup: (id: number, outcome?: string) => void;
   onUpdateContact: (data: Record<string, unknown>) => void;
+  searchSnippet?: SearchSnippet | null;
+  searchTerms?: string[];
 }
 
 export function ContactBlock({
@@ -54,6 +114,8 @@ export function ContactBlock({
   onDeleteFollowup,
   onCompleteFollowup,
   onUpdateContact,
+  searchSnippet,
+  searchTerms,
 }: ContactBlockProps) {
   const C = useColors();
   const isInactive = contact.status !== "ACTIVE";
@@ -303,6 +365,19 @@ export function ContactBlock({
         )}
       </div>
 
+      {/* Search snippet */}
+      {searchSnippet && (
+        <div
+          className="mt-1.5 rounded-md px-2.5 py-1.5 text-[11px] truncate"
+          style={{ backgroundColor: C.accentLight, color: C.text }}
+        >
+          <span className="font-semibold mr-1" style={{ color: C.muted }}>
+            {searchSnippet.fieldLabel}:
+          </span>
+          <SnippetText text={searchSnippet.text} matchRanges={searchSnippet.matchRanges} />
+        </div>
+      )}
+
       {/* Details preview — first two lines, then "more..." */}
       {hasDetails &&
         (() => {
@@ -395,15 +470,23 @@ export function ContactBlock({
               ? contact.interactions
               : contact.interactions.slice(-VISIBLE_COUNT);
 
+            // Check if the search match is in a hidden interaction
+            const hasHiddenMatch =
+              showToggle &&
+              searchSnippet?.fieldLabel === "Note" &&
+              contact.interactions
+                .slice(0, -VISIBLE_COUNT)
+                .some((i) => i.content.toLowerCase().includes(searchSnippet.text.replace(/^\u2026|\u2026$/g, "").trim().slice(0, 20).toLowerCase()));
+
             return (
               <div className="space-y-0.5 mb-2">
                 {showToggle && (
                   <button
                     onClick={() => setShowAllInteractions(true)}
                     className="text-[11px] font-medium mb-0.5 transition-colors hover:opacity-70"
-                    style={{ color: C.accentDark }}
+                    style={{ color: hasHiddenMatch ? C.accent : C.accentDark, fontWeight: hasHiddenMatch ? 600 : 500 }}
                   >
-                    Show {hiddenCount} earlier...
+                    Show {hiddenCount} earlier...{hasHiddenMatch ? " (match inside)" : ""}
                   </button>
                 )}
                 {showAllInteractions && total > VISIBLE_COUNT && (
@@ -466,7 +549,7 @@ export function ContactBlock({
                         className="group-hover/line:bg-[#e6f7f6] rounded px-0.5 -mx-0.5 transition-colors"
                         style={{ color: C.text }}
                       >
-                        {interaction.content}
+                        <HighlightedText text={interaction.content} terms={searchTerms} />
                       </span>
                     </div>
                   );
@@ -636,7 +719,9 @@ export function ContactBlock({
                       {fmtDate(due)}
                       {fu.time ? ` ${fu.time}` : ""}
                     </span>
-                    <span style={{ color: isOverdue ? C.red : C.text }}> {truncated}</span>
+                    <span style={{ color: isOverdue ? C.red : C.text }}>
+                      {" "}<HighlightedText text={truncated} terms={searchTerms} />
+                    </span>
                     {isOverdue && (
                       <span className="font-semibold" style={{ color: C.red }}>
                         {" "}
