@@ -583,7 +583,9 @@ export function ContactBlock({
                     searchTerms.some((t) => interaction.content.toLowerCase().includes(t.toLowerCase()));
                   const isExpanded = expandedInteractions.has(interaction.id) || hasSearchMatch;
                   const displayText =
-                    tooLong && !isExpanded ? interaction.content.slice(0, MAX_CHARS).trimEnd() + "…" : interaction.content;
+                    tooLong && !isExpanded
+                      ? interaction.content.slice(0, MAX_CHARS).trimEnd() + "…"
+                      : interaction.content;
                   return (
                     <div
                       key={interaction.id}
