@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-04-16
+
+### PR workflow: Claude owns PRs end-to-end
+- Pre-PR hook no longer requires `--assignee parkervoss`
+- CLAUDE.md documents the post-create flow: monitor CI, address comments, merge when green (Railway auto-deploys from main)
+
 ## 2026-04-15
 
 ### Snooze follow-ups by 1/7/14 days
