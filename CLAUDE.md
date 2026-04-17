@@ -51,6 +51,15 @@ npm run test -- tests/auth.spec.ts  # Single test file
 3. Update README.md if architecture, tools, or workflows changed.
 4. Add a CHANGELOG.md entry.
 
+## After creating a PR
+
+Don't assign reviewers — instead, own the PR through merge:
+
+1. Monitor CI (`gh pr checks <num> --watch` or poll with `gh pr checks <num>`).
+2. If CI fails, read the failing job logs, fix the cause, and push again.
+3. If reviewers leave comments, read them (`gh api repos/MagneticStudio/claw-crm/pulls/<num>/comments`), respond or address, and push fixes.
+4. Once CI is green and there are no unresolved comments, merge to main (`gh pr merge <num> --squash --delete-branch`). Railway auto-deploys from main.
+
 ## Gotchas
 
 - Dates: use `fmtDate` from `lib/utils.ts`. Using `format()` from date-fns causes off-by-one timezone bugs.

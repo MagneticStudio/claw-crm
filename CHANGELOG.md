@@ -2,6 +2,10 @@
 
 ## 2026-04-16
 
+### PR workflow: Claude owns PRs end-to-end
+- Pre-PR hook no longer requires `--assignee parkervoss`
+- CLAUDE.md documents the post-create flow: monitor CI, address comments, merge when green (Railway auto-deploys from main)
+
 ### Truncate long interaction notes
 - Individual notes over 280 characters now collapse with a `more...` / `less` toggle so one long note can't fill the page
 - Auto-expands when a search term matches inside the note, so matches stay visible
