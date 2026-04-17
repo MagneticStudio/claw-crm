@@ -121,6 +121,7 @@ export function ContactBlock({
   const isInactive = contact.status !== "ACTIVE";
   const [showDetails, setShowDetails] = useState(false);
   const [showAllInteractions, setShowAllInteractions] = useState(false);
+  const [expandedInteractions, setExpandedInteractions] = useState<Set<number>>(new Set());
   const [newNote, setNewNote] = useState("");
   const [showStageMenu, setShowStageMenu] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
@@ -575,6 +576,14 @@ export function ContactBlock({
                       </div>
                     );
                   }
+                  const MAX_CHARS = 280;
+                  const tooLong = interaction.content.length > MAX_CHARS;
+                  const hasSearchMatch =
+                    !!searchTerms?.length &&
+                    searchTerms.some((t) => interaction.content.toLowerCase().includes(t.toLowerCase()));
+                  const isExpanded = expandedInteractions.has(interaction.id) || hasSearchMatch;
+                  const displayText =
+                    tooLong && !isExpanded ? interaction.content.slice(0, MAX_CHARS).trimEnd() + "…" : interaction.content;
                   return (
                     <div
                       key={interaction.id}
@@ -591,7 +600,24 @@ export function ContactBlock({
                         className="group-hover/line:bg-[#e6f7f6] rounded px-0.5 -mx-0.5 transition-colors"
                         style={{ color: C.text }}
                       >
-                        <HighlightedText text={interaction.content} terms={searchTerms} />
+                        <HighlightedText text={displayText} terms={searchTerms} />
+                        {tooLong && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpandedInteractions((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(interaction.id)) next.delete(interaction.id);
+                                else next.add(interaction.id);
+                                return next;
+                              });
+                            }}
+                            className="ml-1 transition-colors hover:opacity-70"
+                            style={{ color: C.accentDark }}
+                          >
+                            {isExpanded ? "less" : "more..."}
+                          </button>
+                        )}
                       </span>
                     </div>
                   );
