@@ -60,6 +60,14 @@ curl -s http://localhost:3000/api/user  # should return 401 (not authenticated)
 - Verify the note appears in the contact's timeline with today's date
 - **Screenshot** → `e2e-screenshots/02-note-added.png`
 
+### 3b. UI: Long note truncation with more/less toggle
+- In the same contact's input, paste a long note (>280 chars), e.g. repeat a sentence until it exceeds 280 characters: `E2E long note test. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit.`
+- Press Enter
+- Verify the rendered note ends in `…` followed by a `more...` button (teal link)
+- Click `more...` — verify the full note is revealed and the button now reads `less`
+- Click `less` — verify the note collapses back to the truncated form
+- **Screenshot** → `e2e-screenshots/02b-note-truncation.png`
+
 ### 4. UI: Create a task (follow-up)
 - In the same input, type: `/fu 12/31 E2E test task`
 - Verify the command hint appears ("task ready")

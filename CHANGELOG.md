@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-04-16
+
+### Truncate long interaction notes
+- Individual notes over 280 characters now collapse with a `more...` / `less` toggle so one long note can't fill the page
+- Auto-expands when a search term matches inside the note, so matches stay visible
+
 ## 2026-04-15
 
 ### Snooze follow-ups by 1/7/14 days
