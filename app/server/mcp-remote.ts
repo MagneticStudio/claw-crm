@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 import { storage } from "./storage";
@@ -18,6 +18,13 @@ import {
   EXCEPTION_TYPES,
 } from "@shared/schema";
 import type { InsertContact } from "@shared/schema";
+import {
+  MEMORY_SKELETON,
+  validateMemoryContent,
+  appendTimelineEntry,
+  hashMemory,
+  MEMORY_SIZE_LIMIT,
+} from "@shared/memory";
 import { db } from "./db";
 import { eq, and, isNull, gte, lte, asc, sql } from "drizzle-orm";
 import { sseManager } from "./sse";
@@ -235,6 +242,28 @@ After a meeting happens, log it as an interaction with add_interaction.
 ## Briefings
 Use save_briefing to store prep notes for a contact (one per contact, upsert).
 Good for: talking points, recent news, open items before a meeting.
+
+## Relationship Memory
+The persistent, file-like narrative of the relationship. Freeform markdown per contact, everlasting, append-mostly. Tools: read_memory, edit_memory, append_memory.
+
+**Writing rules (non-negotiable):**
+1. Every new entry in relationship_memory begins with an ISO date heading: \`### YYYY-MM-DD: <brief title>\`.
+2. Use ONLY absolute dates anywhere in memory content. Acceptable: \`2026-04-18\`, \`04/18/2026\`, \`April 18, 2026\`. **Never** use today, tomorrow, yesterday, this/next/last week, recently, soon, shortly, this Friday, or any other relative time reference.
+3. When writing about future actions, state the specific date. Write \`follow up with Jeff on 2026-05-06\`, not \`follow up with Jeff next week\`.
+4. When a contact says "let's meet next Tuesday", translate to an absolute date at write time using today as anchor. Example: today 2026-04-18, they say "next Tuesday" → write \`meeting scheduled for 2026-04-21 (Tuesday)\`.
+5. Never silently edit or delete existing dated Timeline entries. Prefer appending a correction: \`### 2026-04-18: Correction to 2026-03-09 entry — …\`. If a rewrite is needed, it's a destructive edit.
+6. When updating non-timeline sections in place (Overview, Key People, Current State), annotate the change inline: \`[updated 2026-04-18: …]\`.
+7. If a piece of information has no known date, mark it \`[date unknown]\` rather than omitting or hedging.
+8. \`briefing\` is for the next meeting and may be overwritten freely. \`relationship_memory\` is permanent. Do not confuse the two.
+9. Destructive edits require \`confirmed_with_user: true\`, set ONLY after the user has explicitly approved the change in conversation. "Destructive" = shrinks the doc ≥20% OR mutates an existing \`### YYYY-MM-DD:\` Timeline heading. Typically happens at user direction — the flag confirms it.
+10. Write dense. Every word earns its place. No filler, no throat-clearing, no hedges. Capture maximum context per character.
+
+**Where does this content go?**
+- Short canonical fact about the person or company (title, location, website) → **contact fields**
+- Prep for the next specific meeting → **briefing** (ephemeral, replaced at next prep)
+- One discrete event that happened on a specific date (meeting, email, call) → **interactions**
+- Narrative context, engagement story, key people with roles, wins, open threads → **relationship_memory**
+- Anything the user explicitly pastes as "historical context" or "memory" for a client → **relationship_memory**, with dated entries in the Timeline section.
 
 ## Confidentiality
 - NEVER put pricing or deal terms in the CRM
@@ -967,6 +996,256 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
     },
   );
 
+  // --- Relationship memory ---
+  const MEMORY_WRITE_RULES = [
+    "Writes must use ABSOLUTE DATES only. Every new substantive entry begins with an ISO date heading: `### YYYY-MM-DD: <title>`.",
+    "Relative time phrases (today, tomorrow, yesterday, this/next/last week, this Friday, recently, soon, shortly, a few days ago, etc.) are REJECTED by the validator. Translate to absolute dates at write time.",
+    "Destructive edits require confirmed_with_user: true — triggered when the edit (a) shrinks the doc ≥20% or (b) mutates/removes an existing `### YYYY-MM-DD:` Timeline heading. Set only after the user has explicitly approved the change in conversation.",
+    "Write dense. Every word earns its place. No filler, no throat-clearing, no hedges. Capture maximum context per character.",
+  ].join(" ");
+
+  server.tool(
+    "read_memory",
+    `Read the full relationship_memory markdown for a contact. Returns the document text, a content hash (pass as expectedHash on subsequent edits to avoid silent overwrite), and whether the doc has been initialized. If the contact has no memory yet, returns a synthesized skeleton — writing via append_memory will persist it. Call this BEFORE any edit so you're working from current content.`,
+    {
+      contactId: z.number().describe("Contact ID. Get from search_contacts or get_contact."),
+    },
+    async ({ contactId }) => {
+      try {
+        const contact = await storage.getContact(contactId);
+        if (!contact) return notFoundError("Contact", contactId, "search_contacts");
+        const initialized = contact.relationshipMemory !== null;
+        const content = initialized
+          ? (contact.relationshipMemory as string)
+          : MEMORY_SKELETON(`${contact.firstName} ${contact.lastName}`);
+        const payload = {
+          content,
+          hash: hashMemory(initialized ? content : null),
+          initialized,
+          sizeBytes: content.length,
+        };
+        return { content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }] };
+      } catch (err: unknown) {
+        return { content: [{ type: "text" as const, text: actionableError("reading memory", err) }], isError: true };
+      }
+    },
+  );
+
+  server.tool(
+    "edit_memory",
+    `Exact-string replacement on a contact's relationship_memory. Mirrors Claude's local Edit tool: oldString must occur exactly once in the current document (unless replaceAll: true) or the edit is rejected. ${MEMORY_WRITE_RULES}`,
+    {
+      contactId: z.number(),
+      oldString: z
+        .string()
+        .describe(
+          "Exact substring to replace (whitespace-sensitive). Must occur exactly once unless replaceAll is true.",
+        ),
+      newString: z
+        .string()
+        .describe(
+          "Replacement text. Use absolute dates only. Substantive content (>40 chars) must include at least one absolute date (YYYY-MM-DD, M/D/YYYY, or Month DD, YYYY). Relative phrases will be rejected naming the offending term.",
+        ),
+      replaceAll: z
+        .boolean()
+        .optional()
+        .default(false)
+        .describe("Replace every occurrence of oldString instead of requiring exactly one match."),
+      expectedHash: z
+        .string()
+        .optional()
+        .describe(
+          "Content hash from your most recent read_memory. Strongly recommended — the edit is rejected if the doc changed since then.",
+        ),
+      confirmed_with_user: z
+        .boolean()
+        .optional()
+        .default(false)
+        .describe(
+          "Set to true ONLY after the user has explicitly approved a destructive edit in conversation. Required when the edit shrinks the doc ≥20% (or ≥500 chars, whichever smaller) OR mutates/removes an existing `### YYYY-MM-DD:` Timeline heading.",
+        ),
+    },
+    async ({ contactId, oldString, newString, replaceAll, expectedHash, confirmed_with_user }) => {
+      try {
+        const contact = await storage.getContact(contactId);
+        if (!contact) return notFoundError("Contact", contactId, "search_contacts");
+        if (contact.relationshipMemory === null) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({
+                  ok: false,
+                  reason: "not_initialized",
+                  message: "Memory not initialized. Call append_memory first to seed the document.",
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const v = validateMemoryContent(newString);
+        if (!v.ok) {
+          return {
+            content: [{ type: "text" as const, text: JSON.stringify({ ok: false, ...v }) }],
+            isError: true,
+          };
+        }
+
+        const current = contact.relationshipMemory;
+        const occurrences = current.split(oldString).length - 1;
+        if (occurrences === 0) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({
+                  ok: false,
+                  reason: "no_match",
+                  message: "oldString not found in current document. Re-read the memory and try again.",
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
+        if (occurrences > 1 && !replaceAll) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({
+                  ok: false,
+                  reason: "multiple_matches",
+                  message: `oldString appears ${occurrences} times. Provide more surrounding context for uniqueness, or set replaceAll: true.`,
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const updated = replaceAll ? current.split(oldString).join(newString) : current.replace(oldString, newString);
+
+        const result = await storage.updateRelationshipMemory(contactId, updated, {
+          source: "agent",
+          expectedHash,
+          confirmedWithUser: confirmed_with_user,
+        });
+        if (!result.ok) {
+          return { content: [{ type: "text" as const, text: JSON.stringify(result) }], isError: true };
+        }
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                ok: true,
+                bytesChanged: updated.length - current.length,
+                newHash: result.newHash,
+                newSize: result.newSize,
+              }),
+            },
+          ],
+        };
+      } catch (err: unknown) {
+        return { content: [{ type: "text" as const, text: actionableError("editing memory", err) }], isError: true };
+      }
+    },
+  );
+
+  server.tool(
+    "append_memory",
+    `Append a new dated entry to the Timeline section of a contact's relationship_memory. Server auto-prepends today's ISO date as the \`###\` heading — you supply title and body only. If the memory doesn't exist yet, the server seeds the skeleton and then appends. ${MEMORY_WRITE_RULES}`,
+    {
+      contactId: z.number(),
+      title: z
+        .string()
+        .describe(
+          'Short headline (≤80 chars recommended) for the entry. Verb-forward, information-dense. Example: "Jeff confirmed Q2 scope expansion" — not "Had a meeting".',
+        ),
+      body: z
+        .string()
+        .describe(
+          'Markdown body. Absolute dates only. For future actions, use the specific date: "follow up 2026-05-06", not "follow up next week". If a date is unknown, write "[date unknown]".',
+        ),
+    },
+    async ({ contactId, title, body }) => {
+      try {
+        const contact = await storage.getContact(contactId);
+        if (!contact) return notFoundError("Contact", contactId, "search_contacts");
+
+        const tv = validateMemoryContent(title);
+        if (!tv.ok) {
+          return {
+            content: [{ type: "text" as const, text: JSON.stringify({ ok: false, ...tv }) }],
+            isError: true,
+          };
+        }
+        const bv = validateMemoryContent(body);
+        if (!bv.ok) {
+          return {
+            content: [{ type: "text" as const, text: JSON.stringify({ ok: false, ...bv }) }],
+            isError: true,
+          };
+        }
+
+        const seeded = contact.relationshipMemory === null;
+        const baseDoc = seeded
+          ? MEMORY_SKELETON(`${contact.firstName} ${contact.lastName}`)
+          : (contact.relationshipMemory as string);
+        const { updated, entryHeading } = appendTimelineEntry(baseDoc, title, body);
+
+        if (updated.length > MEMORY_SIZE_LIMIT) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({
+                  ok: false,
+                  reason: "size_limit",
+                  message: `Memory would exceed ${MEMORY_SIZE_LIMIT} chars. Compact older Timeline entries — capture more context per character.`,
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const result = await storage.updateRelationshipMemory(contactId, updated, {
+          source: "agent",
+          // Append is non-destructive by construction; skip the guard.
+          skipDestructiveGuard: true,
+        });
+        if (!result.ok) {
+          return { content: [{ type: "text" as const, text: JSON.stringify(result) }], isError: true };
+        }
+        storage.logActivity("memory.appended", `Appended Timeline entry: ${entryHeading}`, {
+          contactId,
+          source: "agent",
+          metadata: { entryHeading, seeded },
+        });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                ok: true,
+                entryHeading,
+                newHash: result.newHash,
+                newSize: result.newSize,
+                seeded,
+              }),
+            },
+          ],
+        };
+      } catch (err: unknown) {
+        return { content: [{ type: "text" as const, text: actionableError("appending memory", err) }], isError: true };
+      }
+    },
+  );
+
   // --- Rules ---
   server.tool(
     "list_rules",
@@ -1077,6 +1356,41 @@ Available exception types: ${EXCEPTION_TYPES.join(", ")}`,
       return { content: [{ type: "text" as const, text: actionableError("deleting rule", err) }], isError: true };
     }
   });
+
+  // --- Resources: per-contact relationship memory as a file-like URI ---
+  server.registerResource(
+    "relationship_memory",
+    new ResourceTemplate("memory://contact/{id}/relationship.md", {
+      list: async () => {
+        const allContacts = await storage.getContactsWithRelations();
+        return {
+          resources: allContacts.map((c) => ({
+            uri: `memory://contact/${c.id}/relationship.md`,
+            name: `${c.firstName} ${c.lastName} — ${c.company?.name ?? "—"} — Relationship Memory`,
+            mimeType: "text/markdown",
+          })),
+        };
+      },
+    }),
+    {
+      description:
+        "Per-contact relationship memory as a markdown file. Use read_memory / edit_memory / append_memory tools to modify.",
+      mimeType: "text/markdown",
+    },
+    async (uri, variables) => {
+      const idStr = Array.isArray(variables.id) ? variables.id[0] : variables.id;
+      const id = Number(idStr);
+      if (!Number.isFinite(id)) {
+        throw new Error(`Invalid contact id in URI: ${uri.href}`);
+      }
+      const contact = await storage.getContact(id);
+      if (!contact) throw new Error(`Contact ${id} not found`);
+      const text = contact.relationshipMemory ?? MEMORY_SKELETON(`${contact.firstName} ${contact.lastName}`);
+      return {
+        contents: [{ uri: uri.href, mimeType: "text/markdown", text }],
+      };
+    },
+  );
 
   return server;
 }

@@ -387,19 +387,21 @@ export function ContactBlock({
         )}
 
         {/* Feature badges */}
-        {BADGES.map((badge, i) =>
-          (contact as ContactWithRelations & Record<string, unknown>)[badge.dataKey] ? (
+        {BADGES.map((badge, i) => {
+          const present = Boolean((contact as ContactWithRelations & Record<string, unknown>)[badge.dataKey]);
+          if (!present && !badge.alwaysShow) return null;
+          return (
             <a
               key={i}
               href={badge.route.replace(":contactId", String(contact.id))}
               className="flex-shrink-0 hover:opacity-70 transition-colors"
               title={badge.tooltip || ""}
-              style={{ fontSize: "14px" }}
+              style={{ fontSize: "14px", opacity: present ? 1 : 0.35 }}
             >
               {badge.icon}
             </a>
-          ) : null,
-        )}
+          );
+        })}
       </div>
 
       {/* Search snippet */}

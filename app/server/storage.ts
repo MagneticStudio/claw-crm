@@ -22,7 +22,10 @@ import {
   type InsertRuleViolation,
   activityLog,
   briefings,
+  contactMemoryRevisions,
+  type ContactMemoryRevision,
 } from "@shared/schema";
+import { hashMemory, isDestructiveChange, MEMORY_SIZE_LIMIT } from "@shared/memory";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { db } from "./db";
@@ -453,6 +456,118 @@ export class Storage {
       )
       .limit(1);
     return !!existing;
+  }
+
+  // --- Relationship memory ---
+  async getRelationshipMemory(contactId: number): Promise<{ content: string | null; hash: string } | null> {
+    const contact = await this.getContact(contactId);
+    if (!contact) return null;
+    return { content: contact.relationshipMemory, hash: hashMemory(contact.relationshipMemory) };
+  }
+
+  async updateRelationshipMemory(
+    contactId: number,
+    newContent: string,
+    opts: {
+      source: "agent" | "user";
+      expectedHash?: string;
+      skipDestructiveGuard?: boolean;
+      confirmedWithUser?: boolean;
+    },
+  ): Promise<
+    | { ok: true; newHash: string; newSize: number }
+    | {
+        ok: false;
+        reason: "not_found" | "hash_conflict" | "size_limit" | "destructive_edit";
+        message: string;
+        currentHash?: string;
+      }
+  > {
+    const contact = await this.getContact(contactId);
+    if (!contact) {
+      return { ok: false, reason: "not_found", message: `Contact ${contactId} not found.` };
+    }
+    const oldContent = contact.relationshipMemory ?? "";
+    const currentHash = hashMemory(contact.relationshipMemory);
+
+    if (opts.expectedHash && opts.expectedHash !== currentHash) {
+      return {
+        ok: false,
+        reason: "hash_conflict",
+        message: "Memory has changed since your last read. Re-read and retry with the fresh hash.",
+        currentHash,
+      };
+    }
+
+    if (newContent.length > MEMORY_SIZE_LIMIT) {
+      return {
+        ok: false,
+        reason: "size_limit",
+        message: `Memory would exceed ${MEMORY_SIZE_LIMIT} chars (attempted ${newContent.length}). Compact older Timeline entries or tighten prose. Every word earns its place.`,
+      };
+    }
+
+    const destructive = isDestructiveChange(oldContent, newContent);
+    if (destructive && !opts.skipDestructiveGuard && !opts.confirmedWithUser) {
+      const oldSize = oldContent.length;
+      const delta = oldSize - newContent.length;
+      const pct = oldSize > 0 ? Math.round((delta / oldSize) * 100) : 0;
+      const reasonDetail =
+        delta > 0 && pct >= 20
+          ? `shrinks the memory by ~${pct}% (${oldSize} → ${newContent.length} chars)`
+          : "mutates or removes an existing Timeline heading";
+      return {
+        ok: false,
+        reason: "destructive_edit",
+        message: `This edit ${reasonDetail}. If the user has explicitly approved this change in conversation, retry with confirmed_with_user: true. Otherwise, use a smaller targeted edit or append a correction entry.`,
+        currentHash,
+      };
+    }
+
+    // Pre-write snapshot (even for no-op writes — cheap and keeps invariant simple).
+    await db.insert(contactMemoryRevisions).values({
+      contactId,
+      content: oldContent,
+      contentHash: currentHash,
+      source: opts.source,
+    });
+
+    const [updated] = await db
+      .update(contacts)
+      .set({ relationshipMemory: newContent, updatedAt: new Date() })
+      .where(eq(contacts.id, contactId))
+      .returning();
+
+    const newHash = hashMemory(newContent);
+    sseManager.broadcast({ type: "memory_updated", contactId, hash: newHash });
+    this.logActivity(
+      "memory.updated",
+      `Memory updated for ${updated?.firstName ?? ""} ${updated?.lastName ?? ""} (${oldContent.length} → ${newContent.length} chars)`,
+      {
+        contactId,
+        source: opts.source,
+        metadata: {
+          oldSize: oldContent.length,
+          newSize: newContent.length,
+          confirmedWithUser: !!opts.confirmedWithUser,
+        },
+      },
+    );
+    invalidateSearch();
+    return { ok: true, newHash, newSize: newContent.length };
+  }
+
+  async listMemoryRevisions(contactId: number): Promise<ContactMemoryRevision[]> {
+    return db
+      .select()
+      .from(contactMemoryRevisions)
+      .where(eq(contactMemoryRevisions.contactId, contactId))
+      .orderBy(desc(contactMemoryRevisions.createdAt));
+  }
+
+  async getMemoryRevision(revisionId: number): Promise<ContactMemoryRevision | undefined> {
+    const [rev] = await db.select().from(contactMemoryRevisions).where(eq(contactMemoryRevisions.id, revisionId));
+    return rev;
   }
 
   // --- Pipeline view ---

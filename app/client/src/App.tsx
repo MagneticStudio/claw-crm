@@ -11,11 +11,21 @@ import RulesPage from "@/pages/rules-page";
 import SettingsPage from "@/pages/settings-page";
 import AuthPage from "@/pages/auth-page";
 import BriefingPage from "@/pages/briefing-page";
+import MemoryPage from "@/pages/memory-page";
 import SetupPage from "@/pages/setup-page";
 import NotFound from "@/pages/not-found";
 
 // Badge definitions — hardcoded, no plugin indirection
-export const BADGES = [{ dataKey: "briefing", icon: "📋", route: "/briefings/:contactId", tooltip: "View briefing" }];
+export const BADGES = [
+  { dataKey: "briefing", icon: "📋", route: "/briefings/:contactId", tooltip: "View briefing", alwaysShow: false },
+  {
+    dataKey: "relationshipMemory",
+    icon: "🧠",
+    route: "/memory/:contactId",
+    tooltip: "Relationship memory",
+    alwaysShow: true,
+  },
+];
 
 // App config context — org name from DB
 // Derive color variants from a hex primary color
@@ -115,6 +125,7 @@ function Router() {
       <ProtectedRoute path="/rules" component={RulesPage} />
       <ProtectedRoute path="/settings" component={SettingsPage} />
       <ProtectedRoute path="/briefings/:contactId" component={BriefingPage} />
+      <ProtectedRoute path="/memory/:contactId" component={MemoryPage} />
       <Route path="/auth" component={AuthPage} />
       <Route path="/setup" component={SetupPage} />
       <Route component={NotFound} />
