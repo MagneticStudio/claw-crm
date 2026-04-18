@@ -2,11 +2,17 @@
 
 **AI-native personal CRM for solo operators.** One scrollable notebook view of your entire pipeline — contacts, interactions, follow-ups, meetings, and rule violations in a single stream. AI agents do the data entry; you make the decisions.
 
-![Claw CRM — notebook view](app/client/public/screenshot.png)
+<p align="center">
+  <a href="docs/hype.mp4">
+    <img src="docs/hype.gif" width="360" alt="Claw CRM — 20-second demo"/>
+  </a>
+</p>
 
 ## Why Claw
 
 Most CRMs are built for sales teams. Claw is built for one person managing 10-50 high-touch relationships — advisors, investors, founders, partners. No dashboards, no charts, no seat licenses. Just a notebook you scroll through every morning.
+
+![Claw CRM — notebook view](app/client/public/screenshot.png)
 
 - **Notebook view** — your entire pipeline in one scrollable feed, sorted by urgency
 - **Slash commands** — `/fu 4/15 check on proposal`, `/mtg 4/3 2pm Coffee @ Verve`, `/stage PROPOSAL`

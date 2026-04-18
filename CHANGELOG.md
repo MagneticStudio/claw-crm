@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-04-18
+
+### README: 20-second hype video
+- Embedded 9:16 demo GIF (`docs/hype.gif`) at the top of the README — renders inline on the repo home with native autoplay/loop
+- MP4 source (`docs/hype.mp4`) kept alongside and linked for higher-quality playback
+
 ## 2026-04-16
 
 ### PR workflow: Claude owns PRs end-to-end
