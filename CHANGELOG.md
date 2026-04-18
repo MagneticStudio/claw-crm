@@ -3,7 +3,8 @@
 ## 2026-04-18
 
 ### README: 20-second hype video
-- Embedded 9:16 demo MP4 (`docs/hype.mp4`) at the top of the README — renders inline on the repo home with autoplay+loop+muted
+- Embedded 9:16 demo GIF (`docs/hype.gif`) at the top of the README — renders inline on the repo home with native autoplay/loop
+- MP4 source (`docs/hype.mp4`) kept alongside and linked for higher-quality playback
 
 ## 2026-04-16
 
