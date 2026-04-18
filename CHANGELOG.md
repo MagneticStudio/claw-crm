@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-04-18
+
+### README: 20-second hype video
+- Embedded 9:16 demo MP4 (`docs/hype.mp4`) at the top of the README — renders inline on the repo home with autoplay+loop+muted
+
 ## 2026-04-16
 
 ### PR workflow: Claude owns PRs end-to-end

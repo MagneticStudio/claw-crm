@@ -2,6 +2,14 @@
 
 **AI-native personal CRM for solo operators.** One scrollable notebook view of your entire pipeline — contacts, interactions, follow-ups, meetings, and rule violations in a single stream. AI agents do the data entry; you make the decisions.
 
+<p align="center">
+  <video src="https://github.com/MagneticStudio/claw-crm/raw/main/docs/hype.mp4"
+         width="360" autoplay muted loop playsinline>
+    Your browser does not support the video tag —
+    <a href="docs/hype.mp4">watch the 20-second demo</a>.
+  </video>
+</p>
+
 ![Claw CRM — notebook view](app/client/public/screenshot.png)
 
 ## Why Claw
