@@ -2,6 +2,18 @@
 
 ## 2026-04-19
 
+### MCP session durability — spec-compliant 404 for stale sessions
+After every Railway redeploy, Claude clients holding an old `Mcp-Session-Id` would soft-fail: tool calls quietly returned empty or errored in a way the client couldn't recover from, forcing a manual disconnect+reconnect of the connector.
+
+Root cause: on unknown session IDs, the route handler was silently creating a fresh transport. The new transport hadn't been initialized, so the SDK returned HTTP 400 "Server not initialized" — not the HTTP 404 that MCP clients MUST auto-re-initialize on per the 2025-06-18 StreamableHTTP spec.
+
+Fix: stale session IDs now return `HTTP 404` with JSON-RPC error `-32001 Session not found`. Claude Desktop / Claude.ai auto-re-initialize on this exact signal. No user action needed after redeploy.
+
+Also tightened the handshake contract:
+- `initialize` with no session ID → mint a fresh session (correct).
+- Non-initialize call with no session ID → 404 (was permissive).
+- GET SSE stream with unknown session ID → 404 (was auto-creating a phantom transport).
+
 ### Journal UX round 2 — verbatim quotes, informal dates, scoped edits
 Second batch of feedback from hands-on migration across three clients (~30 entries, ~15 rejections).
 
