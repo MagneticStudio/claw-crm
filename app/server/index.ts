@@ -37,6 +37,9 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  const { runBootMigrations } = await import("./boot-migrations");
+  await runBootMigrations();
+
   const server = await registerRoutes(app);
 
   app.use(
