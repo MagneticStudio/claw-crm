@@ -63,6 +63,21 @@ Uses `mcp-client.ts` which calls the REST API over HTTP:
 }
 ```
 
+### Skill (optional but recommended)
+
+`skills/crm/SKILL.md` is a lightweight "when to use the CRM" guide that loads proactively — Claude sees the mental model (data-partition rule, five-layer structure) before any tool call. The detailed writing contract, stage enums, and validation rules stay in `get_crm_guide` and load on-demand.
+
+Install paths:
+
+- **Claude Code**: copy the file into your personal skills directory.
+  ```bash
+  mkdir -p ~/.claude/skills/crm && cp skills/crm/SKILL.md ~/.claude/skills/crm/
+  ```
+  Claude Code auto-loads on session start.
+- **Claude Desktop / Claude.ai personal**: open a Project → Custom Instructions → paste the SKILL.md body. (Native plugin/skill install for claude.ai consumer isn't available yet; manual paste is the current path.)
+
+The skill assumes the MCP connector has already been registered. If tools are missing it tells Claude to prompt you to add the connector; it doesn't install anything itself.
+
 ### MCP Tools
 
 | Tool | Description |

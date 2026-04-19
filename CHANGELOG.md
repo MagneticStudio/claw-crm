@@ -2,6 +2,13 @@
 
 ## 2026-04-19
 
+### CRM skill — proactive mental model for Claude
+New `skills/crm/SKILL.md` — a ~3 KB always-loaded skill that orients Claude to the CRM concept (five-layer data model, data-partition rule, when to invoke) before any tool call. Progressive disclosure: skill loads first, then Claude calls `get_crm_guide` for the detailed contract (stage enums, writing validator, section structure), then individual tools on demand.
+
+Install paths documented in README. Claude Code: copy to `~/.claude/skills/crm/`. Claude.ai personal: paste into a Project's Custom Instructions (plugin/skill auto-install for claude.ai consumer doesn't exist yet).
+
+The skill assumes the MCP connector is already registered; if tools are missing, it surfaces a one-line prompt telling the user to add the connector.
+
 ### MCP session durability — spec-compliant 404 for stale sessions
 After every Railway redeploy, Claude clients holding an old `Mcp-Session-Id` would soft-fail: tool calls quietly returned empty or errored in a way the client couldn't recover from, forcing a manual disconnect+reconnect of the connector.
 
