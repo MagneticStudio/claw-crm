@@ -27,5 +27,17 @@ test.describe("REST API", () => {
     expect(res.status()).toBe(401);
   });
 
+  test("GET /api/contacts/:id/journal returns 401 without auth", async ({ request }) => {
+    const res = await request.get("http://localhost:3000/api/contacts/1/journal");
+    expect(res.status()).toBe(401);
+  });
+
+  test("PUT /api/contacts/:id/journal returns 401 without auth", async ({ request }) => {
+    const res = await request.put("http://localhost:3000/api/contacts/1/journal", {
+      data: { content: "x" },
+    });
+    expect(res.status()).toBe(401);
+  });
+
   // SSE endpoint streams forever — can't test with a simple request
 });

@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 import { storage } from "./storage";
@@ -18,6 +18,13 @@ import {
   EXCEPTION_TYPES,
 } from "@shared/schema";
 import type { InsertContact } from "@shared/schema";
+import {
+  JOURNAL_SKELETON,
+  validateJournalContent,
+  appendJournalEntry,
+  hashJournal,
+  JOURNAL_SIZE_LIMIT,
+} from "@shared/journal";
 import { db } from "./db";
 import { eq, and, isNull, gte, lte, asc, sql } from "drizzle-orm";
 import { sseManager } from "./sse";
@@ -235,6 +242,60 @@ After a meeting happens, log it as an interaction with add_interaction.
 ## Briefings
 Use save_briefing to store prep notes for a contact (one per contact, upsert).
 Good for: talking points, recent news, open items before a meeting.
+
+## Relationship Journal
+The persistent, file-like narrative of the relationship. Freeform markdown per contact, everlasting, append-mostly. Tools: read_journal, edit_journal, append_journal.
+
+**Document structure (strict — do not invent new top-level sections):**
+1. \`## Key People\` — stakeholder roster with roles and current relationship state. Who matters, what they care about. Edit in place.
+2. \`## Wins / Case Study Material\` — durable wins worth preserving for future BD and case studies. Concrete outcomes, measurable impact, quotable moments. Edit in place.
+3. \`## Entries\` — dated narrative entries, newest at the bottom. Append-only. Each entry: \`### YYYY-MM-DD: <title>\` followed by body.
+
+Every new \`append_journal\` call lands in Entries. If you're tempted to add a new \`##\` section, you're wrong — put it in Entries.
+
+**THE DATA-PARTITION RULE (read this every time you're about to write):**
+
+Every piece of info has exactly ONE home. The DATE belongs to the atom; the MEANING belongs to the journal. If you're about to write the same sentence in two places, one of them is wrong.
+
+| What it is | Where it goes | Tool | Shape |
+|---|---|---|---|
+| A canonical fact about the person (title, email, location) | **contact field** | update_contact | one-liner |
+| An event that happened on a date (call, email, meeting) | **interaction** | add_interaction | one sentence, past tense, factual |
+| A future action item | **task** | create_task (type task) | verb-first, ≤10 words, no rationale |
+| A scheduled future event | **meeting** | create_task (type meeting) | date + time + short title + location |
+| Prep for the **next specific** conversation | **briefing** | save_briefing | bullets, replaced at next prep |
+| A stakeholder with a role | **journal → Key People** | edit_journal | edit in place |
+| A durable outcome / case-study material | **journal → Wins** | edit_journal | edit in place |
+| Interpretation, strategic read, "what this means", narrative context | **journal → Entries** | append_journal | long-form prose, dated |
+
+**Worked example — single call with Jeff on 2026-04-18:**
+- Interaction: \`2026-04-18: 30min call with Jeff. Discussed WPS restructuring.\` ← fact, short
+- Task: \`Send investment memo to Jeff\` due \`2026-04-22\` ← next action
+- Journal Entry: \`### 2026-04-18: Jeff signaled pivot from vendor to partner. He said "I want to think bigger than a deck." Read: restructuring opens strategic lane. Next prep should lead with our BD stance, not the deck refresh.\` ← meaning
+
+These three are NOT duplicates. The interaction is the fact, the task is the action, the journal is the interpretation. The journal cross-references the atom via its date.
+
+**Decision flow for any new info:**
+1. Is it a fact that happened on a date? → **interaction**. Keep it to one sentence.
+2. Is it an action that should happen by a date? → **task** (or **meeting** if a scheduled event with time/place).
+3. Is it a canonical static fact about the person? → **contact field**.
+4. Is it prep for the next conversation? → **briefing**.
+5. Is it interpretation, context, strategic read, or narrative — even if it's ABOUT a recent interaction? → **journal Entry**, dated, cross-referencing the atom's date.
+6. Is it evergreen people or wins? → **journal Key People / Wins**, edit in place.
+
+Tasks and interactions should be SHORT reminders. The journal is where detail lives.
+
+**Writing rules (non-negotiable):**
+1. Every new Entry begins with an ISO date heading: \`### YYYY-MM-DD: <brief title>\`.
+2. Use ONLY absolute dates anywhere in journal content. Acceptable: \`2026-04-18\`, \`04/18/2026\`, \`April 18, 2026\`. **Never** use today, tomorrow, yesterday, this/next/last week, recently, soon, shortly, this Friday, or any other relative time reference.
+3. When writing about future actions inside the journal, state the specific date. Write \`follow up with Jeff on 2026-05-06\`, not \`follow up with Jeff next week\`. (For actual follow-ups, use create_task instead — the journal just contextualizes.)
+4. When a contact says "let's meet next Tuesday", translate to an absolute date at write time. Example: today 2026-04-18, they say "next Tuesday" → write \`meeting scheduled for 2026-04-21 (Tuesday)\`.
+5. Never silently edit or delete existing dated Entries. Prefer appending a correction: \`### 2026-04-18: Correction to 2026-03-09 entry — …\`. A rewrite is a destructive edit.
+6. When updating Key People or Wins in place, annotate the change inline: \`[updated 2026-04-18: …]\`.
+7. If a piece of information has no known date, mark it \`[date unknown]\` rather than omitting or hedging.
+8. \`briefing\` is for the next meeting and may be overwritten freely. \`relationship_journal\` is permanent. Do not confuse the two.
+9. Destructive edits require \`confirmed_with_user: true\`, set ONLY after the user has explicitly approved the change in conversation. "Destructive" = shrinks the doc ≥20% OR mutates an existing \`### YYYY-MM-DD:\` Entry heading.
+10. Write dense. Every word earns its place. No filler, no throat-clearing, no hedges. Capture maximum context per character.
 
 ## Confidentiality
 - NEVER put pricing or deal terms in the CRM
@@ -967,6 +1028,257 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
     },
   );
 
+  // --- Relationship journal ---
+  const JOURNAL_WRITE_RULES = [
+    "The journal is long-form narrative and interpretation — NOT a log of events. Events go in interactions (add_interaction). Future actions go in tasks (create_task). Canonical facts go in contact fields. The journal is where the MEANING of all that lives.",
+    "Document has exactly three top-level sections: `## Key People`, `## Wins / Case Study Material`, `## Entries`. Do not invent new sections — everything new goes into Entries as a dated `### YYYY-MM-DD: <title>` block, or edits in place into Key People / Wins.",
+    "Writes must use ABSOLUTE DATES only. Every new substantive entry begins with an ISO date heading: `### YYYY-MM-DD: <title>`.",
+    "Relative time phrases (today, tomorrow, yesterday, this/next/last week, this Friday, recently, soon, shortly, a few days ago, etc.) are REJECTED by the validator. Translate to absolute dates at write time.",
+    "Destructive edits require confirmed_with_user: true — triggered when the edit (a) shrinks the doc ≥20% or (b) mutates/removes an existing `### YYYY-MM-DD:` Entry heading. Set only after the user has explicitly approved the change in conversation.",
+    "Write dense. Every word earns its place. No filler, no throat-clearing, no hedges. Capture maximum context per character.",
+  ].join(" ");
+
+  server.tool(
+    "read_journal",
+    `Read the full relationship_journal markdown for a contact. Returns the document text, a content hash (pass as expectedHash on subsequent edits to avoid silent overwrite), and whether the doc has been initialized. If the contact has no journal yet, returns a synthesized skeleton — writing via append_journal will persist it. Call this BEFORE any edit so you're working from current content.`,
+    {
+      contactId: z.number().describe("Contact ID. Get from search_contacts or get_contact."),
+    },
+    async ({ contactId }) => {
+      try {
+        const contact = await storage.getContact(contactId);
+        if (!contact) return notFoundError("Contact", contactId, "search_contacts");
+        const initialized = contact.relationshipJournal !== null;
+        const content = initialized
+          ? (contact.relationshipJournal as string)
+          : JOURNAL_SKELETON(`${contact.firstName} ${contact.lastName}`);
+        const payload = {
+          content,
+          hash: hashJournal(initialized ? content : null),
+          initialized,
+          sizeBytes: content.length,
+        };
+        return { content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }] };
+      } catch (err: unknown) {
+        return { content: [{ type: "text" as const, text: actionableError("reading journal", err) }], isError: true };
+      }
+    },
+  );
+
+  server.tool(
+    "edit_journal",
+    `Exact-string replacement on a contact's relationship_journal. Mirrors Claude's local Edit tool: oldString must occur exactly once in the current document (unless replaceAll: true) or the edit is rejected. ${JOURNAL_WRITE_RULES}`,
+    {
+      contactId: z.number(),
+      oldString: z
+        .string()
+        .describe(
+          "Exact substring to replace (whitespace-sensitive). Must occur exactly once unless replaceAll is true.",
+        ),
+      newString: z
+        .string()
+        .describe(
+          "Replacement text. Use absolute dates only. Substantive content (>40 chars) must include at least one absolute date (YYYY-MM-DD, M/D/YYYY, or Month DD, YYYY). Relative phrases will be rejected naming the offending term.",
+        ),
+      replaceAll: z
+        .boolean()
+        .optional()
+        .default(false)
+        .describe("Replace every occurrence of oldString instead of requiring exactly one match."),
+      expectedHash: z
+        .string()
+        .optional()
+        .describe(
+          "Content hash from your most recent read_journal. Strongly recommended — the edit is rejected if the doc changed since then.",
+        ),
+      confirmed_with_user: z
+        .boolean()
+        .optional()
+        .default(false)
+        .describe(
+          "Set to true ONLY after the user has explicitly approved a destructive edit in conversation. Required when the edit shrinks the doc ≥20% (or ≥500 chars, whichever smaller) OR mutates/removes an existing `### YYYY-MM-DD:` Entry heading.",
+        ),
+    },
+    async ({ contactId, oldString, newString, replaceAll, expectedHash, confirmed_with_user }) => {
+      try {
+        const contact = await storage.getContact(contactId);
+        if (!contact) return notFoundError("Contact", contactId, "search_contacts");
+        if (contact.relationshipJournal === null) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({
+                  ok: false,
+                  reason: "not_initialized",
+                  message: "Journal not initialized. Call append_journal first to seed the document.",
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const v = validateJournalContent(newString);
+        if (!v.ok) {
+          return {
+            content: [{ type: "text" as const, text: JSON.stringify({ ok: false, ...v }) }],
+            isError: true,
+          };
+        }
+
+        const current = contact.relationshipJournal;
+        const occurrences = current.split(oldString).length - 1;
+        if (occurrences === 0) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({
+                  ok: false,
+                  reason: "no_match",
+                  message: "oldString not found in current document. Re-read the journal and try again.",
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
+        if (occurrences > 1 && !replaceAll) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({
+                  ok: false,
+                  reason: "multiple_matches",
+                  message: `oldString appears ${occurrences} times. Provide more surrounding context for uniqueness, or set replaceAll: true.`,
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const updated = replaceAll ? current.split(oldString).join(newString) : current.replace(oldString, newString);
+
+        const result = await storage.updateRelationshipJournal(contactId, updated, {
+          source: "agent",
+          expectedHash,
+          confirmedWithUser: confirmed_with_user,
+        });
+        if (!result.ok) {
+          return { content: [{ type: "text" as const, text: JSON.stringify(result) }], isError: true };
+        }
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                ok: true,
+                bytesChanged: updated.length - current.length,
+                newHash: result.newHash,
+                newSize: result.newSize,
+              }),
+            },
+          ],
+        };
+      } catch (err: unknown) {
+        return { content: [{ type: "text" as const, text: actionableError("editing journal", err) }], isError: true };
+      }
+    },
+  );
+
+  server.tool(
+    "append_journal",
+    `Append a new dated entry to the Entries section of a contact's relationship_journal. Server auto-prepends today's ISO date as the \`###\` heading — you supply title and body only. If the journal doesn't exist yet, the server seeds the skeleton and then appends. Use this for NARRATIVE — strategic reads, "what this means", context. For the FACT of what happened on a date, use add_interaction instead (and optionally reference it from the journal entry). ${JOURNAL_WRITE_RULES}`,
+    {
+      contactId: z.number(),
+      title: z
+        .string()
+        .describe(
+          'Short headline (≤80 chars recommended) for the entry. Verb-forward, information-dense. Example: "Jeff signaled pivot from vendor to partner" — not "Had a meeting".',
+        ),
+      body: z
+        .string()
+        .describe(
+          'Markdown body. The INTERPRETATION, not the event log. Absolute dates only. For future actions, use the specific date: "follow up 2026-05-06". If a date is unknown, write "[date unknown]".',
+        ),
+    },
+    async ({ contactId, title, body }) => {
+      try {
+        const contact = await storage.getContact(contactId);
+        if (!contact) return notFoundError("Contact", contactId, "search_contacts");
+
+        const tv = validateJournalContent(title);
+        if (!tv.ok) {
+          return {
+            content: [{ type: "text" as const, text: JSON.stringify({ ok: false, ...tv }) }],
+            isError: true,
+          };
+        }
+        const bv = validateJournalContent(body);
+        if (!bv.ok) {
+          return {
+            content: [{ type: "text" as const, text: JSON.stringify({ ok: false, ...bv }) }],
+            isError: true,
+          };
+        }
+
+        const seeded = contact.relationshipJournal === null;
+        const baseDoc = seeded
+          ? JOURNAL_SKELETON(`${contact.firstName} ${contact.lastName}`)
+          : (contact.relationshipJournal as string);
+        const { updated, entryHeading } = appendJournalEntry(baseDoc, title, body);
+
+        if (updated.length > JOURNAL_SIZE_LIMIT) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({
+                  ok: false,
+                  reason: "size_limit",
+                  message: `Journal would exceed ${JOURNAL_SIZE_LIMIT} chars. Compact older Entries — capture more context per character.`,
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const result = await storage.updateRelationshipJournal(contactId, updated, {
+          source: "agent",
+          skipDestructiveGuard: true,
+        });
+        if (!result.ok) {
+          return { content: [{ type: "text" as const, text: JSON.stringify(result) }], isError: true };
+        }
+        storage.logActivity("journal.appended", `Appended journal entry: ${entryHeading}`, {
+          contactId,
+          source: "agent",
+          metadata: { entryHeading, seeded },
+        });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                ok: true,
+                entryHeading,
+                newHash: result.newHash,
+                newSize: result.newSize,
+                seeded,
+              }),
+            },
+          ],
+        };
+      } catch (err: unknown) {
+        return { content: [{ type: "text" as const, text: actionableError("appending memory", err) }], isError: true };
+      }
+    },
+  );
+
   // --- Rules ---
   server.tool(
     "list_rules",
@@ -1077,6 +1389,41 @@ Available exception types: ${EXCEPTION_TYPES.join(", ")}`,
       return { content: [{ type: "text" as const, text: actionableError("deleting rule", err) }], isError: true };
     }
   });
+
+  // --- Resources: per-contact relationship journal as a file-like URI ---
+  server.registerResource(
+    "relationship_journal",
+    new ResourceTemplate("journal://contact/{id}/journal.md", {
+      list: async () => {
+        const allContacts = await storage.getContactsWithRelations();
+        return {
+          resources: allContacts.map((c) => ({
+            uri: `journal://contact/${c.id}/journal.md`,
+            name: `${c.firstName} ${c.lastName} — ${c.company?.name ?? "—"} — Relationship Journal`,
+            mimeType: "text/markdown",
+          })),
+        };
+      },
+    }),
+    {
+      description:
+        "Per-contact relationship journal as a markdown file. Use read_journal / edit_journal / append_journal tools to modify.",
+      mimeType: "text/markdown",
+    },
+    async (uri, variables) => {
+      const idStr = Array.isArray(variables.id) ? variables.id[0] : variables.id;
+      const id = Number(idStr);
+      if (!Number.isFinite(id)) {
+        throw new Error(`Invalid contact id in URI: ${uri.href}`);
+      }
+      const contact = await storage.getContact(id);
+      if (!contact) throw new Error(`Contact ${id} not found`);
+      const text = contact.relationshipJournal ?? JOURNAL_SKELETON(`${contact.firstName} ${contact.lastName}`);
+      return {
+        contents: [{ uri: uri.href, mimeType: "text/markdown", text }],
+      };
+    },
+  );
 
   return server;
 }

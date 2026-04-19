@@ -22,7 +22,10 @@ import {
   type InsertRuleViolation,
   activityLog,
   briefings,
+  contactJournalRevisions,
+  type ContactJournalRevision,
 } from "@shared/schema";
+import { hashJournal, isDestructiveChange, JOURNAL_SIZE_LIMIT } from "@shared/journal";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { db } from "./db";
@@ -453,6 +456,117 @@ export class Storage {
       )
       .limit(1);
     return !!existing;
+  }
+
+  // --- Relationship journal ---
+  async getRelationshipJournal(contactId: number): Promise<{ content: string | null; hash: string } | null> {
+    const contact = await this.getContact(contactId);
+    if (!contact) return null;
+    return { content: contact.relationshipJournal, hash: hashJournal(contact.relationshipJournal) };
+  }
+
+  async updateRelationshipJournal(
+    contactId: number,
+    newContent: string,
+    opts: {
+      source: "agent" | "user";
+      expectedHash?: string;
+      skipDestructiveGuard?: boolean;
+      confirmedWithUser?: boolean;
+    },
+  ): Promise<
+    | { ok: true; newHash: string; newSize: number }
+    | {
+        ok: false;
+        reason: "not_found" | "hash_conflict" | "size_limit" | "destructive_edit";
+        message: string;
+        currentHash?: string;
+      }
+  > {
+    const contact = await this.getContact(contactId);
+    if (!contact) {
+      return { ok: false, reason: "not_found", message: `Contact ${contactId} not found.` };
+    }
+    const oldContent = contact.relationshipJournal ?? "";
+    const currentHash = hashJournal(contact.relationshipJournal);
+
+    if (opts.expectedHash && opts.expectedHash !== currentHash) {
+      return {
+        ok: false,
+        reason: "hash_conflict",
+        message: "Journal has changed since your last read. Re-read and retry with the fresh hash.",
+        currentHash,
+      };
+    }
+
+    if (newContent.length > JOURNAL_SIZE_LIMIT) {
+      return {
+        ok: false,
+        reason: "size_limit",
+        message: `Journal would exceed ${JOURNAL_SIZE_LIMIT} chars (attempted ${newContent.length}). Compact older Entries or tighten prose. Every word earns its place.`,
+      };
+    }
+
+    const destructive = isDestructiveChange(oldContent, newContent);
+    if (destructive && !opts.skipDestructiveGuard && !opts.confirmedWithUser) {
+      const oldSize = oldContent.length;
+      const delta = oldSize - newContent.length;
+      const pct = oldSize > 0 ? Math.round((delta / oldSize) * 100) : 0;
+      const reasonDetail =
+        delta > 0 && pct >= 20
+          ? `shrinks the journal by ~${pct}% (${oldSize} → ${newContent.length} chars)`
+          : "mutates or removes an existing Entry heading";
+      return {
+        ok: false,
+        reason: "destructive_edit",
+        message: `This edit ${reasonDetail}. If the user has explicitly approved this change in conversation, retry with confirmed_with_user: true. Otherwise, use a smaller targeted edit or append a correction entry.`,
+        currentHash,
+      };
+    }
+
+    await db.insert(contactJournalRevisions).values({
+      contactId,
+      content: oldContent,
+      contentHash: currentHash,
+      source: opts.source,
+    });
+
+    const [updated] = await db
+      .update(contacts)
+      .set({ relationshipJournal: newContent, updatedAt: new Date() })
+      .where(eq(contacts.id, contactId))
+      .returning();
+
+    const newHash = hashJournal(newContent);
+    sseManager.broadcast({ type: "journal_updated", contactId, hash: newHash });
+    this.logActivity(
+      "journal.updated",
+      `Journal updated for ${updated?.firstName ?? ""} ${updated?.lastName ?? ""} (${oldContent.length} → ${newContent.length} chars)`,
+      {
+        contactId,
+        source: opts.source,
+        metadata: {
+          oldSize: oldContent.length,
+          newSize: newContent.length,
+          confirmedWithUser: !!opts.confirmedWithUser,
+        },
+      },
+    );
+    invalidateSearch();
+    return { ok: true, newHash, newSize: newContent.length };
+  }
+
+  async listJournalRevisions(contactId: number): Promise<ContactJournalRevision[]> {
+    return db
+      .select()
+      .from(contactJournalRevisions)
+      .where(eq(contactJournalRevisions.contactId, contactId))
+      .orderBy(desc(contactJournalRevisions.createdAt));
+  }
+
+  async getJournalRevision(revisionId: number): Promise<ContactJournalRevision | undefined> {
+    const [rev] = await db.select().from(contactJournalRevisions).where(eq(contactJournalRevisions.id, revisionId));
+    return rev;
   }
 
   // --- Pipeline view ---
