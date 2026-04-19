@@ -513,7 +513,7 @@ export class Storage {
       const delta = oldSize - newContent.length;
       const pct = oldSize > 0 ? Math.round((delta / oldSize) * 100) : 0;
       const reasonDetail =
-        delta > 0 && pct >= 20
+        delta > 0 && pct >= 40
           ? `shrinks the journal by ~${pct}% (${oldSize} → ${newContent.length} chars)`
           : "mutates or removes an existing Entry heading";
       return {

@@ -24,6 +24,13 @@ import {
   appendJournalEntry,
   hashJournal,
   JOURNAL_SIZE_LIMIT,
+  isReasonableIsoDate,
+  peekLastEntry,
+  readJournalSection,
+  CANONICAL_SECTIONS,
+  OPTIONAL_SECTIONS,
+  ACCEPTED_DATE_FORMATS,
+  todayIso,
 } from "@shared/journal";
 import { db } from "./db";
 import { eq, and, isNull, gte, lte, asc, sql } from "drizzle-orm";
@@ -244,14 +251,16 @@ Use save_briefing to store prep notes for a contact (one per contact, upsert).
 Good for: talking points, recent news, open items before a meeting.
 
 ## Relationship Journal
-The persistent, file-like narrative of the relationship. Freeform markdown per contact, everlasting, append-mostly. Tools: read_journal, edit_journal, append_journal.
+The persistent, file-like narrative of the relationship. Freeform markdown per contact, everlasting, append-mostly. Tools: \`read_journal\`, \`peek_last_journal_entry\`, \`edit_journal\`, \`append_journal\`, \`batch_append_journal\`.
 
-**Document structure (strict — do not invent new top-level sections):**
-1. \`## Key People\` — stakeholder roster with roles and current relationship state. Who matters, what they care about. Edit in place.
-2. \`## Wins / Case Study Material\` — durable wins worth preserving for future BD and case studies. Concrete outcomes, measurable impact, quotable moments. Edit in place.
-3. \`## Entries\` — dated narrative entries, newest at the bottom. Append-only. Each entry: \`### YYYY-MM-DD: <title>\` followed by body.
+**Document structure — canonical three, optional three more:**
+1. \`## Key People\` — stakeholder roster with roles and current relationship state. Edit in place.
+2. \`## Wins / Case Study Material\` — durable outcomes, measurable impact, quotable moments. Case-study fodder. Edit in place.
+3. \`## Entries\` — dated narrative entries. Append-only via \`append_journal\` / \`batch_append_journal\`. Each entry: \`### YYYY-MM-DD: <title>\` followed by body.
 
-Every new \`append_journal\` call lands in Entries. If you're tempted to add a new \`##\` section, you're wrong — put it in Entries.
+Optional sections, add only when you have real signal that doesn't fit: \`## Open Questions\`, \`## Risks\`, \`## Next Moves\`. Default answer is still Entries.
+
+Every new dated content lands in Entries. Evergreen context edits in place in Key People / Wins.
 
 **THE DATA-PARTITION RULE (read this every time you're about to write):**
 
@@ -286,15 +295,16 @@ These three are NOT duplicates. The interaction is the fact, the task is the act
 Tasks and interactions should be SHORT reminders. The journal is where detail lives.
 
 **Writing rules (non-negotiable):**
-1. Every new Entry begins with an ISO date heading: \`### YYYY-MM-DD: <brief title>\`.
-2. Use ONLY absolute dates anywhere in journal content. Acceptable: \`2026-04-18\`, \`04/18/2026\`, \`April 18, 2026\`. **Never** use today, tomorrow, yesterday, this/next/last week, recently, soon, shortly, this Friday, or any other relative time reference.
+1. Every Entry begins with an ISO date heading: \`### YYYY-MM-DD: <brief title>\`. The server builds this for you — pass \`date\` to backdate migrated notes.
+2. Absolute dates only in body content. Accepted formats: \`2026-04-18\`, \`04/18/2026\`, \`April 18, 2026\`, \`August 2025\` (year-only), \`Q3 2025\`. **Never** use today, tomorrow, yesterday, this/next/last week|month|year, recently, a few days ago, etc. Day-of-week only triggers rejection when preceded by next/this/last/by/on/until — "Mon/Wed/Fri cadence" or "Monday through Friday" is fine.
 3. When writing about future actions inside the journal, state the specific date. Write \`follow up with Jeff on 2026-05-06\`, not \`follow up with Jeff next week\`. (For actual follow-ups, use create_task instead — the journal just contextualizes.)
-4. When a contact says "let's meet next Tuesday", translate to an absolute date at write time. Example: today 2026-04-18, they say "next Tuesday" → write \`meeting scheduled for 2026-04-21 (Tuesday)\`.
+4. When a contact says "let's meet next Tuesday", translate to an absolute date at write time.
 5. Never silently edit or delete existing dated Entries. Prefer appending a correction: \`### 2026-04-18: Correction to 2026-03-09 entry — …\`. A rewrite is a destructive edit.
 6. When updating Key People or Wins in place, annotate the change inline: \`[updated 2026-04-18: …]\`.
 7. If a piece of information has no known date, mark it \`[date unknown]\` rather than omitting or hedging.
-8. \`briefing\` is for the next meeting and may be overwritten freely. \`relationship_journal\` is permanent. Do not confuse the two.
-9. Destructive edits require \`confirmed_with_user: true\`, set ONLY after the user has explicitly approved the change in conversation. "Destructive" = shrinks the doc ≥20% OR mutates an existing \`### YYYY-MM-DD:\` Entry heading.
+8. \`briefing\` is for the next meeting and may be overwritten freely. \`relationship_journal\` is permanent.
+9. Destructive edits require \`confirmed_with_user: true\`, set ONLY after the user has explicitly approved the change in conversation. "Destructive" = shrinks the doc ≥40% (and ≥500 chars) OR mutates an existing \`### YYYY-MM-DD:\` Entry heading. Minor cleanups don't trip it.
+10. Migrating old notes? Use \`batch_append_journal\` with per-entry \`date\` values so the timeline reflects when events actually happened, not when you typed them in.
 10. Write dense. Every word earns its place. No filler, no throat-clearing, no hedges. Capture maximum context per character.
 
 ## Confidentiality
@@ -1029,34 +1039,45 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
   );
 
   // --- Relationship journal ---
-  const JOURNAL_WRITE_RULES = [
-    "The journal is long-form narrative and interpretation — NOT a log of events. Events go in interactions (add_interaction). Future actions go in tasks (create_task). Canonical facts go in contact fields. The journal is where the MEANING of all that lives.",
-    "Document has exactly three top-level sections: `## Key People`, `## Wins / Case Study Material`, `## Entries`. Do not invent new sections — everything new goes into Entries as a dated `### YYYY-MM-DD: <title>` block, or edits in place into Key People / Wins.",
-    "Writes must use ABSOLUTE DATES only. Every new substantive entry begins with an ISO date heading: `### YYYY-MM-DD: <title>`.",
-    "Relative time phrases (today, tomorrow, yesterday, this/next/last week, this Friday, recently, soon, shortly, a few days ago, etc.) are REJECTED by the validator. Translate to absolute dates at write time.",
-    "Destructive edits require confirmed_with_user: true — triggered when the edit (a) shrinks the doc ≥20% or (b) mutates/removes an existing `### YYYY-MM-DD:` Entry heading. Set only after the user has explicitly approved the change in conversation.",
-    "Write dense. Every word earns its place. No filler, no throat-clearing, no hedges. Capture maximum context per character.",
-  ].join(" ");
+  // Short, shared contract text. The full "where does this go?" decision tree
+  // lives in get_crm_guide; tool descriptions just point there to avoid drift.
+  const JOURNAL_CONTRACT =
+    "The journal stores NARRATIVE (interpretation, strategic reads, context). Facts go in interactions; actions go in tasks; canonical fields on the contact. See get_crm_guide → Relationship Journal for the full decision tree and writing rules. " +
+    `Canonical sections: ${CANONICAL_SECTIONS.map((s) => `## ${s}`).join(", ")}. ` +
+    `Optional (only when real signal): ${OPTIONAL_SECTIONS.map((s) => `## ${s}`).join(", ")}. ` +
+    `Absolute dates only — accepted formats: ${ACCEPTED_DATE_FORMATS.join(", ")}. ` +
+    "Write dense — every word earns its place.";
 
   server.tool(
     "read_journal",
-    `Read the full relationship_journal markdown for a contact. Returns the document text, a content hash (pass as expectedHash on subsequent edits to avoid silent overwrite), and whether the doc has been initialized. If the contact has no journal yet, returns a synthesized skeleton — writing via append_journal will persist it. Call this BEFORE any edit so you're working from current content.`,
+    `Read a contact's relationship_journal. Returns the document text, a content hash (pass as expectedHash on subsequent edits to avoid silent overwrite), and whether the doc has been initialized. Call this BEFORE any edit so you're working from current content. Use the optional \`section\` parameter to scope the read when you only need Key People, Wins, or Entries — saves context on mature journals. ${JOURNAL_CONTRACT}`,
     {
       contactId: z.number().describe("Contact ID. Get from search_contacts or get_contact."),
+      section: z
+        .enum(["Key People", "Wins / Case Study Material", "Entries", "Open Questions", "Risks", "Next Moves"])
+        .optional()
+        .describe(
+          "Return only the named section (between `## Section` and the next `## `). If omitted, returns the full doc. Full-doc hash is always returned for use with edit_journal.",
+        ),
     },
-    async ({ contactId }) => {
+    async ({ contactId, section }) => {
       try {
         const contact = await storage.getContact(contactId);
         if (!contact) return notFoundError("Contact", contactId, "search_contacts");
         const initialized = contact.relationshipJournal !== null;
-        const content = initialized
+        const fullContent = initialized
           ? (contact.relationshipJournal as string)
           : JOURNAL_SKELETON(`${contact.firstName} ${contact.lastName}`);
+        const content = section
+          ? (readJournalSection(fullContent, section) ?? `<!-- section "${section}" not present -->`)
+          : fullContent;
         const payload = {
           content,
-          hash: hashJournal(initialized ? content : null),
+          section: section ?? null,
+          hash: hashJournal(initialized ? fullContent : null),
           initialized,
           sizeBytes: content.length,
+          fullSizeBytes: fullContent.length,
         };
         return { content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }] };
       } catch (err: unknown) {
@@ -1066,8 +1087,43 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
   );
 
   server.tool(
+    "peek_last_journal_entry",
+    `Return just the most recent dated Entry (heading + body) from a contact's journal. Cheap confirmation of "did my last append land?" without re-reading the whole doc.`,
+    {
+      contactId: z.number(),
+    },
+    async ({ contactId }) => {
+      try {
+        const contact = await storage.getContact(contactId);
+        if (!contact) return notFoundError("Contact", contactId, "search_contacts");
+        if (contact.relationshipJournal === null) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({ ok: true, entry: null, message: "Journal not initialized yet." }),
+              },
+            ],
+          };
+        }
+        const entry = peekLastEntry(contact.relationshipJournal);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({ ok: true, entry, totalSize: contact.relationshipJournal.length }),
+            },
+          ],
+        };
+      } catch (err: unknown) {
+        return { content: [{ type: "text" as const, text: actionableError("peeking journal", err) }], isError: true };
+      }
+    },
+  );
+
+  server.tool(
     "edit_journal",
-    `Exact-string replacement on a contact's relationship_journal. Mirrors Claude's local Edit tool: oldString must occur exactly once in the current document (unless replaceAll: true) or the edit is rejected. ${JOURNAL_WRITE_RULES}`,
+    `Exact-string replacement on a contact's relationship_journal. Mirrors Claude's local Edit tool: oldString must occur exactly once in the current document (unless replaceAll: true). Destructive edits require confirmed_with_user: true — triggered when the edit (a) shrinks the doc ≥40% AND ≥500 chars, or (b) mutates/removes an existing \`### YYYY-MM-DD:\` Entry heading. ${JOURNAL_CONTRACT}`,
     {
       contactId: z.number(),
       oldString: z
@@ -1078,7 +1134,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
       newString: z
         .string()
         .describe(
-          "Replacement text. Use absolute dates only. Substantive content (>40 chars) must include at least one absolute date (YYYY-MM-DD, M/D/YYYY, or Month DD, YYYY). Relative phrases will be rejected naming the offending term.",
+          "Replacement text. Absolute dates only. Substantive content (>40 chars) must contain an absolute date. On rejection the error payload includes: field, reason, offending phrase, excerpt around the match, and position — enough to fix without guessing.",
         ),
       replaceAll: z
         .boolean()
@@ -1096,7 +1152,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
         .optional()
         .default(false)
         .describe(
-          "Set to true ONLY after the user has explicitly approved a destructive edit in conversation. Required when the edit shrinks the doc ≥20% (or ≥500 chars, whichever smaller) OR mutates/removes an existing `### YYYY-MM-DD:` Entry heading.",
+          "Set to true ONLY after the user has explicitly approved a destructive edit in conversation. Required for ≥40% shrink or mutating an existing `### YYYY-MM-DD:` Entry heading.",
         ),
     },
     async ({ contactId, oldString, newString, replaceAll, expectedHash, confirmed_with_user }) => {
@@ -1119,7 +1175,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
           };
         }
 
-        const v = validateJournalContent(newString);
+        const v = validateJournalContent(newString, "newString");
         if (!v.ok) {
           return {
             content: [{ type: "text" as const, text: JSON.stringify({ ok: false, ...v }) }],
@@ -1191,33 +1247,57 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
 
   server.tool(
     "append_journal",
-    `Append a new dated entry to the Entries section of a contact's relationship_journal. Server auto-prepends today's ISO date as the \`###\` heading — you supply title and body only. If the journal doesn't exist yet, the server seeds the skeleton and then appends. Use this for NARRATIVE — strategic reads, "what this means", context. For the FACT of what happened on a date, use add_interaction instead (and optionally reference it from the journal entry). ${JOURNAL_WRITE_RULES}`,
+    `Append a new dated entry to the Entries section. Server builds the heading as \`### YYYY-MM-DD: <title>\`. By default YYYY-MM-DD is today; supply \`date\` (ISO YYYY-MM-DD) to backdate when migrating historical notes — this is the intended path for bulk-importing old context. If the journal doesn't exist yet, the server seeds the skeleton and then appends. Use \`batch_append_journal\` instead when you have multiple entries to write in one shot — cheaper and transactional. ${JOURNAL_CONTRACT}`,
     {
       contactId: z.number(),
       title: z
         .string()
         .describe(
-          'Short headline (≤80 chars recommended) for the entry. Verb-forward, information-dense. Example: "Jeff signaled pivot from vendor to partner" — not "Had a meeting".',
+          'Short headline (≤80 chars recommended). Verb-forward, information-dense. Example: "Jeff signaled pivot from vendor to partner". When writing multiple entries on the same date, make titles distinct enough to tell apart.',
         ),
       body: z
         .string()
         .describe(
-          'Markdown body. The INTERPRETATION, not the event log. Absolute dates only. For future actions, use the specific date: "follow up 2026-05-06". If a date is unknown, write "[date unknown]".',
+          "Markdown body. The INTERPRETATION, not the event log. Absolute dates only inside the body (the heading date is supplied separately). On rejection you get field + offending phrase + excerpt + position.",
+        ),
+      date: z
+        .string()
+        .optional()
+        .describe(
+          'Optional ISO YYYY-MM-DD for the entry heading. Defaults to today. Use to backdate migrated notes (e.g. "2025-07-01"). Must be between 1900 and 2100.',
         ),
     },
-    async ({ contactId, title, body }) => {
+    async ({ contactId, title, body, date }) => {
       try {
         const contact = await storage.getContact(contactId);
         if (!contact) return notFoundError("Contact", contactId, "search_contacts");
 
-        const tv = validateJournalContent(title);
+        if (date !== undefined && !isReasonableIsoDate(date)) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({
+                  ok: false,
+                  reason: "invalid_date",
+                  field: "date",
+                  offending: date,
+                  message: `"${date}" is not a valid ISO date (YYYY-MM-DD, 1900-2100). Example: "2025-07-01".`,
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const tv = validateJournalContent(title, "title");
         if (!tv.ok) {
           return {
             content: [{ type: "text" as const, text: JSON.stringify({ ok: false, ...tv }) }],
             isError: true,
           };
         }
-        const bv = validateJournalContent(body);
+        const bv = validateJournalContent(body, "body");
         if (!bv.ok) {
           return {
             content: [{ type: "text" as const, text: JSON.stringify({ ok: false, ...bv }) }],
@@ -1229,7 +1309,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
         const baseDoc = seeded
           ? JOURNAL_SKELETON(`${contact.firstName} ${contact.lastName}`)
           : (contact.relationshipJournal as string);
-        const { updated, entryHeading } = appendJournalEntry(baseDoc, title, body);
+        const { updated, entryHeading } = appendJournalEntry(baseDoc, title, body, date);
 
         if (updated.length > JOURNAL_SIZE_LIMIT) {
           return {
@@ -1257,7 +1337,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
         storage.logActivity("journal.appended", `Appended journal entry: ${entryHeading}`, {
           contactId,
           source: "agent",
-          metadata: { entryHeading, seeded },
+          metadata: { entryHeading, seeded, backdated: date !== undefined && date !== todayIso() },
         });
         return {
           content: [
@@ -1274,7 +1354,130 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
           ],
         };
       } catch (err: unknown) {
-        return { content: [{ type: "text" as const, text: actionableError("appending memory", err) }], isError: true };
+        return { content: [{ type: "text" as const, text: actionableError("appending journal", err) }], isError: true };
+      }
+    },
+  );
+
+  server.tool(
+    "batch_append_journal",
+    `Append multiple dated entries to a contact's journal in one transactional call. Use this for migrating historical notes — cheaper than N separate append_journal calls, and all-or-nothing: if ANY entry fails validation, no writes happen and each entry's result is returned. Each entry may carry its own ISO \`date\` for backdating. ${JOURNAL_CONTRACT}`,
+    {
+      contactId: z.number(),
+      entries: z
+        .array(
+          z.object({
+            title: z.string().describe("Entry headline."),
+            body: z.string().describe("Entry body (markdown)."),
+            date: z.string().optional().describe("Optional ISO YYYY-MM-DD. Defaults to today."),
+          }),
+        )
+        .min(1)
+        .max(50)
+        .describe("Array of entries to append in order. Each gets its own `### YYYY-MM-DD: title` heading."),
+    },
+    async ({ contactId, entries }) => {
+      try {
+        const contact = await storage.getContact(contactId);
+        if (!contact) return notFoundError("Contact", contactId, "search_contacts");
+
+        // Validate every entry first. If any fail, return per-entry results and skip the write.
+        const perEntry = entries.map((e, i) => {
+          if (e.date !== undefined && !isReasonableIsoDate(e.date)) {
+            return {
+              index: i,
+              ok: false as const,
+              reason: "invalid_date" as const,
+              field: `entries[${i}].date`,
+              offending: e.date,
+              message: `"${e.date}" is not a valid ISO date.`,
+            };
+          }
+          const tv = validateJournalContent(e.title, `entries[${i}].title`);
+          if (!tv.ok) return { index: i, ...tv };
+          const bv = validateJournalContent(e.body, `entries[${i}].body`);
+          if (!bv.ok) return { index: i, ...bv };
+          return { index: i, ok: true as const };
+        });
+
+        const failures = perEntry.filter((r) => !r.ok);
+        if (failures.length > 0) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({
+                  ok: false,
+                  reason: "batch_validation_failed",
+                  message: `${failures.length} of ${entries.length} entries failed validation. No writes made.`,
+                  results: perEntry,
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        // Apply all appends in memory, then one write.
+        const seeded = contact.relationshipJournal === null;
+        let doc = seeded
+          ? JOURNAL_SKELETON(`${contact.firstName} ${contact.lastName}`)
+          : (contact.relationshipJournal as string);
+        const headings: string[] = [];
+        for (const e of entries) {
+          const { updated, entryHeading } = appendJournalEntry(doc, e.title, e.body, e.date);
+          doc = updated;
+          headings.push(entryHeading);
+        }
+
+        if (doc.length > JOURNAL_SIZE_LIMIT) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({
+                  ok: false,
+                  reason: "size_limit",
+                  message: `Batch would push journal past ${JOURNAL_SIZE_LIMIT} chars. Trim prose or split into smaller batches.`,
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const result = await storage.updateRelationshipJournal(contactId, doc, {
+          source: "agent",
+          skipDestructiveGuard: true,
+        });
+        if (!result.ok) {
+          return { content: [{ type: "text" as const, text: JSON.stringify(result) }], isError: true };
+        }
+        storage.logActivity("journal.batch_appended", `Batch appended ${entries.length} journal entries`, {
+          contactId,
+          source: "agent",
+          metadata: { count: entries.length, headings, seeded },
+        });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                ok: true,
+                count: entries.length,
+                headings,
+                newHash: result.newHash,
+                newSize: result.newSize,
+                seeded,
+              }),
+            },
+          ],
+        };
+      } catch (err: unknown) {
+        return {
+          content: [{ type: "text" as const, text: actionableError("batch-appending journal", err) }],
+          isError: true,
+        };
       }
     },
   );
