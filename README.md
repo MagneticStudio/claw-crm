@@ -83,7 +83,7 @@ Uses `mcp-client.ts` which calls the REST API over HTTP:
 | `list_violations` | Active rule violations with contact names. |
 | `get_upcoming_meetings` / `cancel_meeting` | Meeting management. |
 | `save_briefing` / `get_briefing` | Per-contact prep notes. |
-| `read_memory` / `edit_memory` / `append_memory` | Per-contact `relationship_memory` — persistent markdown doc for the full living narrative of the relationship. Absolute-dates-only validator; destructive edits gated behind `confirmed_with_user`. Full revision history in the UI. |
+| `read_journal` / `edit_journal` / `append_journal` | Per-contact `relationship_journal` — persistent markdown doc for the full living narrative of the relationship. Absolute-dates-only validator; destructive edits gated behind `confirmed_with_user`. Full revision history in the UI. |
 
 Tools follow [Anthropic's best practices](https://www.anthropic.com/engineering/writing-tools-for-agents): enum validation, actionable errors, pagination, enriched responses.
 

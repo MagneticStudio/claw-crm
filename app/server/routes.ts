@@ -144,31 +144,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(204).send();
   });
 
-  // --- Relationship memory ---
-  app.get("/api/contacts/:id/memory", requireAuth, async (req, res) => {
+  // --- Relationship journal ---
+  app.get("/api/contacts/:id/journal", requireAuth, async (req, res) => {
     const id = parseInt(req.params.id);
     const contact = await storage.getContact(id);
     if (!contact) return res.status(404).json({ message: "Contact not found" });
-    const { MEMORY_SKELETON, hashMemory } = await import("@shared/memory");
-    const initialized = contact.relationshipMemory !== null;
+    const { JOURNAL_SKELETON, hashJournal } = await import("@shared/journal");
+    const initialized = contact.relationshipJournal !== null;
     const content = initialized
-      ? (contact.relationshipMemory as string)
-      : MEMORY_SKELETON(`${contact.firstName} ${contact.lastName}`);
+      ? (contact.relationshipJournal as string)
+      : JOURNAL_SKELETON(`${contact.firstName} ${contact.lastName}`);
     res.json({
       content,
-      hash: hashMemory(initialized ? content : null),
+      hash: hashJournal(initialized ? content : null),
       initialized,
       sizeBytes: content.length,
     });
   });
 
-  app.put("/api/contacts/:id/memory", requireAuth, async (req, res) => {
+  app.put("/api/contacts/:id/journal", requireAuth, async (req, res) => {
     const id = parseInt(req.params.id);
     const { content, expectedHash } = req.body ?? {};
     if (typeof content !== "string") {
       return res.status(400).json({ message: "content (string) required" });
     }
-    const result = await storage.updateRelationshipMemory(id, content, {
+    const result = await storage.updateRelationshipJournal(id, content, {
       source: "user",
       expectedHash,
       skipDestructiveGuard: true, // UI confirms destructive changes before calling
@@ -180,9 +180,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(result);
   });
 
-  app.get("/api/contacts/:id/memory/revisions", requireAuth, async (req, res) => {
+  app.get("/api/contacts/:id/journal/revisions", requireAuth, async (req, res) => {
     const id = parseInt(req.params.id);
-    const revisions = await storage.listMemoryRevisions(id);
+    const revisions = await storage.listJournalRevisions(id);
     res.json(
       revisions.map((r) => ({
         id: r.id,
@@ -194,9 +194,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     );
   });
 
-  app.get("/api/contacts/:id/memory/revisions/:revId", requireAuth, async (req, res) => {
+  app.get("/api/contacts/:id/journal/revisions/:revId", requireAuth, async (req, res) => {
     const revId = parseInt(req.params.revId);
-    const rev = await storage.getMemoryRevision(revId);
+    const rev = await storage.getJournalRevision(revId);
     if (!rev) return res.status(404).json({ message: "Revision not found" });
     res.json(rev);
   });

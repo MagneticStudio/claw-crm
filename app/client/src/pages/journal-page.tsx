@@ -10,23 +10,23 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Markdown } from "tiptap-markdown";
 import { diffLines } from "diff";
-import type { ContactWithRelations, ContactMemoryRevision } from "@shared/schema";
+import type { ContactWithRelations, ContactJournalRevision } from "@shared/schema";
 
-interface MemoryResponse {
+interface JournalResponse {
   content: string;
   hash: string;
   initialized: boolean;
   sizeBytes: number;
 }
 
-type RevisionSummary = Pick<ContactMemoryRevision, "id" | "createdAt" | "source" | "contentHash"> & {
+type RevisionSummary = Pick<ContactJournalRevision, "id" | "createdAt" | "source" | "contentHash"> & {
   size: number;
 };
 
 const SHRINK_THRESHOLD = 0.2;
 const SHRINK_MIN_BYTES = 500;
 
-export default function MemoryPage() {
+export default function JournalPage() {
   const C = useColors();
   const params = useParams<{ contactId: string }>();
   const contactId = parseInt(params.contactId || "0");
@@ -36,8 +36,8 @@ export default function MemoryPage() {
     enabled: contactId > 0,
   });
 
-  const { data: memory } = useQuery<MemoryResponse>({
-    queryKey: [`/api/contacts/${contactId}/memory`],
+  const { data: journal } = useQuery<JournalResponse>({
+    queryKey: [`/api/contacts/${contactId}/journal`],
     enabled: contactId > 0,
   });
 
@@ -47,20 +47,20 @@ export default function MemoryPage() {
   // and to detect SSE-triggered updates while editing.
   const [editingBaseHash, setEditingBaseHash] = useState<string | null>(null);
 
-  const reloadPending = editing && editingBaseHash && memory && memory.hash !== editingBaseHash ? memory.hash : null;
-  const savedHash = editingBaseHash ?? memory?.hash ?? null;
+  const reloadPending = editing && editingBaseHash && journal && journal.hash !== editingBaseHash ? journal.hash : null;
+  const savedHash = editingBaseHash ?? journal?.hash ?? null;
 
   const editor = useEditor({
     extensions: [StarterKit, Markdown.configure({ html: false, breaks: true, linkify: true })],
-    content: memory?.content ?? "",
+    content: journal?.content ?? "",
     editable: editing,
   });
 
   useEffect(() => {
-    if (editor && memory && !editing) {
-      editor.commands.setContent(memory.content);
+    if (editor && journal && !editing) {
+      editor.commands.setContent(journal.content);
     }
-  }, [memory, editor, editing]);
+  }, [journal, editor, editing]);
 
   useEffect(() => {
     editor?.setEditable(editing);
@@ -68,15 +68,15 @@ export default function MemoryPage() {
 
   const saveMutation = useMutation({
     mutationFn: async (payload: { content: string; expectedHash?: string }) => {
-      const res = await apiRequest("PUT", `/api/contacts/${contactId}/memory`, payload);
+      const res = await apiRequest("PUT", `/api/contacts/${contactId}/journal`, payload);
       return res.json();
     },
     onSuccess: (result) => {
       if (result?.ok) {
         setEditing(false);
         setEditingBaseHash(null);
-        queryClient.invalidateQueries({ queryKey: [`/api/contacts/${contactId}/memory`] });
-        queryClient.invalidateQueries({ queryKey: [`/api/contacts/${contactId}/memory/revisions`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/contacts/${contactId}/journal`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/contacts/${contactId}/journal/revisions`] });
       } else if (result?.reason === "hash_conflict") {
         // Force the banner by clearing our base hash so reloadPending recomputes.
         setEditingBaseHash(result.currentHash ?? null);
@@ -90,22 +90,22 @@ export default function MemoryPage() {
   });
 
   const handleSave = () => {
-    if (!editor || !memory) return;
+    if (!editor || !journal) return;
     const next = editor.storage.markdown.getMarkdown() as string;
-    const oldLen = memory.content.length;
+    const oldLen = journal.content.length;
     const delta = oldLen - next.length;
     const pct = oldLen > 0 ? delta / oldLen : 0;
     if (delta >= Math.min(SHRINK_MIN_BYTES, oldLen) && pct >= SHRINK_THRESHOLD) {
       const approve = window.confirm(
-        `You're about to remove ~${Math.round(pct * 100)}% of the memory (${oldLen} → ${next.length} chars). Continue?`,
+        `You're about to remove ~${Math.round(pct * 100)}% of the journal (${oldLen} → ${next.length} chars). Continue?`,
       );
       if (!approve) return;
     }
-    saveMutation.mutate({ content: next, expectedHash: savedHash ?? memory.hash });
+    saveMutation.mutate({ content: next, expectedHash: savedHash ?? journal.hash });
   };
 
   const handleReload = () => {
-    queryClient.invalidateQueries({ queryKey: [`/api/contacts/${contactId}/memory`] });
+    queryClient.invalidateQueries({ queryKey: [`/api/contacts/${contactId}/journal`] });
     setEditingBaseHash(null);
     setEditing(false);
   };
@@ -130,7 +130,7 @@ export default function MemoryPage() {
               )}
             </h1>
             <p className="text-[11px]" style={{ color: C.muted }}>
-              Relationship Memory
+              Relationship Journal
             </p>
           </div>
           <button
@@ -150,7 +150,7 @@ export default function MemoryPage() {
           className="max-w-[640px] mx-auto mt-3 px-3 py-2 rounded-lg flex items-center justify-between text-xs"
           style={{ border: `1px solid ${C.stale}`, backgroundColor: C.staleBg, color: C.text }}
         >
-          <span>Memory changed while you were editing.</span>
+          <span>Journal changed while you were editing.</span>
           <button
             onClick={handleReload}
             className="font-medium flex items-center gap-1"
@@ -164,7 +164,7 @@ export default function MemoryPage() {
 
       <main className="max-w-[640px] mx-auto px-4 py-5">
         <div className="bg-white" style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1.25rem" }}>
-          {!memory ? (
+          {!journal ? (
             <p className="text-sm" style={{ color: C.muted }}>
               Loading...
             </p>
@@ -189,7 +189,7 @@ export default function MemoryPage() {
                   onClick={() => {
                     setEditing(false);
                     setEditingBaseHash(null);
-                    if (editor && memory) editor.commands.setContent(memory.content);
+                    if (editor && journal) editor.commands.setContent(journal.content);
                   }}
                   className="text-xs px-3 py-1.5"
                   style={{ color: C.muted }}
@@ -197,20 +197,20 @@ export default function MemoryPage() {
                   Cancel
                 </button>
                 <span className="text-[10px] ml-auto" style={{ color: C.muted }}>
-                  {memory.sizeBytes} chars
+                  {journal.sizeBytes} chars
                 </span>
               </div>
             </div>
           ) : (
             <div>
-              {memory.initialized ? (
+              {journal.initialized ? (
                 <div className="prose prose-sm max-w-none" style={{ color: C.text }}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{memory.content}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{journal.content}</ReactMarkdown>
                 </div>
               ) : (
                 <div className="text-center py-8">
                   <p className="text-sm mb-3" style={{ color: C.muted }}>
-                    No memory yet — a skeleton template is ready.
+                    No journal yet — a skeleton template is ready.
                   </p>
                 </div>
               )}
@@ -219,24 +219,24 @@ export default function MemoryPage() {
                 style={{ borderTop: `1px dashed ${C.border}` }}
               >
                 <span className="text-[10px]" style={{ color: C.muted }}>
-                  {memory.sizeBytes} chars
+                  {journal.sizeBytes} chars
                 </span>
                 <button
                   onClick={() => {
-                    setEditingBaseHash(memory.hash);
+                    setEditingBaseHash(journal.hash);
                     setEditing(true);
                   }}
                   className="text-xs font-medium"
                   style={{ color: C.accentDark }}
                 >
-                  {memory.initialized ? "Edit" : "Start memory"}
+                  {journal.initialized ? "Edit" : "Start journal"}
                 </button>
               </div>
             </div>
           )}
         </div>
 
-        {showHistory && <HistoryDrawer contactId={contactId} currentContent={memory?.content ?? ""} />}
+        {showHistory && <HistoryDrawer contactId={contactId} currentContent={journal?.content ?? ""} />}
       </main>
     </div>
   );
@@ -245,14 +245,14 @@ export default function MemoryPage() {
 function HistoryDrawer({ contactId, currentContent }: { contactId: number; currentContent: string }) {
   const C = useColors();
   const { data: revisions } = useQuery<RevisionSummary[]>({
-    queryKey: [`/api/contacts/${contactId}/memory/revisions`],
+    queryKey: [`/api/contacts/${contactId}/journal/revisions`],
   });
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
-  const { data: selected } = useQuery<ContactMemoryRevision>({
-    queryKey: [`/api/contacts/${contactId}/memory/revisions`, selectedId],
+  const { data: selected } = useQuery<ContactJournalRevision>({
+    queryKey: [`/api/contacts/${contactId}/journal/revisions`, selectedId],
     queryFn: async () => {
-      const res = await apiRequest("GET", `/api/contacts/${contactId}/memory/revisions/${selectedId}`);
+      const res = await apiRequest("GET", `/api/contacts/${contactId}/journal/revisions/${selectedId}`);
       return res.json();
     },
     enabled: selectedId !== null,
@@ -260,16 +260,16 @@ function HistoryDrawer({ contactId, currentContent }: { contactId: number; curre
 
   const restoreMutation = useMutation({
     mutationFn: async (content: string) => {
-      const current = await apiRequest("GET", `/api/contacts/${contactId}/memory`).then((r) => r.json());
-      const res = await apiRequest("PUT", `/api/contacts/${contactId}/memory`, {
+      const current = await apiRequest("GET", `/api/contacts/${contactId}/journal`).then((r) => r.json());
+      const res = await apiRequest("PUT", `/api/contacts/${contactId}/journal`, {
         content,
         expectedHash: current.hash,
       });
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/contacts/${contactId}/memory`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/contacts/${contactId}/memory/revisions`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/contacts/${contactId}/journal`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/contacts/${contactId}/journal/revisions`] });
     },
   });
 

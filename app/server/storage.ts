@@ -22,10 +22,10 @@ import {
   type InsertRuleViolation,
   activityLog,
   briefings,
-  contactMemoryRevisions,
-  type ContactMemoryRevision,
+  contactJournalRevisions,
+  type ContactJournalRevision,
 } from "@shared/schema";
-import { hashMemory, isDestructiveChange, MEMORY_SIZE_LIMIT } from "@shared/memory";
+import { hashJournal, isDestructiveChange, JOURNAL_SIZE_LIMIT } from "@shared/journal";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { db } from "./db";
@@ -458,14 +458,14 @@ export class Storage {
     return !!existing;
   }
 
-  // --- Relationship memory ---
-  async getRelationshipMemory(contactId: number): Promise<{ content: string | null; hash: string } | null> {
+  // --- Relationship journal ---
+  async getRelationshipJournal(contactId: number): Promise<{ content: string | null; hash: string } | null> {
     const contact = await this.getContact(contactId);
     if (!contact) return null;
-    return { content: contact.relationshipMemory, hash: hashMemory(contact.relationshipMemory) };
+    return { content: contact.relationshipJournal, hash: hashJournal(contact.relationshipJournal) };
   }
 
-  async updateRelationshipMemory(
+  async updateRelationshipJournal(
     contactId: number,
     newContent: string,
     opts: {
@@ -487,23 +487,23 @@ export class Storage {
     if (!contact) {
       return { ok: false, reason: "not_found", message: `Contact ${contactId} not found.` };
     }
-    const oldContent = contact.relationshipMemory ?? "";
-    const currentHash = hashMemory(contact.relationshipMemory);
+    const oldContent = contact.relationshipJournal ?? "";
+    const currentHash = hashJournal(contact.relationshipJournal);
 
     if (opts.expectedHash && opts.expectedHash !== currentHash) {
       return {
         ok: false,
         reason: "hash_conflict",
-        message: "Memory has changed since your last read. Re-read and retry with the fresh hash.",
+        message: "Journal has changed since your last read. Re-read and retry with the fresh hash.",
         currentHash,
       };
     }
 
-    if (newContent.length > MEMORY_SIZE_LIMIT) {
+    if (newContent.length > JOURNAL_SIZE_LIMIT) {
       return {
         ok: false,
         reason: "size_limit",
-        message: `Memory would exceed ${MEMORY_SIZE_LIMIT} chars (attempted ${newContent.length}). Compact older Timeline entries or tighten prose. Every word earns its place.`,
+        message: `Journal would exceed ${JOURNAL_SIZE_LIMIT} chars (attempted ${newContent.length}). Compact older Entries or tighten prose. Every word earns its place.`,
       };
     }
 
@@ -514,8 +514,8 @@ export class Storage {
       const pct = oldSize > 0 ? Math.round((delta / oldSize) * 100) : 0;
       const reasonDetail =
         delta > 0 && pct >= 20
-          ? `shrinks the memory by ~${pct}% (${oldSize} → ${newContent.length} chars)`
-          : "mutates or removes an existing Timeline heading";
+          ? `shrinks the journal by ~${pct}% (${oldSize} → ${newContent.length} chars)`
+          : "mutates or removes an existing Entry heading";
       return {
         ok: false,
         reason: "destructive_edit",
@@ -524,8 +524,7 @@ export class Storage {
       };
     }
 
-    // Pre-write snapshot (even for no-op writes — cheap and keeps invariant simple).
-    await db.insert(contactMemoryRevisions).values({
+    await db.insert(contactJournalRevisions).values({
       contactId,
       content: oldContent,
       contentHash: currentHash,
@@ -534,15 +533,15 @@ export class Storage {
 
     const [updated] = await db
       .update(contacts)
-      .set({ relationshipMemory: newContent, updatedAt: new Date() })
+      .set({ relationshipJournal: newContent, updatedAt: new Date() })
       .where(eq(contacts.id, contactId))
       .returning();
 
-    const newHash = hashMemory(newContent);
-    sseManager.broadcast({ type: "memory_updated", contactId, hash: newHash });
+    const newHash = hashJournal(newContent);
+    sseManager.broadcast({ type: "journal_updated", contactId, hash: newHash });
     this.logActivity(
-      "memory.updated",
-      `Memory updated for ${updated?.firstName ?? ""} ${updated?.lastName ?? ""} (${oldContent.length} → ${newContent.length} chars)`,
+      "journal.updated",
+      `Journal updated for ${updated?.firstName ?? ""} ${updated?.lastName ?? ""} (${oldContent.length} → ${newContent.length} chars)`,
       {
         contactId,
         source: opts.source,
@@ -557,16 +556,16 @@ export class Storage {
     return { ok: true, newHash, newSize: newContent.length };
   }
 
-  async listMemoryRevisions(contactId: number): Promise<ContactMemoryRevision[]> {
+  async listJournalRevisions(contactId: number): Promise<ContactJournalRevision[]> {
     return db
       .select()
-      .from(contactMemoryRevisions)
-      .where(eq(contactMemoryRevisions.contactId, contactId))
-      .orderBy(desc(contactMemoryRevisions.createdAt));
+      .from(contactJournalRevisions)
+      .where(eq(contactJournalRevisions.contactId, contactId))
+      .orderBy(desc(contactJournalRevisions.createdAt));
   }
 
-  async getMemoryRevision(revisionId: number): Promise<ContactMemoryRevision | undefined> {
-    const [rev] = await db.select().from(contactMemoryRevisions).where(eq(contactMemoryRevisions.id, revisionId));
+  async getJournalRevision(revisionId: number): Promise<ContactJournalRevision | undefined> {
+    const [rev] = await db.select().from(contactJournalRevisions).where(eq(contactJournalRevisions.id, revisionId));
     return rev;
   }
 

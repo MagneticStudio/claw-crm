@@ -20,14 +20,14 @@ export function useSSE() {
           data.type?.startsWith("violation_") ||
           data.type?.startsWith("meeting_") ||
           data.type?.startsWith("briefing_") ||
-          data.type === "memory_updated"
+          data.type === "journal_updated"
         ) {
           queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
         }
 
-        if (data.type === "memory_updated" && typeof data.contactId === "number") {
-          queryClient.invalidateQueries({ queryKey: [`/api/contacts/${data.contactId}/memory`] });
-          queryClient.invalidateQueries({ queryKey: [`/api/contacts/${data.contactId}/memory/revisions`] });
+        if (data.type === "journal_updated" && typeof data.contactId === "number") {
+          queryClient.invalidateQueries({ queryKey: [`/api/contacts/${data.contactId}/journal`] });
+          queryClient.invalidateQueries({ queryKey: [`/api/contacts/${data.contactId}/journal/revisions`] });
         }
 
         if (data.type?.startsWith("violation_")) {

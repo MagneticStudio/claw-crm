@@ -2,16 +2,17 @@
 
 ## 2026-04-18
 
-### Relationship memory — persistent per-contact document (#66)
-- New `relationship_memory` TEXT column on contacts: a freeform markdown document for the full living narrative of a relationship (engagement story, key people, workstreams, wins, open threads). Fourth content layer alongside `background`, `briefing`, and `interactions`.
-- MCP tools: `read_memory`, `edit_memory`, `append_memory`. `edit_memory` mirrors Claude's local Edit (exact-string match, `replaceAll`, `expectedHash` for optimistic locking). `append_memory` auto-prepends today's ISO date as a `### YYYY-MM-DD:` heading in the Memory Entries section and seeds the skeleton on first call.
-- Opinionated three-section document contract: every memory has exactly `## Key People`, `## Wins / Case Study Material`, and `## Memory Entries`. Agent guide + tool descriptions explicitly forbid inventing new top-level sections — new content lands in Memory Entries, evergreen facts edit in place in Key People / Wins.
-- MCP resource: `memory://contact/{id}/relationship.md` lists every contact as a file-like resource with `text/markdown` mime.
-- Absolute-date-only validator: writes containing relative phrases (`today`, `next week`, `this Friday`, `recently`, etc.) are rejected with a specific error. Substantive content must include an absolute date. Enforced server-side; reinforced in tool descriptions and `get_crm_guide`.
-- Unified destructive-edit gate: edits that shrink the doc ≥20% (and ≥500 chars) or mutate an existing `### YYYY-MM-DD:` Memory Entries heading require `confirmed_with_user: true`.
-- Full revision history in `contact_memory_revisions` (pre-write snapshots, kept forever).
-- Frontend: new `/memory/:contactId` page with rich-text editor (Tiptap + `tiptap-markdown`, user never sees raw markdown syntax), read mode via `react-markdown`, history drawer with side-by-side diff and Restore, destructive-shrink confirm dialog, live SSE refresh via `memory_updated` events.
-- REST endpoints: `GET/PUT /api/contacts/:id/memory`, `GET /api/contacts/:id/memory/revisions`, `GET /api/contacts/:id/memory/revisions/:revId`.
+### Relationship journal — persistent per-contact narrative document (#66)
+- New `relationship_journal` TEXT column on contacts: a freeform markdown document for the full living narrative of a relationship. Fourth content layer alongside `background`, `briefing`, and `interactions`. Tasks/follow-ups/interactions stay short reminders; the journal is where the detail and interpretation live.
+- **Strict three-section contract**: every journal is exactly `## Key People` (roster, edit in place), `## Wins / Case Study Material` (outcomes, edit in place), and `## Entries` (append-only dated `### YYYY-MM-DD: <title>` blocks). Agent guide + tool descriptions forbid inventing new top-level sections.
+- **Anti-duplication rule** baked into the agent guide: the DATE belongs to the atom (interaction/task/meeting), the MEANING belongs to the journal. Decision table + worked example guide Claude to avoid redundant writes across entities.
+- MCP tools: `read_journal`, `edit_journal`, `append_journal`. `edit_journal` mirrors Claude's local Edit (exact-string match, `replaceAll`, `expectedHash` for optimistic locking). `append_journal` auto-prepends today's ISO date in the Entries section and seeds the skeleton on first call.
+- MCP resource: `journal://contact/{id}/journal.md` lists every contact as a file-like resource with `text/markdown` mime.
+- Absolute-date-only validator: relative phrases (`today`, `next week`, `this Friday`, etc.) are rejected with a specific error. Substantive content must include an absolute date.
+- Unified destructive-edit gate: edits that shrink the doc ≥20% (and ≥500 chars) or mutate an existing `### YYYY-MM-DD:` Entry heading require `confirmed_with_user: true`.
+- Full revision history in `contact_journal_revisions` (pre-write snapshots, kept forever).
+- Frontend: new `/journal/:contactId` page with rich-text editor (Tiptap + `tiptap-markdown`, user never sees raw markdown syntax), read mode via `react-markdown`, history drawer with side-by-side diff and Restore, destructive-shrink confirm dialog, live SSE refresh via `journal_updated` events. Badge 📓 on every contact.
+- REST endpoints: `GET/PUT /api/contacts/:id/journal`, `GET /api/contacts/:id/journal/revisions`, `GET /api/contacts/:id/journal/revisions/:revId`.
 
 ### README: 20-second hype video
 - Embedded 9:16 demo GIF (`docs/hype.gif`) at the top of the README — renders inline on the repo home with native autoplay/loop

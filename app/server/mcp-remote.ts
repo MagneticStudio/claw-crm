@@ -19,12 +19,12 @@ import {
 } from "@shared/schema";
 import type { InsertContact } from "@shared/schema";
 import {
-  MEMORY_SKELETON,
-  validateMemoryContent,
-  appendMemoryEntry,
-  hashMemory,
-  MEMORY_SIZE_LIMIT,
-} from "@shared/memory";
+  JOURNAL_SKELETON,
+  validateJournalContent,
+  appendJournalEntry,
+  hashJournal,
+  JOURNAL_SIZE_LIMIT,
+} from "@shared/journal";
 import { db } from "./db";
 import { eq, and, isNull, gte, lte, asc, sql } from "drizzle-orm";
 import { sseManager } from "./sse";
@@ -243,36 +243,59 @@ After a meeting happens, log it as an interaction with add_interaction.
 Use save_briefing to store prep notes for a contact (one per contact, upsert).
 Good for: talking points, recent news, open items before a meeting.
 
-## Relationship Memory
-The persistent, file-like narrative of the relationship. Freeform markdown per contact, everlasting, append-mostly. Tools: read_memory, edit_memory, append_memory.
+## Relationship Journal
+The persistent, file-like narrative of the relationship. Freeform markdown per contact, everlasting, append-mostly. Tools: read_journal, edit_journal, append_journal.
 
 **Document structure (strict — do not invent new top-level sections):**
-1. \`## Key People\` — stakeholder roster with roles and current relationship state. Who matters, what they care about.
-2. \`## Wins / Case Study Material\` — durable wins worth preserving for future BD and case studies. Concrete outcomes, measurable impact, quotable moments.
-3. \`## Memory Entries\` — dated narrative entries, newest at the bottom. Append-only. Each entry: \`### YYYY-MM-DD: <title>\` followed by body.
+1. \`## Key People\` — stakeholder roster with roles and current relationship state. Who matters, what they care about. Edit in place.
+2. \`## Wins / Case Study Material\` — durable wins worth preserving for future BD and case studies. Concrete outcomes, measurable impact, quotable moments. Edit in place.
+3. \`## Entries\` — dated narrative entries, newest at the bottom. Append-only. Each entry: \`### YYYY-MM-DD: <title>\` followed by body.
 
-Every new \`append_memory\` call lands in Memory Entries. Use Key People and Wins / Case Study Material for evergreen content — edit them in place with \`edit_memory\` when the facts change. If you're tempted to add a new \`##\` section, you're wrong — put it in Memory Entries.
+Every new \`append_journal\` call lands in Entries. If you're tempted to add a new \`##\` section, you're wrong — put it in Entries.
+
+**THE DATA-PARTITION RULE (read this every time you're about to write):**
+
+Every piece of info has exactly ONE home. The DATE belongs to the atom; the MEANING belongs to the journal. If you're about to write the same sentence in two places, one of them is wrong.
+
+| What it is | Where it goes | Tool | Shape |
+|---|---|---|---|
+| A canonical fact about the person (title, email, location) | **contact field** | update_contact | one-liner |
+| An event that happened on a date (call, email, meeting) | **interaction** | add_interaction | one sentence, past tense, factual |
+| A future action item | **task** | create_task (type task) | verb-first, ≤10 words, no rationale |
+| A scheduled future event | **meeting** | create_task (type meeting) | date + time + short title + location |
+| Prep for the **next specific** conversation | **briefing** | save_briefing | bullets, replaced at next prep |
+| A stakeholder with a role | **journal → Key People** | edit_journal | edit in place |
+| A durable outcome / case-study material | **journal → Wins** | edit_journal | edit in place |
+| Interpretation, strategic read, "what this means", narrative context | **journal → Entries** | append_journal | long-form prose, dated |
+
+**Worked example — single call with Jeff on 2026-04-18:**
+- Interaction: \`2026-04-18: 30min call with Jeff. Discussed WPS restructuring.\` ← fact, short
+- Task: \`Send investment memo to Jeff\` due \`2026-04-22\` ← next action
+- Journal Entry: \`### 2026-04-18: Jeff signaled pivot from vendor to partner. He said "I want to think bigger than a deck." Read: restructuring opens strategic lane. Next prep should lead with our BD stance, not the deck refresh.\` ← meaning
+
+These three are NOT duplicates. The interaction is the fact, the task is the action, the journal is the interpretation. The journal cross-references the atom via its date.
+
+**Decision flow for any new info:**
+1. Is it a fact that happened on a date? → **interaction**. Keep it to one sentence.
+2. Is it an action that should happen by a date? → **task** (or **meeting** if a scheduled event with time/place).
+3. Is it a canonical static fact about the person? → **contact field**.
+4. Is it prep for the next conversation? → **briefing**.
+5. Is it interpretation, context, strategic read, or narrative — even if it's ABOUT a recent interaction? → **journal Entry**, dated, cross-referencing the atom's date.
+6. Is it evergreen people or wins? → **journal Key People / Wins**, edit in place.
+
+Tasks and interactions should be SHORT reminders. The journal is where detail lives.
 
 **Writing rules (non-negotiable):**
-1. Every new Memory Entry begins with an ISO date heading: \`### YYYY-MM-DD: <brief title>\`.
-2. Use ONLY absolute dates anywhere in memory content. Acceptable: \`2026-04-18\`, \`04/18/2026\`, \`April 18, 2026\`. **Never** use today, tomorrow, yesterday, this/next/last week, recently, soon, shortly, this Friday, or any other relative time reference.
-3. When writing about future actions, state the specific date. Write \`follow up with Jeff on 2026-05-06\`, not \`follow up with Jeff next week\`.
-4. When a contact says "let's meet next Tuesday", translate to an absolute date at write time using today as anchor. Example: today 2026-04-18, they say "next Tuesday" → write \`meeting scheduled for 2026-04-21 (Tuesday)\`.
-5. Never silently edit or delete existing dated Memory Entries. Prefer appending a correction: \`### 2026-04-18: Correction to 2026-03-09 entry — …\`. If a rewrite is needed, it's a destructive edit.
-6. When updating Key People or Wins / Case Study Material in place, annotate the change inline: \`[updated 2026-04-18: …]\`.
+1. Every new Entry begins with an ISO date heading: \`### YYYY-MM-DD: <brief title>\`.
+2. Use ONLY absolute dates anywhere in journal content. Acceptable: \`2026-04-18\`, \`04/18/2026\`, \`April 18, 2026\`. **Never** use today, tomorrow, yesterday, this/next/last week, recently, soon, shortly, this Friday, or any other relative time reference.
+3. When writing about future actions inside the journal, state the specific date. Write \`follow up with Jeff on 2026-05-06\`, not \`follow up with Jeff next week\`. (For actual follow-ups, use create_task instead — the journal just contextualizes.)
+4. When a contact says "let's meet next Tuesday", translate to an absolute date at write time. Example: today 2026-04-18, they say "next Tuesday" → write \`meeting scheduled for 2026-04-21 (Tuesday)\`.
+5. Never silently edit or delete existing dated Entries. Prefer appending a correction: \`### 2026-04-18: Correction to 2026-03-09 entry — …\`. A rewrite is a destructive edit.
+6. When updating Key People or Wins in place, annotate the change inline: \`[updated 2026-04-18: …]\`.
 7. If a piece of information has no known date, mark it \`[date unknown]\` rather than omitting or hedging.
-8. \`briefing\` is for the next meeting and may be overwritten freely. \`relationship_memory\` is permanent. Do not confuse the two.
-9. Destructive edits require \`confirmed_with_user: true\`, set ONLY after the user has explicitly approved the change in conversation. "Destructive" = shrinks the doc ≥20% OR mutates an existing \`### YYYY-MM-DD:\` Memory Entries heading. Typically happens at user direction — the flag confirms it.
+8. \`briefing\` is for the next meeting and may be overwritten freely. \`relationship_journal\` is permanent. Do not confuse the two.
+9. Destructive edits require \`confirmed_with_user: true\`, set ONLY after the user has explicitly approved the change in conversation. "Destructive" = shrinks the doc ≥20% OR mutates an existing \`### YYYY-MM-DD:\` Entry heading.
 10. Write dense. Every word earns its place. No filler, no throat-clearing, no hedges. Capture maximum context per character.
-
-**Where does this content go?**
-- Short canonical fact about the person or company (title, location, website) → **contact fields**
-- Prep for the next specific meeting → **briefing** (ephemeral, replaced at next prep)
-- One discrete event that happened on a specific date (meeting, email, call) → **interactions**
-- Stakeholder with a role → **relationship_memory → Key People**
-- Concrete outcome, measurable impact, quotable moment → **relationship_memory → Wins / Case Study Material**
-- Narrative "what happened and why it matters" for this engagement → **relationship_memory → Memory Entries** (dated)
-- Anything the user explicitly pastes as "historical context" or "memory" for a client → **relationship_memory**, dated entries in Memory Entries.
 
 ## Confidentiality
 - NEVER put pricing or deal terms in the CRM
@@ -1005,18 +1028,19 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
     },
   );
 
-  // --- Relationship memory ---
-  const MEMORY_WRITE_RULES = [
-    "Document has exactly three top-level sections: `## Key People`, `## Wins / Case Study Material`, `## Memory Entries`. Do not invent new sections — everything new goes into Memory Entries as a dated `### YYYY-MM-DD: <title>` block, or edits in place into Key People / Wins.",
+  // --- Relationship journal ---
+  const JOURNAL_WRITE_RULES = [
+    "The journal is long-form narrative and interpretation — NOT a log of events. Events go in interactions (add_interaction). Future actions go in tasks (create_task). Canonical facts go in contact fields. The journal is where the MEANING of all that lives.",
+    "Document has exactly three top-level sections: `## Key People`, `## Wins / Case Study Material`, `## Entries`. Do not invent new sections — everything new goes into Entries as a dated `### YYYY-MM-DD: <title>` block, or edits in place into Key People / Wins.",
     "Writes must use ABSOLUTE DATES only. Every new substantive entry begins with an ISO date heading: `### YYYY-MM-DD: <title>`.",
     "Relative time phrases (today, tomorrow, yesterday, this/next/last week, this Friday, recently, soon, shortly, a few days ago, etc.) are REJECTED by the validator. Translate to absolute dates at write time.",
-    "Destructive edits require confirmed_with_user: true — triggered when the edit (a) shrinks the doc ≥20% or (b) mutates/removes an existing `### YYYY-MM-DD:` Memory Entries heading. Set only after the user has explicitly approved the change in conversation.",
+    "Destructive edits require confirmed_with_user: true — triggered when the edit (a) shrinks the doc ≥20% or (b) mutates/removes an existing `### YYYY-MM-DD:` Entry heading. Set only after the user has explicitly approved the change in conversation.",
     "Write dense. Every word earns its place. No filler, no throat-clearing, no hedges. Capture maximum context per character.",
   ].join(" ");
 
   server.tool(
-    "read_memory",
-    `Read the full relationship_memory markdown for a contact. Returns the document text, a content hash (pass as expectedHash on subsequent edits to avoid silent overwrite), and whether the doc has been initialized. If the contact has no memory yet, returns a synthesized skeleton — writing via append_memory will persist it. Call this BEFORE any edit so you're working from current content.`,
+    "read_journal",
+    `Read the full relationship_journal markdown for a contact. Returns the document text, a content hash (pass as expectedHash on subsequent edits to avoid silent overwrite), and whether the doc has been initialized. If the contact has no journal yet, returns a synthesized skeleton — writing via append_journal will persist it. Call this BEFORE any edit so you're working from current content.`,
     {
       contactId: z.number().describe("Contact ID. Get from search_contacts or get_contact."),
     },
@@ -1024,26 +1048,26 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
       try {
         const contact = await storage.getContact(contactId);
         if (!contact) return notFoundError("Contact", contactId, "search_contacts");
-        const initialized = contact.relationshipMemory !== null;
+        const initialized = contact.relationshipJournal !== null;
         const content = initialized
-          ? (contact.relationshipMemory as string)
-          : MEMORY_SKELETON(`${contact.firstName} ${contact.lastName}`);
+          ? (contact.relationshipJournal as string)
+          : JOURNAL_SKELETON(`${contact.firstName} ${contact.lastName}`);
         const payload = {
           content,
-          hash: hashMemory(initialized ? content : null),
+          hash: hashJournal(initialized ? content : null),
           initialized,
           sizeBytes: content.length,
         };
         return { content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }] };
       } catch (err: unknown) {
-        return { content: [{ type: "text" as const, text: actionableError("reading memory", err) }], isError: true };
+        return { content: [{ type: "text" as const, text: actionableError("reading journal", err) }], isError: true };
       }
     },
   );
 
   server.tool(
-    "edit_memory",
-    `Exact-string replacement on a contact's relationship_memory. Mirrors Claude's local Edit tool: oldString must occur exactly once in the current document (unless replaceAll: true) or the edit is rejected. ${MEMORY_WRITE_RULES}`,
+    "edit_journal",
+    `Exact-string replacement on a contact's relationship_journal. Mirrors Claude's local Edit tool: oldString must occur exactly once in the current document (unless replaceAll: true) or the edit is rejected. ${JOURNAL_WRITE_RULES}`,
     {
       contactId: z.number(),
       oldString: z
@@ -1065,21 +1089,21 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
         .string()
         .optional()
         .describe(
-          "Content hash from your most recent read_memory. Strongly recommended — the edit is rejected if the doc changed since then.",
+          "Content hash from your most recent read_journal. Strongly recommended — the edit is rejected if the doc changed since then.",
         ),
       confirmed_with_user: z
         .boolean()
         .optional()
         .default(false)
         .describe(
-          "Set to true ONLY after the user has explicitly approved a destructive edit in conversation. Required when the edit shrinks the doc ≥20% (or ≥500 chars, whichever smaller) OR mutates/removes an existing `### YYYY-MM-DD:` Memory Entries heading.",
+          "Set to true ONLY after the user has explicitly approved a destructive edit in conversation. Required when the edit shrinks the doc ≥20% (or ≥500 chars, whichever smaller) OR mutates/removes an existing `### YYYY-MM-DD:` Entry heading.",
         ),
     },
     async ({ contactId, oldString, newString, replaceAll, expectedHash, confirmed_with_user }) => {
       try {
         const contact = await storage.getContact(contactId);
         if (!contact) return notFoundError("Contact", contactId, "search_contacts");
-        if (contact.relationshipMemory === null) {
+        if (contact.relationshipJournal === null) {
           return {
             content: [
               {
@@ -1087,7 +1111,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
                 text: JSON.stringify({
                   ok: false,
                   reason: "not_initialized",
-                  message: "Memory not initialized. Call append_memory first to seed the document.",
+                  message: "Journal not initialized. Call append_journal first to seed the document.",
                 }),
               },
             ],
@@ -1095,7 +1119,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
           };
         }
 
-        const v = validateMemoryContent(newString);
+        const v = validateJournalContent(newString);
         if (!v.ok) {
           return {
             content: [{ type: "text" as const, text: JSON.stringify({ ok: false, ...v }) }],
@@ -1103,7 +1127,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
           };
         }
 
-        const current = contact.relationshipMemory;
+        const current = contact.relationshipJournal;
         const occurrences = current.split(oldString).length - 1;
         if (occurrences === 0) {
           return {
@@ -1113,7 +1137,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
                 text: JSON.stringify({
                   ok: false,
                   reason: "no_match",
-                  message: "oldString not found in current document. Re-read the memory and try again.",
+                  message: "oldString not found in current document. Re-read the journal and try again.",
                 }),
               },
             ],
@@ -1138,7 +1162,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
 
         const updated = replaceAll ? current.split(oldString).join(newString) : current.replace(oldString, newString);
 
-        const result = await storage.updateRelationshipMemory(contactId, updated, {
+        const result = await storage.updateRelationshipJournal(contactId, updated, {
           source: "agent",
           expectedHash,
           confirmedWithUser: confirmed_with_user,
@@ -1160,25 +1184,25 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
           ],
         };
       } catch (err: unknown) {
-        return { content: [{ type: "text" as const, text: actionableError("editing memory", err) }], isError: true };
+        return { content: [{ type: "text" as const, text: actionableError("editing journal", err) }], isError: true };
       }
     },
   );
 
   server.tool(
-    "append_memory",
-    `Append a new dated entry to the Memory Entries section of a contact's relationship_memory. Server auto-prepends today's ISO date as the \`###\` heading — you supply title and body only. If the memory doesn't exist yet, the server seeds the skeleton and then appends. ${MEMORY_WRITE_RULES}`,
+    "append_journal",
+    `Append a new dated entry to the Entries section of a contact's relationship_journal. Server auto-prepends today's ISO date as the \`###\` heading — you supply title and body only. If the journal doesn't exist yet, the server seeds the skeleton and then appends. Use this for NARRATIVE — strategic reads, "what this means", context. For the FACT of what happened on a date, use add_interaction instead (and optionally reference it from the journal entry). ${JOURNAL_WRITE_RULES}`,
     {
       contactId: z.number(),
       title: z
         .string()
         .describe(
-          'Short headline (≤80 chars recommended) for the entry. Verb-forward, information-dense. Example: "Jeff confirmed Q2 scope expansion" — not "Had a meeting".',
+          'Short headline (≤80 chars recommended) for the entry. Verb-forward, information-dense. Example: "Jeff signaled pivot from vendor to partner" — not "Had a meeting".',
         ),
       body: z
         .string()
         .describe(
-          'Markdown body. Absolute dates only. For future actions, use the specific date: "follow up 2026-05-06", not "follow up next week". If a date is unknown, write "[date unknown]".',
+          'Markdown body. The INTERPRETATION, not the event log. Absolute dates only. For future actions, use the specific date: "follow up 2026-05-06". If a date is unknown, write "[date unknown]".',
         ),
     },
     async ({ contactId, title, body }) => {
@@ -1186,14 +1210,14 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
         const contact = await storage.getContact(contactId);
         if (!contact) return notFoundError("Contact", contactId, "search_contacts");
 
-        const tv = validateMemoryContent(title);
+        const tv = validateJournalContent(title);
         if (!tv.ok) {
           return {
             content: [{ type: "text" as const, text: JSON.stringify({ ok: false, ...tv }) }],
             isError: true,
           };
         }
-        const bv = validateMemoryContent(body);
+        const bv = validateJournalContent(body);
         if (!bv.ok) {
           return {
             content: [{ type: "text" as const, text: JSON.stringify({ ok: false, ...bv }) }],
@@ -1201,13 +1225,13 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
           };
         }
 
-        const seeded = contact.relationshipMemory === null;
+        const seeded = contact.relationshipJournal === null;
         const baseDoc = seeded
-          ? MEMORY_SKELETON(`${contact.firstName} ${contact.lastName}`)
-          : (contact.relationshipMemory as string);
-        const { updated, entryHeading } = appendMemoryEntry(baseDoc, title, body);
+          ? JOURNAL_SKELETON(`${contact.firstName} ${contact.lastName}`)
+          : (contact.relationshipJournal as string);
+        const { updated, entryHeading } = appendJournalEntry(baseDoc, title, body);
 
-        if (updated.length > MEMORY_SIZE_LIMIT) {
+        if (updated.length > JOURNAL_SIZE_LIMIT) {
           return {
             content: [
               {
@@ -1215,7 +1239,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
                 text: JSON.stringify({
                   ok: false,
                   reason: "size_limit",
-                  message: `Memory would exceed ${MEMORY_SIZE_LIMIT} chars. Compact older Memory Entries — capture more context per character.`,
+                  message: `Journal would exceed ${JOURNAL_SIZE_LIMIT} chars. Compact older Entries — capture more context per character.`,
                 }),
               },
             ],
@@ -1223,15 +1247,14 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
           };
         }
 
-        const result = await storage.updateRelationshipMemory(contactId, updated, {
+        const result = await storage.updateRelationshipJournal(contactId, updated, {
           source: "agent",
-          // Append is non-destructive by construction; skip the guard.
           skipDestructiveGuard: true,
         });
         if (!result.ok) {
           return { content: [{ type: "text" as const, text: JSON.stringify(result) }], isError: true };
         }
-        storage.logActivity("memory.appended", `Appended memory entry: ${entryHeading}`, {
+        storage.logActivity("journal.appended", `Appended journal entry: ${entryHeading}`, {
           contactId,
           source: "agent",
           metadata: { entryHeading, seeded },
@@ -1367,16 +1390,16 @@ Available exception types: ${EXCEPTION_TYPES.join(", ")}`,
     }
   });
 
-  // --- Resources: per-contact relationship memory as a file-like URI ---
+  // --- Resources: per-contact relationship journal as a file-like URI ---
   server.registerResource(
-    "relationship_memory",
-    new ResourceTemplate("memory://contact/{id}/relationship.md", {
+    "relationship_journal",
+    new ResourceTemplate("journal://contact/{id}/journal.md", {
       list: async () => {
         const allContacts = await storage.getContactsWithRelations();
         return {
           resources: allContacts.map((c) => ({
-            uri: `memory://contact/${c.id}/relationship.md`,
-            name: `${c.firstName} ${c.lastName} — ${c.company?.name ?? "—"} — Relationship Memory`,
+            uri: `journal://contact/${c.id}/journal.md`,
+            name: `${c.firstName} ${c.lastName} — ${c.company?.name ?? "—"} — Relationship Journal`,
             mimeType: "text/markdown",
           })),
         };
@@ -1384,7 +1407,7 @@ Available exception types: ${EXCEPTION_TYPES.join(", ")}`,
     }),
     {
       description:
-        "Per-contact relationship memory as a markdown file. Use read_memory / edit_memory / append_memory tools to modify.",
+        "Per-contact relationship journal as a markdown file. Use read_journal / edit_journal / append_journal tools to modify.",
       mimeType: "text/markdown",
     },
     async (uri, variables) => {
@@ -1395,7 +1418,7 @@ Available exception types: ${EXCEPTION_TYPES.join(", ")}`,
       }
       const contact = await storage.getContact(id);
       if (!contact) throw new Error(`Contact ${id} not found`);
-      const text = contact.relationshipMemory ?? MEMORY_SKELETON(`${contact.firstName} ${contact.lastName}`);
+      const text = contact.relationshipJournal ?? JOURNAL_SKELETON(`${contact.firstName} ${contact.lastName}`);
       return {
         contents: [{ uri: uri.href, mimeType: "text/markdown", text }],
       };

@@ -1,9 +1,9 @@
-// Shared logic for relationship_memory: skeleton, validators, hashing, constants.
+// Shared logic for relationship_journal: skeleton, validators, hashing, constants.
 // Used by both server (storage helper, MCP tools) and potentially client (size hints).
 
 import { createHash } from "node:crypto";
 
-export const MEMORY_SIZE_LIMIT = 100_000;
+export const JOURNAL_SIZE_LIMIT = 100_000;
 export const DESTRUCTIVE_SHRINK_THRESHOLD = 0.2;
 export const DESTRUCTIVE_MIN_BYTES = 500;
 export const SUBSTANTIVE_LENGTH = 40;
@@ -39,13 +39,13 @@ const ABSOLUTE_DATE_PATTERNS = [
 ];
 
 /**
- * Canonical top-level sections. The memory document uses exactly these three —
- * no more, no less. Agents must not invent new top-level sections; everything
- * new lands in Memory Entries as a dated `### YYYY-MM-DD: <title>` block.
+ * Canonical top-level sections. The journal uses exactly these three — no more,
+ * no less. Agents must not invent new top-level sections; everything new lands
+ * in Entries as a dated `### YYYY-MM-DD: <title>` block.
  */
-export const CANONICAL_SECTIONS = ["Key People", "Wins / Case Study Material", "Memory Entries"] as const;
+export const CANONICAL_SECTIONS = ["Key People", "Wins / Case Study Material", "Entries"] as const;
 
-export function MEMORY_SKELETON(name: string): string {
+export function JOURNAL_SKELETON(name: string): string {
   return `# ${name}
 
 ## Key People
@@ -54,7 +54,7 @@ export function MEMORY_SKELETON(name: string): string {
 ## Wins / Case Study Material
 <!-- Durable wins worth preserving for future BD and case studies. Concrete outcomes, measurable impact, quotable moments. -->
 
-## Memory Entries
+## Entries
 <!-- Dated narrative entries, newest at the bottom. Append-only. Each entry: ### YYYY-MM-DD: <title> -->
 `;
 }
@@ -78,7 +78,6 @@ export type ValidationResult = ValidationSuccess | ValidationFailure;
 export function validateAbsoluteDates(text: string): ValidationResult {
   const haystack = text.toLowerCase();
   for (const phrase of RELATIVE_TIME_PHRASES) {
-    // word boundary on either side
     const re = new RegExp(`\\b${phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
     if (re.test(haystack)) {
       return {
@@ -110,7 +109,7 @@ export function requiresAbsoluteDate(text: string): boolean {
   return !ABSOLUTE_DATE_PATTERNS.some((p) => p.test(text));
 }
 
-export function validateMemoryContent(text: string): ValidationResult {
+export function validateJournalContent(text: string): ValidationResult {
   const relative = validateAbsoluteDates(text);
   if (!relative.ok) return relative;
   if (requiresAbsoluteDate(text)) {
@@ -125,10 +124,10 @@ export function validateMemoryContent(text: string): ValidationResult {
 }
 
 /**
- * Detects removed or rewritten `### YYYY-MM-DD:` Timeline headings.
+ * Detects removed or rewritten `### YYYY-MM-DD:` Entry headings.
  * Returns true if any heading present in oldDoc is missing (or altered) in newDoc.
  */
-export function hasTimelineHeadingChange(oldDoc: string, newDoc: string): boolean {
+export function hasEntryHeadingChange(oldDoc: string, newDoc: string): boolean {
   const headingRe = /^###\s+\d{4}-\d{2}-\d{2}:.*$/gm;
   const oldHeadings = oldDoc.match(headingRe) ?? [];
   const newHeadingSet = new Set(newDoc.match(headingRe) ?? []);
@@ -138,7 +137,7 @@ export function hasTimelineHeadingChange(oldDoc: string, newDoc: string): boolea
   return false;
 }
 
-export function hashMemory(text: string | null): string {
+export function hashJournal(text: string | null): string {
   return createHash("sha256")
     .update(text ?? "")
     .digest("hex");
@@ -147,7 +146,7 @@ export function hashMemory(text: string | null): string {
 /**
  * True if `newContent` is destructive vs `oldContent`:
  *  - shrinks by >= 20% (and the difference is at least DESTRUCTIVE_MIN_BYTES), OR
- *  - mutates/removes an existing `### YYYY-MM-DD:` Memory Entries heading.
+ *  - mutates/removes an existing `### YYYY-MM-DD:` Entry heading.
  */
 export function isDestructiveChange(oldContent: string, newContent: string): boolean {
   const oldSize = oldContent.length;
@@ -155,13 +154,11 @@ export function isDestructiveChange(oldContent: string, newContent: string): boo
   if (oldSize > 0 && newSize < oldSize) {
     const delta = oldSize - newSize;
     const shrinkFraction = delta / oldSize;
-    // Use the smaller of the two thresholds — tiny docs aren't trivially deleted
-    // (min bytes gate), large docs can't silently lose a big chunk (fraction gate).
     if (shrinkFraction >= DESTRUCTIVE_SHRINK_THRESHOLD && delta >= Math.min(DESTRUCTIVE_MIN_BYTES, oldSize)) {
       return true;
     }
   }
-  return hasTimelineHeadingChange(oldContent, newContent);
+  return hasEntryHeadingChange(oldContent, newContent);
 }
 
 /**
@@ -172,29 +169,30 @@ export function todayIso(): string {
 }
 
 /**
- * Append a new Memory Entry to the doc. If `## Memory Entries` section is
- * missing, appends it at the end. Returns the updated doc and the full entry
- * heading.
+ * Append a new Entry to the doc. If `## Entries` section is missing, appends
+ * it at the end. Returns the updated doc and the full entry heading.
  */
-export function appendMemoryEntry(doc: string, title: string, body: string): { updated: string; entryHeading: string } {
+export function appendJournalEntry(
+  doc: string,
+  title: string,
+  body: string,
+): { updated: string; entryHeading: string } {
   const heading = `### ${todayIso()}: ${title.trim()}`;
   const entry = `${heading}\n\n${body.trim()}\n`;
 
-  const sectionRe = /^##\s+Memory Entries\s*$/m;
+  const sectionRe = /^##\s+Entries\s*$/m;
   if (!sectionRe.test(doc)) {
     const separator = doc.endsWith("\n") ? "" : "\n";
     return {
-      updated: `${doc}${separator}\n## Memory Entries\n\n${entry}`,
+      updated: `${doc}${separator}\n## Entries\n\n${entry}`,
       entryHeading: heading,
     };
   }
 
-  // Find the Memory Entries section and insert before the next `## ` heading
-  // (or at end of doc).
   const lines = doc.split("\n");
   let sectionStart = -1;
   for (let i = 0; i < lines.length; i++) {
-    if (/^##\s+Memory Entries\s*$/.test(lines[i])) {
+    if (/^##\s+Entries\s*$/.test(lines[i])) {
       sectionStart = i;
       break;
     }
@@ -207,7 +205,6 @@ export function appendMemoryEntry(doc: string, title: string, body: string): { u
     }
   }
 
-  // Trim trailing empty lines within the Memory Entries section before appending.
   let tail = insertAt;
   while (tail > sectionStart + 1 && lines[tail - 1].trim() === "") tail--;
 

@@ -64,7 +64,7 @@ export const contacts = pgTable("contacts", {
   source: text("source"),
   additionalContacts: text("additional_contacts"),
   cadence: text("cadence"),
-  relationshipMemory: text("relationship_memory"),
+  relationshipJournal: text("relationship_journal"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -176,8 +176,8 @@ export const insertBriefingSchema = createInsertSchema(briefings).omit({ id: tru
 export type InsertBriefing = z.infer<typeof insertBriefingSchema>;
 export type Briefing = typeof briefings.$inferSelect;
 
-// Contact memory revisions — pre-write snapshots of relationship_memory, kept forever
-export const contactMemoryRevisions = pgTable("contact_memory_revisions", {
+// Contact journal revisions — pre-write snapshots of relationship_journal, kept forever
+export const contactJournalRevisions = pgTable("contact_journal_revisions", {
   id: serial("id").primaryKey(),
   contactId: integer("contact_id")
     .notNull()
@@ -188,7 +188,7 @@ export const contactMemoryRevisions = pgTable("contact_memory_revisions", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export type ContactMemoryRevision = typeof contactMemoryRevisions.$inferSelect;
+export type ContactJournalRevision = typeof contactJournalRevisions.$inferSelect;
 
 // Activity log — tracks all system and agent actions
 export const activityLog = pgTable("activity_log", {

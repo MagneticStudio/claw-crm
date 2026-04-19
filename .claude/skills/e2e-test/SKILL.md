@@ -142,30 +142,30 @@ curl -s http://localhost:3000/api/user  # should return 401 (not authenticated)
 - Call `get_dashboard` via MCP
 - Verify it returns `totalContacts`, `byStage`, `overdueTasks`, and `activeViolations`
 
-### 10b. MCP: Read, append, and edit relationship memory
-- Call `read_memory` with a known `contactId`. Verify the response JSON includes `content`, `hash`, `initialized`, and `sizeBytes`. For a fresh contact, `initialized` should be false and `content` should be the seeded skeleton.
-- Call `append_memory` with that contactId, `title: "E2E seed entry"`, `body: "Logged from E2E on 2026-04-18. Confirmed live server accepts append."`. Verify `ok: true`, `seeded: true`, and `entryHeading` matches `### YYYY-MM-DD: E2E seed entry`.
-- Call `append_memory` again with `body: "follow up next week"` (intentionally relative). Verify `ok: false` and `reason: "relative_date"` naming the phrase `next week`.
-- Call `edit_memory` with a stale `expectedHash` (e.g. `"0"`). Verify `ok: false`, `reason: "hash_conflict"`.
-- Call `edit_memory` to mutate an existing `### YYYY-MM-DD:` heading without `confirmed_with_user`. Verify `ok: false`, `reason: "destructive_edit"`. Retry with `confirmed_with_user: true` — verify it succeeds.
-- **Screenshot** → `e2e-screenshots/13-mcp-memory.png` (the CRM page showing the memory badge 🧠 on the contact)
+### 10b. MCP: Read, append, and edit relationship journal
+- Call `read_journal` with a known `contactId`. Verify the response JSON includes `content`, `hash`, `initialized`, and `sizeBytes`. For a fresh contact, `initialized` should be false and `content` should be the seeded skeleton.
+- Call `append_journal` with that contactId, `title: "E2E seed entry"`, `body: "Logged from E2E on 2026-04-18. Confirmed live server accepts append."`. Verify `ok: true`, `seeded: true`, and `entryHeading` matches `### YYYY-MM-DD: E2E seed entry`.
+- Call `append_journal` again with `body: "follow up next week"` (intentionally relative). Verify `ok: false` and `reason: "relative_date"` naming the phrase `next week`.
+- Call `edit_journal` with a stale `expectedHash` (e.g. `"0"`). Verify `ok: false`, `reason: "hash_conflict"`.
+- Call `edit_journal` to mutate an existing `### YYYY-MM-DD:` heading without `confirmed_with_user`. Verify `ok: false`, `reason: "destructive_edit"`. Retry with `confirmed_with_user: true` — verify it succeeds.
+- **Screenshot** → `e2e-screenshots/13-mcp-journal.png` (the CRM page showing the journal badge 📓 on the contact)
 
-### 10c. UI: View, edit, and restore memory
-- From the CRM page, click the 🧠 badge next to a contact (dim if empty, full opacity if populated). Should navigate to `/memory/<id>`.
-- Verify the memory renders as formatted text (no `**`, `#`, or `[` visible in the rendered view).
+### 10c. UI: View, edit, and restore journal
+- From the CRM page, click the 📓 badge next to a contact (dim if empty, full opacity if populated). Should navigate to `/journal/<id>`.
+- Verify the journal renders as formatted text (no `**`, `#`, or `[` visible in the rendered view).
 - Click Edit → the Tiptap editor appears. Make a small change (add a bold phrase via toolbar or add a sentence).
 - Click Save → confirm content persists (reload page, change still visible).
-- **Screenshot** → `e2e-screenshots/14-memory-edited.png`
+- **Screenshot** → `e2e-screenshots/14-journal-edited.png`
 - Click History → the revisions drawer appears with entries tagged `agent` or `user` and timestamps.
 - Click a revision → the diff view renders with added (green) and removed (red) lines inline.
-- **Screenshot** → `e2e-screenshots/15-memory-diff.png`
+- **Screenshot** → `e2e-screenshots/15-journal-diff.png`
 - Click Restore this version → confirm the modal, verify the earlier content is restored as a new revision (history list grows; prior content still in list).
 
 ### 10d. UI: Destructive-edit confirm
-- Enter edit mode on a memory with substantial content (at least ~50 chars).
+- Enter edit mode on a journal with substantial content (at least ~50 chars).
 - Select all and delete most of it (leaving <50% of prior length).
 - Click Save → the browser confirm dialog should fire naming the shrink percentage. Click Cancel → nothing persists. Click Save again → the UI only proceeds past confirm.
-- **Screenshot** → `e2e-screenshots/16-memory-destructive-confirm.png`
+- **Screenshot** → `e2e-screenshots/16-journal-destructive-confirm.png`
 
 ### 11. Cleanup
 - Kill the dev server
