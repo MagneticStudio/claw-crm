@@ -1762,27 +1762,63 @@ setInterval(
   5 * 60 * 1000,
 );
 
+/**
+ * Spec-compliant stale-session response. Per MCP 2025-06-18 StreamableHTTP
+ * transport: a server that no longer recognizes a session MUST return HTTP 404
+ * with JSON-RPC error `-32001 Session not found`. Conformant clients (Claude
+ * Desktop, Claude.ai) then auto-re-initialize — no manual disconnect/reconnect.
+ *
+ * Previous behavior silently created a fresh transport for unknown session IDs,
+ * which then returned HTTP 400 "Server not initialized" — Claude treated that as
+ * a hard error and silently failed tool calls until the user reconnected.
+ */
+function respondSessionNotFound(res: Response, requestId: unknown) {
+  res.status(404).json({
+    jsonrpc: "2.0",
+    error: { code: -32001, message: "Session not found" },
+    id: requestId ?? null,
+  });
+}
+
+function isInitializeRequest(body: unknown): boolean {
+  if (!body || typeof body !== "object") return false;
+  const obj = body as Record<string, unknown>;
+  return obj.method === "initialize";
+}
+
 export function registerMcpRoutes(app: Express) {
-  // Handle POST /mcp/:token
-  // If session ID is unknown (e.g. after redeploy), auto-create a new session
-  // so Claude doesn't need manual reconnection
+  // POST /mcp/:token — JSON-RPC requests.
+  //  - Known session ID → route to its transport.
+  //  - `initialize` without a session ID → mint a fresh session.
+  //  - Stale session ID (after redeploy or TTL expiry) → HTTP 404 with
+  //    -32001, which triggers the MUST-re-initialize path on the client.
   app.post("/mcp/:token", async (req: Request, res: Response) => {
     if (!(await checkToken(req, res))) return;
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
+    const body = req.body as { id?: unknown; method?: unknown } | undefined;
 
     if (sessionId && transports.has(sessionId)) {
       touchSession(sessionId);
       const transport = transports.get(sessionId)!;
-      await transport.handleRequest(req, res, req.body);
+      await transport.handleRequest(req, res, body);
       return;
     }
 
-    // New session OR stale session after redeploy — create fresh
-    const transport = createTransportAndServer();
-    await transport.handleRequest(req, res, req.body);
+    if (isInitializeRequest(body) && !sessionId) {
+      const transport = createTransportAndServer();
+      await transport.handleRequest(req, res, body);
+      return;
+    }
+
+    // Either a stale session ID the server no longer knows, or a non-initialize
+    // call with no session at all. Both map to 404 per spec — the client will
+    // re-initialize automatically.
+    respondSessionNotFound(res, body?.id);
   });
 
-  // Handle GET /mcp/:token - SSE stream
+  // GET /mcp/:token — SSE stream for server-initiated notifications.
+  // Requires an established session; never auto-creates one here (the spec's
+  // init handshake is POST-only).
   app.get("/mcp/:token", async (req: Request, res: Response) => {
     if (!(await checkToken(req, res))) return;
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
@@ -1794,9 +1830,7 @@ export function registerMcpRoutes(app: Express) {
       return;
     }
 
-    // Stale or missing session — create new one
-    const transport = createTransportAndServer();
-    await transport.handleRequest(req, res);
+    respondSessionNotFound(res, null);
   });
 
   // Handle DELETE /mcp/:token - session cleanup
