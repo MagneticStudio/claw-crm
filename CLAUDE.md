@@ -28,6 +28,7 @@ npm run test -- tests/auth.spec.ts  # Single test file
 - MCP session recovery: stale session IDs auto-create fresh sessions. Don't error on unknown sessions.
 - Rules are data (JSONB), not code. Agents CRUD them via MCP.
 - Railway auto-deploys from main. Root directory is `app/`.
+- **Railway does NOT auto-run `drizzle-kit push`.** Code deploys; schema does not. See "Schema changes" below.
 
 ## Conventions
 
@@ -59,6 +60,27 @@ Don't assign reviewers — instead, own the PR through merge:
 2. If CI fails, read the failing job logs, fix the cause, and push again.
 3. If reviewers leave comments, read them (`gh api repos/MagneticStudio/claw-crm/pulls/<num>/comments`), respond or address, and push fixes.
 4. Once CI is green and there are no unresolved comments, merge to main (`gh pr merge <num> --squash --delete-branch`). Railway auto-deploys from main.
+
+## Schema changes (MANDATORY when touching shared/schema.ts)
+
+Railway auto-deploys code but NOT schema. Without a migration path in the repo, the deployed code runs against a stale DB and crashes. Past incident: the memory → journal rename shipped in PR #68 ran fine locally, then broke prod because Railway's Postgres still had `relationship_memory`.
+
+**The rule:** every PR that modifies `shared/schema.ts` MUST include a matching boot-time migration in `app/server/boot-migrations.ts`. The migration runs on every server start before `registerRoutes` and must be:
+
+1. **Idempotent** — safe to run N times. Use `IF EXISTS` / `IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`, `DO $$ BEGIN ... END $$` guards.
+2. **Non-destructive** — never DROP, TRUNCATE, or DELETE here. Destructive changes need a deliberate PR with explicit user approval, not boot code.
+3. **Verified locally** — restart the dev server; logs should show `[boot-migration] <name>: ok` and the app should boot without errors.
+4. **Self-documenting** — the migration's `name` field should be prefixed with the ISO date and reference the PR number.
+
+Common shapes:
+- Add column: `ALTER TABLE x ADD COLUMN IF NOT EXISTS col type;`
+- Rename column: wrap in `DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE ...) THEN ALTER TABLE ... RENAME COLUMN ... END IF; END $$;`
+- Rename table: same pattern via `information_schema.tables`
+- New table: `CREATE TABLE IF NOT EXISTS ... ( ... );`
+
+Local dev can still use `npm run db:push` for experimentation, but the PR must carry the boot migration so prod catches up automatically. Do not rely on remembering to run `db:push` against prod — we don't have prod credentials in CI, and it's interactive anyway.
+
+**When NOT to use a boot migration:** anything destructive (dropping columns/tables, data rewrites, constraint tightening). Those need a named migration file, explicit user approval, and a plan for rollback.
 
 ## Gotchas
 

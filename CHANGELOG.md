@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-04-19
+
+### Boot migrations + CI guard for schema changes (hotfix)
+- **What went wrong**: PR #68's `relationship_memory` → `relationship_journal` rename landed in code but not on Railway's production DB. Railway auto-deploys code but does NOT run `drizzle-kit push`. The rules engine started crashing in prod every 15 minutes with `column relationship_memory does not exist`. CI passed because its test DB is always freshly created with the new schema — it never sees the upgrade path.
+- **Fix**: `app/server/boot-migrations.ts` runs idempotent DDL on startup before `registerRoutes`. Renames the column/table/index conditionally; no-ops when already migrated.
+- **Prevention**: CI now fails any PR that changes `app/shared/schema.ts` without also updating `app/server/boot-migrations.ts`. CLAUDE.md codifies the rule (idempotent, non-destructive, verified locally, dated migration entries).
+
 ## 2026-04-18
 
 ### Relationship journal — persistent per-contact narrative document (#66)
