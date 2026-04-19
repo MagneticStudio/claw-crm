@@ -304,7 +304,10 @@ Tasks and interactions should be SHORT reminders. The journal is where detail li
 7. If a piece of information has no known date, mark it \`[date unknown]\` rather than omitting or hedging.
 8. \`briefing\` is for the next meeting and may be overwritten freely. \`relationship_journal\` is permanent.
 9. Destructive edits require \`confirmed_with_user: true\`, set ONLY after the user has explicitly approved the change in conversation. "Destructive" = shrinks the doc ≥40% (and ≥500 chars) OR mutates an existing \`### YYYY-MM-DD:\` Entry heading. Minor cleanups don't trip it.
-10. Migrating old notes? Use \`batch_append_journal\` with per-entry \`date\` values so the timeline reflects when events actually happened, not when you typed them in.
+10. Migrating old notes? Use \`batch_append_journal\` with per-entry \`date\` values so the timeline reflects when events actually happened, not when you typed them in. If \`batch_append_journal\` doesn't appear in your tool list, your MCP client has a stale tool cache — reconnect the CRM connector in Claude's settings to refresh.
+11. Verbatim quotes (emails, transcripts, scripts) bypass the relative-phrase check when wrapped in markdown blockquotes (lines starting with \`>\`). Use this to preserve someone else's exact words without translating their relative dates. Your own prose outside the quote still enforces absolute dates.
+12. Accepted absolute date formats: \`YYYY-MM-DD\`, \`M/D/YYYY\`, \`Month DD, YYYY\`, \`Month D-D, YYYY\` (range), \`Month D – Month D, YYYY\` (cross-month range), \`YYYY-MM-DD to YYYY-MM-DD\`, \`Month YYYY\`, \`Q# YYYY\`, \`early|mid|late YYYY\`, \`early|mid|late Q# YYYY\`, \`spring|summer|fall|autumn|winter YYYY\`.
+13. Day-of-week trigger words that mark a relative use: next, this, last, by, on, until, starting, before, after, every, each, coming. "On Friday" alone is rejected; "on Friday May 1, 2026" passes because the full date immediately follows.
 10. Write dense. Every word earns its place. No filler, no throat-clearing, no hedges. Capture maximum context per character.
 
 ## Confidentiality
@@ -1088,7 +1091,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
 
   server.tool(
     "peek_last_journal_entry",
-    `Return just the most recent dated Entry (heading + body) from a contact's journal. Cheap confirmation of "did my last append land?" without re-reading the whole doc.`,
+    `Return just the most recent dated Entry (heading + body) from a contact's journal plus the full-doc \`hash\` — cheap confirmation of "did my last append land?" and a valid \`expectedHash\` for the next \`edit_journal\` without re-reading the whole doc.`,
     {
       contactId: z.number(),
     },
@@ -1101,7 +1104,12 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
             content: [
               {
                 type: "text" as const,
-                text: JSON.stringify({ ok: true, entry: null, message: "Journal not initialized yet." }),
+                text: JSON.stringify({
+                  ok: true,
+                  entry: null,
+                  hash: hashJournal(null),
+                  message: "Journal not initialized yet.",
+                }),
               },
             ],
           };
@@ -1111,7 +1119,12 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
           content: [
             {
               type: "text" as const,
-              text: JSON.stringify({ ok: true, entry, totalSize: contact.relationshipJournal.length }),
+              text: JSON.stringify({
+                ok: true,
+                entry,
+                hash: hashJournal(contact.relationshipJournal),
+                totalSize: contact.relationshipJournal.length,
+              }),
             },
           ],
         };
@@ -1123,7 +1136,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
 
   server.tool(
     "edit_journal",
-    `Exact-string replacement on a contact's relationship_journal. Mirrors Claude's local Edit tool: oldString must occur exactly once in the current document (unless replaceAll: true). Destructive edits require confirmed_with_user: true — triggered when the edit (a) shrinks the doc ≥40% AND ≥500 chars, or (b) mutates/removes an existing \`### YYYY-MM-DD:\` Entry heading. ${JOURNAL_CONTRACT}`,
+    `Exact-string replacement on a contact's relationship_journal. Mirrors Claude's local Edit tool: oldString must occur exactly once in the current document (unless replaceAll: true). Supply \`section\` to scope the match within one named section — prevents accidental cross-section replacements and lets "oldString appears twice" resolve when the occurrences are in different sections. Destructive edits require confirmed_with_user: true — triggered when the edit (a) shrinks the doc ≥40% AND ≥500 chars, or (b) mutates/removes an existing \`### YYYY-MM-DD:\` Entry heading. ${JOURNAL_CONTRACT}`,
     {
       contactId: z.number(),
       oldString: z
@@ -1135,6 +1148,12 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
         .string()
         .describe(
           "Replacement text. Absolute dates only. Substantive content (>40 chars) must contain an absolute date. On rejection the error payload includes: field, reason, offending phrase, excerpt around the match, and position — enough to fix without guessing.",
+        ),
+      section: z
+        .enum(["Key People", "Wins / Case Study Material", "Entries", "Open Questions", "Risks", "Next Moves"])
+        .optional()
+        .describe(
+          "Scope the edit to within one named section. When set, oldString is matched only inside that section's content and the edit cannot cross section boundaries.",
         ),
       replaceAll: z
         .boolean()
@@ -1155,7 +1174,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
           "Set to true ONLY after the user has explicitly approved a destructive edit in conversation. Required for ≥40% shrink or mutating an existing `### YYYY-MM-DD:` Entry heading.",
         ),
     },
-    async ({ contactId, oldString, newString, replaceAll, expectedHash, confirmed_with_user }) => {
+    async ({ contactId, oldString, newString, section, replaceAll, expectedHash, confirmed_with_user }) => {
       try {
         const contact = await storage.getContact(contactId);
         if (!contact) return notFoundError("Contact", contactId, "search_contacts");
@@ -1184,7 +1203,48 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
         }
 
         const current = contact.relationshipJournal;
-        const occurrences = current.split(oldString).length - 1;
+
+        // Determine the haystack: either the full doc, or the scoped section.
+        let sectionContent: string | null = null;
+        let sectionStart = -1;
+        if (section) {
+          sectionContent = readJournalSection(current, section);
+          if (sectionContent === null) {
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: JSON.stringify({
+                    ok: false,
+                    reason: "section_not_found",
+                    section,
+                    message: `Section "${section}" not present in this journal.`,
+                  }),
+                },
+              ],
+              isError: true,
+            };
+          }
+          sectionStart = current.indexOf(sectionContent);
+          if (sectionStart < 0) {
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: JSON.stringify({
+                    ok: false,
+                    reason: "section_boundary_lost",
+                    message: `Internal: could not locate section "${section}" in the doc. Re-read and retry.`,
+                  }),
+                },
+              ],
+              isError: true,
+            };
+          }
+        }
+
+        const haystack = sectionContent ?? current;
+        const occurrences = haystack.split(oldString).length - 1;
         if (occurrences === 0) {
           return {
             content: [
@@ -1193,7 +1253,9 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
                 text: JSON.stringify({
                   ok: false,
                   reason: "no_match",
-                  message: "oldString not found in current document. Re-read the journal and try again.",
+                  message: section
+                    ? `oldString not found in section "${section}". Re-read the journal and try again (or drop the section scope).`
+                    : "oldString not found in current document. Re-read the journal and try again.",
                 }),
               },
             ],
@@ -1208,7 +1270,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
                 text: JSON.stringify({
                   ok: false,
                   reason: "multiple_matches",
-                  message: `oldString appears ${occurrences} times. Provide more surrounding context for uniqueness, or set replaceAll: true.`,
+                  message: `oldString appears ${occurrences} times${section ? ` in section "${section}"` : ""}. Provide more surrounding context for uniqueness, or set replaceAll: true.`,
                 }),
               },
             ],
@@ -1216,7 +1278,15 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
           };
         }
 
-        const updated = replaceAll ? current.split(oldString).join(newString) : current.replace(oldString, newString);
+        let updated: string;
+        if (section && sectionContent !== null) {
+          const newSection = replaceAll
+            ? sectionContent.split(oldString).join(newString)
+            : sectionContent.replace(oldString, newString);
+          updated = current.slice(0, sectionStart) + newSection + current.slice(sectionStart + sectionContent.length);
+        } else {
+          updated = replaceAll ? current.split(oldString).join(newString) : current.replace(oldString, newString);
+        }
 
         const result = await storage.updateRelationshipJournal(contactId, updated, {
           source: "agent",

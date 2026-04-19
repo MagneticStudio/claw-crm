@@ -2,6 +2,27 @@
 
 ## 2026-04-19
 
+### Journal UX round 2 — verbatim quotes, informal dates, scoped edits
+Second batch of feedback from hands-on migration across three clients (~30 entries, ~15 rejections).
+
+**P0 — Verbatim blockquote escape (the one real bug)**
+Relative-phrase detection now skips lines wrapped in markdown blockquotes (lines starting with `>`). Verbatim quotes — client emails, meeting transcripts, draft scripts — preserve the original author's words including their relative dates. The agent's own prose outside the quote still enforces absolute dates. Dates INSIDE the quote still count toward the "substantive content needs an anchor" check, so a fully-quoted entry with an absolute date inside passes cleanly.
+
+**P1 — Informal date formats**
+Added: `early|mid|late YYYY`, `early|mid|late Q# YYYY`, `spring|summer|fall|autumn|winter YYYY`. Fuzzy anchors are how humans actually describe old events ("fall 2025 retrospective") and forcing Q# mapping loses nuance.
+
+**P4 — Day-of-week lookahead fix**
+"On Friday May 1, 2026" was rejected even though a full absolute date immediately followed. Lookahead now tolerates a trailing digit OR month name. "On Friday" alone still rejects — the trigger + bare day name remains caught.
+
+**P6a — `peek_last_journal_entry` returns `hash`**
+Now a valid `expectedHash` for `edit_journal` comes back in the peek response. No full re-read needed to chain peek → edit.
+
+**P6b — `edit_journal` accepts optional `section` param**
+Scopes the match to within one named section (`Key People`, `Wins / Case Study Material`, `Entries`, `Open Questions`, `Risks`, `Next Moves`). Replacements can't accidentally cross section boundaries; "oldString appears twice" resolves when the occurrences are in different sections. New rejection reason: `section_not_found`.
+
+**Docs**
+Agent guide now enumerates trigger words for day-of-week detection, lists every accepted absolute-date format, explains the blockquote escape, and notes that clients with stale tool caches should reconnect the MCP connector after a deploy (P2 workaround — server can't fix client-side caches).
+
 ### Journal UX fixes — feedback from first real use
 Based on hands-on migration of historical notes. All server-side; no schema changes.
 

@@ -39,11 +39,34 @@ export const RELATIVE_TIME_PHRASES = [
   "later this year",
 ];
 
-// A day-of-week used relatively means "next Tuesday", "by Friday", etc. — a
-// TRIGGER word appears before the day name. Generic usage like "Monday through
-// Friday" or "Mon/Wed/Fri cadence" must pass.
-const RELATIVE_DAY_OF_WEEK =
-  /\b(?:next|this|last|by|on|until|starting|before|after|every|each|coming)\s+(?:mon|tues|wednes|thurs|fri|satur|sun)day(?!\s*[,.-]?\s*\d)\b/i;
+// Trigger words that, when placed before a day name, mark a relative date.
+// Exposed so the agent guide and error messages can enumerate them.
+export const DAY_OF_WEEK_TRIGGER_WORDS = [
+  "next",
+  "this",
+  "last",
+  "by",
+  "on",
+  "until",
+  "starting",
+  "before",
+  "after",
+  "every",
+  "each",
+  "coming",
+] as const;
+
+// A day-of-week used relatively means "next Tuesday", "by Friday", etc. Generic
+// usage ("Mon/Wed/Fri cadence", "Monday through Friday") passes. The negative
+// lookahead allows "on Friday May 1, 2026" and similar by tolerating a digit OR
+// month name following the day.
+const RELATIVE_DAY_OF_WEEK = new RegExp(
+  `\\b(?:${DAY_OF_WEEK_TRIGGER_WORDS.join("|")})\\s+` +
+    `(?:mon|tues|wednes|thurs|fri|satur|sun)day` +
+    `(?!\\s*[,.-]?\\s*(?:\\d|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)))` +
+    `\\b`,
+  "i",
+);
 
 // Patterns that qualify as absolute dates for the "substantive content needs a
 // date" check. Order doesn't matter; any match is enough.
@@ -74,6 +97,21 @@ const ABSOLUTE_DATE_PATTERNS: Array<{ label: string; re: RegExp }> = [
     // "Q3 2025" — useful for quarterly retrospectives.
     label: "Q# YYYY",
     re: /\bQ[1-4]\s+\d{4}\b/i,
+  },
+  {
+    // "early Q3 2025", "late Q1 2026" — fuzzy quarter anchors.
+    label: "early|mid|late Q# YYYY",
+    re: /\b(?:early|mid|late)\s+Q[1-4]\s+\d{4}\b/i,
+  },
+  {
+    // "early 2025", "mid 2025", "late 2026" — year with rough-phase qualifier.
+    label: "early|mid|late YYYY",
+    re: /\b(?:early|mid|late)\s+\d{4}\b/i,
+  },
+  {
+    // "fall 2025", "summer 2026" — seasons anchor ~3-month windows.
+    label: "Season YYYY",
+    re: /\b(?:spring|summer|fall|autumn|winter)\s+\d{4}\b/i,
   },
 ];
 
@@ -139,13 +177,29 @@ function excerptAround(text: string, position: number, length: number, window = 
 }
 
 /**
- * Reject content containing relative time phrases. Returns the exact matched
- * phrase, its position, and a surrounding excerpt so the caller can debug.
+ * Strip markdown blockquote lines (lines starting with `>`, allowing leading
+ * whitespace) while preserving their char positions via blank replacement.
+ * Quoted text is verbatim archival material (someone else's words) and is
+ * exempt from the relative-phrase rules that apply to the agent's own prose.
+ */
+function maskBlockquotes(text: string): string {
+  return text
+    .split("\n")
+    .map((line) => (/^\s*>/.test(line) ? " ".repeat(line.length) : line))
+    .join("\n");
+}
+
+/**
+ * Reject content containing relative time phrases. Blockquoted lines (`>`) are
+ * skipped — verbatim quotes preserve the original author's words. Returns the
+ * exact matched phrase, its position in the ORIGINAL text, and a surrounding
+ * excerpt so the caller can debug.
  */
 export function validateAbsoluteDates(text: string, field: ValidationField = "content"): ValidationResult {
+  const masked = maskBlockquotes(text);
   for (const phrase of RELATIVE_TIME_PHRASES) {
     const re = new RegExp(`\\b${phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
-    const m = re.exec(text);
+    const m = re.exec(masked);
     if (m && m.index !== undefined) {
       return {
         ok: false,
@@ -154,11 +208,11 @@ export function validateAbsoluteDates(text: string, field: ValidationField = "co
         offending: m[0],
         position: m.index,
         excerpt: excerptAround(text, m.index, m[0].length),
-        message: `Rejected ${field}: relative phrase "${m[0]}" at position ${m.index}. Rewrite with an absolute date (e.g. "2026-04-18" or "August 2025"). Relative phrases lose meaning over time.`,
+        message: `Rejected ${field}: relative phrase "${m[0]}" at position ${m.index}. Rewrite with an absolute date (e.g. "2026-04-18" or "August 2025"). Relative phrases lose meaning over time. To preserve verbatim text (quoted emails, transcripts, scripts), wrap in a markdown blockquote — lines starting with \`>\` are exempt.`,
       };
     }
   }
-  const dayMatch = RELATIVE_DAY_OF_WEEK.exec(text);
+  const dayMatch = RELATIVE_DAY_OF_WEEK.exec(masked);
   if (dayMatch && dayMatch.index !== undefined) {
     return {
       ok: false,
@@ -167,7 +221,7 @@ export function validateAbsoluteDates(text: string, field: ValidationField = "co
       offending: dayMatch[0],
       position: dayMatch.index,
       excerpt: excerptAround(text, dayMatch.index, dayMatch[0].length),
-      message: `Rejected ${field}: day-of-week used relatively — "${dayMatch[0]}" at position ${dayMatch.index}. Translate to an absolute date (e.g. "2026-04-21"). Generic usage like "Mon/Wed/Fri cadence" or "Monday through Friday" is fine — only trigger words like "next/this/last/by/on" before a day name are rejected.`,
+      message: `Rejected ${field}: day-of-week preceded by trigger word — "${dayMatch[0]}" at position ${dayMatch.index}. Trigger words: ${DAY_OF_WEEK_TRIGGER_WORDS.join(", ")}. Either translate to an absolute date, append a full \`Month DD, YYYY\` right after the day name (e.g. "on Friday May 1, 2026"), or quote the line with a leading \`>\` to mark it verbatim.`,
     };
   }
   return { ok: true };
@@ -175,7 +229,8 @@ export function validateAbsoluteDates(text: string, field: ValidationField = "co
 
 /**
  * Substantive content (> SUBSTANTIVE_LENGTH chars) must include at least one
- * absolute date pattern. Short annotations are exempt.
+ * absolute date pattern. Short annotations are exempt. Dates INSIDE blockquotes
+ * count — a quoted passage that anchors its own time is fine.
  */
 export function requiresAbsoluteDate(text: string): boolean {
   if (text.length <= SUBSTANTIVE_LENGTH) return false;
@@ -192,7 +247,7 @@ export function validateJournalContent(text: string, field: ValidationField = "c
       field,
       acceptedFormats: ACCEPTED_DATE_FORMATS,
       excerpt: excerptAround(text, 0, Math.min(text.length, 80)),
-      message: `Rejected ${field}: substantive content (>${SUBSTANTIVE_LENGTH} chars) must include at least one absolute date. Accepted formats: ${ACCEPTED_DATE_FORMATS.join(", ")}. If the date is genuinely unknown, write "[date unknown]".`,
+      message: `Rejected ${field}: substantive content (>${SUBSTANTIVE_LENGTH} chars) must include at least one absolute date. Accepted formats: ${ACCEPTED_DATE_FORMATS.join(", ")}. Dates inside blockquotes count. If the date is genuinely unknown, write "[date unknown]".`,
     };
   }
   return { ok: true };
