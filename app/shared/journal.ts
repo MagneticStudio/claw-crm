@@ -4,10 +4,14 @@
 import { createHash } from "node:crypto";
 
 export const JOURNAL_SIZE_LIMIT = 100_000;
-export const DESTRUCTIVE_SHRINK_THRESHOLD = 0.2;
+// Fraction of the doc that can shrink without tripping destructive_edit.
+// Raised from 0.20 to 0.40 — cleanups ("remove one test entry") were hitting the gate.
+export const DESTRUCTIVE_SHRINK_THRESHOLD = 0.4;
 export const DESTRUCTIVE_MIN_BYTES = 500;
 export const SUBSTANTIVE_LENGTH = 40;
 
+// Phrases that are unambiguously relative — they reference a point in time only
+// meaningful at the moment of writing. Each phrase is matched with word boundaries.
 export const RELATIVE_TIME_PHRASES = [
   "today",
   "tomorrow",
@@ -18,32 +22,65 @@ export const RELATIVE_TIME_PHRASES = [
   "this month",
   "next month",
   "last month",
+  "this quarter",
+  "next quarter",
+  "last quarter",
+  "this year",
+  "next year",
+  "last year",
   "recently",
-  "soon",
-  "shortly",
-  "earlier this",
-  "later this",
   "a few days ago",
   "a while back",
+  "earlier this week",
+  "earlier this month",
+  "earlier this year",
+  "later this week",
+  "later this month",
+  "later this year",
 ];
 
-// Bare day-of-week not followed by a date (so "this Friday" / "on Tuesday" triggers,
-// but "Tuesday, 2026-04-21" or "Tuesday 4/21" is allowed).
-const BARE_DAY_OF_WEEK =
-  /\b(?:mon|tues|wednes|thurs|fri|satur|sun)day\b(?!\s*[,.-]?\s*(?:\d|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)))/i;
+// A day-of-week used relatively means "next Tuesday", "by Friday", etc. — a
+// TRIGGER word appears before the day name. Generic usage like "Monday through
+// Friday" or "Mon/Wed/Fri cadence" must pass.
+const RELATIVE_DAY_OF_WEEK =
+  /\b(?:next|this|last|by|on|until|starting|before|after|every|each|coming)\s+(?:mon|tues|wednes|thurs|fri|satur|sun)day(?!\s*[,.-]?\s*\d)\b/i;
 
-const ABSOLUTE_DATE_PATTERNS = [
-  /\b\d{4}-\d{2}-\d{2}\b/, // 2026-04-18
-  /\b\d{1,2}\/\d{1,2}\/\d{4}\b/, // 4/18/2026
-  /\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2},?\s+\d{4}\b/i,
+// Patterns that qualify as absolute dates for the "substantive content needs a
+// date" check. Order doesn't matter; any match is enough.
+const ABSOLUTE_DATE_PATTERNS: Array<{ label: string; re: RegExp }> = [
+  { label: "YYYY-MM-DD", re: /\b\d{4}-\d{2}-\d{2}\b/ },
+  { label: "M/D/YYYY", re: /\b\d{1,2}\/\d{1,2}\/\d{4}\b/ },
+  {
+    label: "Month DD, YYYY",
+    re: /\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2},?\s+\d{4}\b/i,
+  },
+  {
+    // "August 2025" — year-only precision, common for historical summaries.
+    label: "Month YYYY",
+    re: /\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}\b/i,
+  },
+  {
+    // "Q3 2025" — useful for quarterly retrospectives.
+    label: "Q# YYYY",
+    re: /\bQ[1-4]\s+\d{4}\b/i,
+  },
 ];
+
+export const ACCEPTED_DATE_FORMATS = ABSOLUTE_DATE_PATTERNS.map((p) => p.label);
 
 /**
- * Canonical top-level sections. The journal uses exactly these three — no more,
- * no less. Agents must not invent new top-level sections; everything new lands
- * in Entries as a dated `### YYYY-MM-DD: <title>` block.
+ * Required top-level sections. Every journal has at least these three.
+ * Destructive-heading detection only protects `### YYYY-MM-DD:` entry headings;
+ * `##` sections are documentation contract, not enforcement.
  */
 export const CANONICAL_SECTIONS = ["Key People", "Wins / Case Study Material", "Entries"] as const;
+
+/**
+ * Sections an agent MAY add when they have genuine signal that doesn't fit the
+ * canonical three. Keep the list short; the journal should favor narrative over
+ * structure.
+ */
+export const OPTIONAL_SECTIONS = ["Open Questions", "Risks", "Next Moves"] as const;
 
 export function JOURNAL_SKELETON(name: string): string {
   return `# ${name}
@@ -59,10 +96,20 @@ export function JOURNAL_SKELETON(name: string): string {
 `;
 }
 
+// Label for the field that failed validation. Intentionally a plain string so
+// callers can use semantic names like "title", "body", "newString", "entry[2].body".
+export type ValidationField = string;
+
+export type ValidationReason = "relative_phrase" | "relative_day_of_week" | "no_absolute_date";
+
 export interface ValidationFailure {
   ok: false;
-  reason: "relative_date" | "no_absolute_date";
+  reason: ValidationReason;
+  field: ValidationField;
   offending?: string;
+  excerpt?: string;
+  position?: number;
+  acceptedFormats?: string[];
   message: string;
 }
 
@@ -72,52 +119,69 @@ export interface ValidationSuccess {
 
 export type ValidationResult = ValidationSuccess | ValidationFailure;
 
+function excerptAround(text: string, position: number, length: number, window = 40): string {
+  const start = Math.max(0, position - window);
+  const end = Math.min(text.length, position + length + window);
+  const prefix = start > 0 ? "…" : "";
+  const suffix = end < text.length ? "…" : "";
+  return `${prefix}${text.slice(start, end).replace(/\s+/g, " ").trim()}${suffix}`;
+}
+
 /**
- * Reject content containing relative time phrases. Case-insensitive, word-boundary.
+ * Reject content containing relative time phrases. Returns the exact matched
+ * phrase, its position, and a surrounding excerpt so the caller can debug.
  */
-export function validateAbsoluteDates(text: string): ValidationResult {
-  const haystack = text.toLowerCase();
+export function validateAbsoluteDates(text: string, field: ValidationField = "content"): ValidationResult {
   for (const phrase of RELATIVE_TIME_PHRASES) {
     const re = new RegExp(`\\b${phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
-    if (re.test(haystack)) {
+    const m = re.exec(text);
+    if (m && m.index !== undefined) {
       return {
         ok: false,
-        reason: "relative_date",
-        offending: phrase,
-        message: `Rejected: found relative time phrase "${phrase}" in new content. Rewrite with an absolute date (e.g. "2026-04-18"). Relative phrases lose meaning over time.`,
+        reason: "relative_phrase",
+        field,
+        offending: m[0],
+        position: m.index,
+        excerpt: excerptAround(text, m.index, m[0].length),
+        message: `Rejected ${field}: relative phrase "${m[0]}" at position ${m.index}. Rewrite with an absolute date (e.g. "2026-04-18" or "August 2025"). Relative phrases lose meaning over time.`,
       };
     }
   }
-  const dayMatch = text.match(BARE_DAY_OF_WEEK);
-  if (dayMatch) {
+  const dayMatch = RELATIVE_DAY_OF_WEEK.exec(text);
+  if (dayMatch && dayMatch.index !== undefined) {
     return {
       ok: false,
-      reason: "relative_date",
+      reason: "relative_day_of_week",
+      field,
       offending: dayMatch[0],
-      message: `Rejected: found bare day-of-week "${dayMatch[0]}" without a following date. Use an absolute date (e.g. "2026-04-21 (Tuesday)").`,
+      position: dayMatch.index,
+      excerpt: excerptAround(text, dayMatch.index, dayMatch[0].length),
+      message: `Rejected ${field}: day-of-week used relatively — "${dayMatch[0]}" at position ${dayMatch.index}. Translate to an absolute date (e.g. "2026-04-21"). Generic usage like "Mon/Wed/Fri cadence" or "Monday through Friday" is fine — only trigger words like "next/this/last/by/on" before a day name are rejected.`,
     };
   }
   return { ok: true };
 }
 
 /**
- * Substantive content (> SUBSTANTIVE_LENGTH chars) must include at least one absolute date.
- * Short annotations are exempt.
+ * Substantive content (> SUBSTANTIVE_LENGTH chars) must include at least one
+ * absolute date pattern. Short annotations are exempt.
  */
 export function requiresAbsoluteDate(text: string): boolean {
   if (text.length <= SUBSTANTIVE_LENGTH) return false;
-  return !ABSOLUTE_DATE_PATTERNS.some((p) => p.test(text));
+  return !ABSOLUTE_DATE_PATTERNS.some((p) => p.re.test(text));
 }
 
-export function validateJournalContent(text: string): ValidationResult {
-  const relative = validateAbsoluteDates(text);
+export function validateJournalContent(text: string, field: ValidationField = "content"): ValidationResult {
+  const relative = validateAbsoluteDates(text, field);
   if (!relative.ok) return relative;
   if (requiresAbsoluteDate(text)) {
     return {
       ok: false,
       reason: "no_absolute_date",
-      message:
-        'Rejected: substantive content must contain at least one absolute date ("YYYY-MM-DD", "M/D/YYYY", or "Month DD, YYYY"). If unknown, write "[date unknown]".',
+      field,
+      acceptedFormats: ACCEPTED_DATE_FORMATS,
+      excerpt: excerptAround(text, 0, Math.min(text.length, 80)),
+      message: `Rejected ${field}: substantive content (>${SUBSTANTIVE_LENGTH} chars) must include at least one absolute date. Accepted formats: ${ACCEPTED_DATE_FORMATS.join(", ")}. If the date is genuinely unknown, write "[date unknown]".`,
     };
   }
   return { ok: true };
@@ -145,7 +209,7 @@ export function hashJournal(text: string | null): string {
 
 /**
  * True if `newContent` is destructive vs `oldContent`:
- *  - shrinks by >= 20% (and the difference is at least DESTRUCTIVE_MIN_BYTES), OR
+ *  - shrinks by >= DESTRUCTIVE_SHRINK_THRESHOLD AND >= DESTRUCTIVE_MIN_BYTES, OR
  *  - mutates/removes an existing `### YYYY-MM-DD:` Entry heading.
  */
 export function isDestructiveChange(oldContent: string, newContent: string): boolean {
@@ -161,6 +225,17 @@ export function isDestructiveChange(oldContent: string, newContent: string): boo
   return hasEntryHeadingChange(oldContent, newContent);
 }
 
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** True if `d` parses as a valid ISO YYYY-MM-DD and is within a reasonable range. */
+export function isReasonableIsoDate(d: string): boolean {
+  if (!ISO_DATE_RE.test(d)) return false;
+  const [y, m, day] = d.split("-").map(Number);
+  if (y < 1900 || y > 2100) return false;
+  const dt = new Date(`${d}T00:00:00Z`);
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === day;
+}
+
 /**
  * Today's date in ISO YYYY-MM-DD (UTC).
  */
@@ -169,15 +244,19 @@ export function todayIso(): string {
 }
 
 /**
- * Append a new Entry to the doc. If `## Entries` section is missing, appends
- * it at the end. Returns the updated doc and the full entry heading.
+ * Append a new Entry to the doc. If `## Entries` is missing, appends it at the
+ * end. Caller may supply an explicit ISO `dateIso` to backdate migrated notes;
+ * otherwise today's date is used. Returns the updated doc and the full entry
+ * heading.
  */
 export function appendJournalEntry(
   doc: string,
   title: string,
   body: string,
+  dateIso?: string,
 ): { updated: string; entryHeading: string } {
-  const heading = `### ${todayIso()}: ${title.trim()}`;
+  const effectiveDate = dateIso && isReasonableIsoDate(dateIso) ? dateIso : todayIso();
+  const heading = `### ${effectiveDate}: ${title.trim()}`;
   const entry = `${heading}\n\n${body.trim()}\n`;
 
   const sectionRe = /^##\s+Entries\s*$/m;
@@ -216,4 +295,62 @@ export function appendJournalEntry(
     updated: `${before}${sep}\n${entry}${trailer}`,
     entryHeading: heading,
   };
+}
+
+/**
+ * Return the content of a specific top-level section (between `## Section` and
+ * the next `## `). Returns null if the section isn't present.
+ */
+export function readJournalSection(doc: string, section: string): string | null {
+  const escaped = section.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`^##\\s+${escaped}\\s*$`, "m");
+  const m = re.exec(doc);
+  if (!m || m.index === undefined) return null;
+  const lines = doc.split("\n");
+  // Find the line index where the section header is.
+  let startLine = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (new RegExp(`^##\\s+${escaped}\\s*$`).test(lines[i])) {
+      startLine = i;
+      break;
+    }
+  }
+  if (startLine === -1) return null;
+  let endLine = lines.length;
+  for (let i = startLine + 1; i < lines.length; i++) {
+    if (/^##\s+\S/.test(lines[i])) {
+      endLine = i;
+      break;
+    }
+  }
+  return lines.slice(startLine, endLine).join("\n").trim();
+}
+
+/**
+ * Return the last `### YYYY-MM-DD: …` Entry block (heading + body up to the
+ * next `### ` or `## ` heading). Null if no dated entry exists yet.
+ */
+export function peekLastEntry(doc: string): { heading: string; body: string } | null {
+  const lines = doc.split("\n");
+  let lastEntryLine = -1;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (/^###\s+\d{4}-\d{2}-\d{2}:/.test(lines[i])) {
+      lastEntryLine = i;
+      break;
+    }
+  }
+  if (lastEntryLine === -1) return null;
+  let endLine = lines.length;
+  for (let i = lastEntryLine + 1; i < lines.length; i++) {
+    if (/^###\s+\S/.test(lines[i]) || /^##\s+\S/.test(lines[i])) {
+      endLine = i;
+      break;
+    }
+  }
+  const heading = lines[lastEntryLine];
+  const body = lines
+    .slice(lastEntryLine + 1, endLine)
+    .join("\n")
+    .trim();
+  return { heading, body };
 }

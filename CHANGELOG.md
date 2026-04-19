@@ -2,6 +2,32 @@
 
 ## 2026-04-19
 
+### Journal UX fixes — feedback from first real use
+Based on hands-on migration of historical notes. All server-side; no schema changes.
+
+**Validator**
+- Relative-phrase detector no longer over-fires on generic day-of-week usage. "Monday through Friday" and "Mon/Wed/Fri cadence" now pass — only trigger words (`next/this/last/by/on/until/starting/before/after/every/each/coming`) before a day name are rejected.
+- Accepted date formats extended: `August 2025` (Month YYYY) and `Q3 2025` (Q# YYYY) now count as absolute dates for historical summaries where day-precision isn't realistic.
+- Validation failures now return `field`, `offending`, `position`, `excerpt` (±40 chars around the match), and `acceptedFormats`. The error payload names exactly what broke; no more guessing which rule fired.
+- Distinct failure reasons: `relative_phrase`, `relative_day_of_week`, `no_absolute_date`, `invalid_date` (instead of a conflated `relative_date`).
+
+**Append flow**
+- `append_journal` accepts an optional `date` (ISO YYYY-MM-DD) param for backdating migrated notes. Defaults to today.
+- New `batch_append_journal` tool: submit 1–50 entries as one transactional call with per-entry `date`. Validates all-or-nothing; per-entry results returned on any failure. Designed for bulk historical imports.
+- New `peek_last_journal_entry` tool: returns just the most recent dated Entry (heading + body) without re-reading the full doc.
+
+**Read flow**
+- `read_journal` accepts an optional `section` param (`Key People` | `Wins / Case Study Material` | `Entries` | `Open Questions` | `Risks` | `Next Moves`). Returns just that section; full-doc hash always returned for use with `edit_journal`.
+
+**Destructive-edit threshold**
+- Raised from 20% to 40% shrink. Removing one test entry from a small doc was triggering the confirm gate unnecessarily; cleanups now pass. Heading-mutation protection unchanged — existing dated Entries remain immutable without explicit approval.
+
+**Optional sections**
+- Agent guide and tool descriptions now formally allow `## Open Questions`, `## Risks`, `## Next Moves` as optional additions to the canonical three. Default is still Entries.
+
+**Tool descriptions**
+- Consolidated the "where does this go?" decision tree in `get_crm_guide`. Individual tool descriptions now reference it by name instead of restating — reduces drift and cuts repetition.
+
 ### Boot migrations + CI guard for schema changes (hotfix)
 - **What went wrong**: PR #68's `relationship_memory` → `relationship_journal` rename landed in code but not on Railway's production DB. Railway auto-deploys code but does NOT run `drizzle-kit push`. The rules engine started crashing in prod every 15 minutes with `column relationship_memory does not exist`. CI passed because its test DB is always freshly created with the new schema — it never sees the upgrade path.
 - **Fix**: `app/server/boot-migrations.ts` runs idempotent DDL on startup before `registerRoutes`. Renames the column/table/index conditionally; no-ops when already migrated.
