@@ -176,11 +176,7 @@ export function todayIso(): string {
  * missing, appends it at the end. Returns the updated doc and the full entry
  * heading.
  */
-export function appendMemoryEntry(
-  doc: string,
-  title: string,
-  body: string,
-): { updated: string; entryHeading: string } {
+export function appendMemoryEntry(doc: string, title: string, body: string): { updated: string; entryHeading: string } {
   const heading = `### ${todayIso()}: ${title.trim()}`;
   const entry = `${heading}\n\n${body.trim()}\n`;
 
