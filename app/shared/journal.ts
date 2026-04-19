@@ -49,10 +49,21 @@ const RELATIVE_DAY_OF_WEEK =
 // date" check. Order doesn't matter; any match is enough.
 const ABSOLUTE_DATE_PATTERNS: Array<{ label: string; re: RegExp }> = [
   { label: "YYYY-MM-DD", re: /\b\d{4}-\d{2}-\d{2}\b/ },
+  { label: "YYYY-MM-DD to YYYY-MM-DD", re: /\b\d{4}-\d{2}-\d{2}\s*(?:to|–|—|-)\s*\d{4}-\d{2}-\d{2}\b/ },
   { label: "M/D/YYYY", re: /\b\d{1,2}\/\d{1,2}\/\d{4}\b/ },
   {
     label: "Month DD, YYYY",
     re: /\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2},?\s+\d{4}\b/i,
+  },
+  {
+    // "April 7-8, 2026" — same-month day range, common in meeting/trip titles.
+    label: "Month D-D, YYYY",
+    re: /\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}\s*(?:–|—|-)\s*\d{1,2},?\s+\d{4}\b/i,
+  },
+  {
+    // "April 30 – May 2, 2026" — cross-month day range.
+    label: "Month D – Month D, YYYY",
+    re: /\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}\s*(?:–|—|-|to)\s*(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2},?\s+\d{4}\b/i,
   },
   {
     // "August 2025" — year-only precision, common for historical summaries.
