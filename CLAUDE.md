@@ -27,7 +27,7 @@ npm run test -- tests/auth.spec.ts  # Single test file
 - MCP remote endpoint at `/mcp/:token` (StreamableHTTP). All MCP tools must have try/catch or they crash the session.
 - MCP session recovery: stale session IDs auto-create fresh sessions. Don't error on unknown sessions.
 - Rules are data (JSONB), not code. Agents CRUD them via MCP.
-- Railway auto-deploys from main. Root directory is `app/`.
+- Railway auto-deploys from main. Root directory is `app/`. Schema is NOT auto-migrated — see "Schema changes" below.
 
 ## Conventions
 
@@ -59,6 +59,10 @@ Don't assign reviewers — instead, own the PR through merge:
 2. If CI fails, read the failing job logs, fix the cause, and push again.
 3. If reviewers leave comments, read them (`gh api repos/MagneticStudio/claw-crm/pulls/<num>/comments`), respond or address, and push fixes.
 4. Once CI is green and there are no unresolved comments, merge to main (`gh pr merge <num> --squash --delete-branch`). Railway auto-deploys from main.
+
+## Schema changes
+
+Every PR that modifies `app/shared/schema.ts` MUST also update `app/server/boot-migrations.ts` (CI enforces this). Railway does NOT auto-run `drizzle-kit push`. See @.claude/docs/schema-changes.md.
 
 ## Gotchas
 
