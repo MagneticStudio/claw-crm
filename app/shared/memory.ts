@@ -38,32 +38,24 @@ const ABSOLUTE_DATE_PATTERNS = [
   /\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2},?\s+\d{4}\b/i,
 ];
 
+/**
+ * Canonical top-level sections. The memory document uses exactly these three —
+ * no more, no less. Agents must not invent new top-level sections; everything
+ * new lands in Memory Entries as a dated `### YYYY-MM-DD: <title>` block.
+ */
+export const CANONICAL_SECTIONS = ["Key People", "Wins / Case Study Material", "Memory Entries"] as const;
+
 export function MEMORY_SKELETON(name: string): string {
   return `# ${name}
 
-## Overview
-<!-- 3–6 sentences. What is this engagement? Scope, cadence, economics. -->
-
 ## Key People
-<!-- Roster of stakeholders with roles and the current relationship state. -->
-
-## Strategic Direction
-<!-- What are we trying to accomplish together? Workstreams, priorities. -->
-
-## Active Workstreams
-<!-- What is in flight right now. -->
+<!-- Roster of stakeholders with roles and the current relationship state. Who matters, what they care about. -->
 
 ## Wins / Case Study Material
-<!-- Durable wins worth preserving for future BD and for memory. -->
+<!-- Durable wins worth preserving for future BD and case studies. Concrete outcomes, measurable impact, quotable moments. -->
 
-## Current State & Rhythm
-<!-- Cadence of interaction, mode (advisor, mentor, hands-on), current phase. -->
-
-## Timeline
-<!-- Dated narrative entries, newest at the bottom. Append-only. -->
-
-## Open Threads
-<!-- What is unresolved, what are we waiting on, what needs attention. -->
+## Memory Entries
+<!-- Dated narrative entries, newest at the bottom. Append-only. Each entry: ### YYYY-MM-DD: <title> -->
 `;
 }
 
@@ -155,7 +147,7 @@ export function hashMemory(text: string | null): string {
 /**
  * True if `newContent` is destructive vs `oldContent`:
  *  - shrinks by >= 20% (and the difference is at least DESTRUCTIVE_MIN_BYTES), OR
- *  - mutates/removes an existing `### YYYY-MM-DD:` Timeline heading.
+ *  - mutates/removes an existing `### YYYY-MM-DD:` Memory Entries heading.
  */
 export function isDestructiveChange(oldContent: string, newContent: string): boolean {
   const oldSize = oldContent.length;
@@ -180,10 +172,11 @@ export function todayIso(): string {
 }
 
 /**
- * Append a new Timeline entry to the doc. If `## Timeline` section is missing,
- * appends it at the end. Returns the updated doc and the full entry heading.
+ * Append a new Memory Entry to the doc. If `## Memory Entries` section is
+ * missing, appends it at the end. Returns the updated doc and the full entry
+ * heading.
  */
-export function appendTimelineEntry(
+export function appendMemoryEntry(
   doc: string,
   title: string,
   body: string,
@@ -191,35 +184,36 @@ export function appendTimelineEntry(
   const heading = `### ${todayIso()}: ${title.trim()}`;
   const entry = `${heading}\n\n${body.trim()}\n`;
 
-  const timelineRe = /^##\s+Timeline\s*$/m;
-  if (!timelineRe.test(doc)) {
+  const sectionRe = /^##\s+Memory Entries\s*$/m;
+  if (!sectionRe.test(doc)) {
     const separator = doc.endsWith("\n") ? "" : "\n";
     return {
-      updated: `${doc}${separator}\n## Timeline\n\n${entry}`,
+      updated: `${doc}${separator}\n## Memory Entries\n\n${entry}`,
       entryHeading: heading,
     };
   }
 
-  // Find the Timeline section and insert before the next `## ` heading (or at end of doc).
+  // Find the Memory Entries section and insert before the next `## ` heading
+  // (or at end of doc).
   const lines = doc.split("\n");
-  let timelineStart = -1;
+  let sectionStart = -1;
   for (let i = 0; i < lines.length; i++) {
-    if (/^##\s+Timeline\s*$/.test(lines[i])) {
-      timelineStart = i;
+    if (/^##\s+Memory Entries\s*$/.test(lines[i])) {
+      sectionStart = i;
       break;
     }
   }
   let insertAt = lines.length;
-  for (let i = timelineStart + 1; i < lines.length; i++) {
+  for (let i = sectionStart + 1; i < lines.length; i++) {
     if (/^##\s+\S/.test(lines[i])) {
       insertAt = i;
       break;
     }
   }
 
-  // Trim trailing empty lines within the Timeline section before appending.
+  // Trim trailing empty lines within the Memory Entries section before appending.
   let tail = insertAt;
-  while (tail > timelineStart + 1 && lines[tail - 1].trim() === "") tail--;
+  while (tail > sectionStart + 1 && lines[tail - 1].trim() === "") tail--;
 
   const before = lines.slice(0, tail).join("\n");
   const after = lines.slice(insertAt).join("\n");

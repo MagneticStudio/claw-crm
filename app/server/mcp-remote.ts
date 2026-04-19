@@ -21,7 +21,7 @@ import type { InsertContact } from "@shared/schema";
 import {
   MEMORY_SKELETON,
   validateMemoryContent,
-  appendTimelineEntry,
+  appendMemoryEntry,
   hashMemory,
   MEMORY_SIZE_LIMIT,
 } from "@shared/memory";
@@ -246,24 +246,33 @@ Good for: talking points, recent news, open items before a meeting.
 ## Relationship Memory
 The persistent, file-like narrative of the relationship. Freeform markdown per contact, everlasting, append-mostly. Tools: read_memory, edit_memory, append_memory.
 
+**Document structure (strict — do not invent new top-level sections):**
+1. \`## Key People\` — stakeholder roster with roles and current relationship state. Who matters, what they care about.
+2. \`## Wins / Case Study Material\` — durable wins worth preserving for future BD and case studies. Concrete outcomes, measurable impact, quotable moments.
+3. \`## Memory Entries\` — dated narrative entries, newest at the bottom. Append-only. Each entry: \`### YYYY-MM-DD: <title>\` followed by body.
+
+Every new \`append_memory\` call lands in Memory Entries. Use Key People and Wins / Case Study Material for evergreen content — edit them in place with \`edit_memory\` when the facts change. If you're tempted to add a new \`##\` section, you're wrong — put it in Memory Entries.
+
 **Writing rules (non-negotiable):**
-1. Every new entry in relationship_memory begins with an ISO date heading: \`### YYYY-MM-DD: <brief title>\`.
+1. Every new Memory Entry begins with an ISO date heading: \`### YYYY-MM-DD: <brief title>\`.
 2. Use ONLY absolute dates anywhere in memory content. Acceptable: \`2026-04-18\`, \`04/18/2026\`, \`April 18, 2026\`. **Never** use today, tomorrow, yesterday, this/next/last week, recently, soon, shortly, this Friday, or any other relative time reference.
 3. When writing about future actions, state the specific date. Write \`follow up with Jeff on 2026-05-06\`, not \`follow up with Jeff next week\`.
 4. When a contact says "let's meet next Tuesday", translate to an absolute date at write time using today as anchor. Example: today 2026-04-18, they say "next Tuesday" → write \`meeting scheduled for 2026-04-21 (Tuesday)\`.
-5. Never silently edit or delete existing dated Timeline entries. Prefer appending a correction: \`### 2026-04-18: Correction to 2026-03-09 entry — …\`. If a rewrite is needed, it's a destructive edit.
-6. When updating non-timeline sections in place (Overview, Key People, Current State), annotate the change inline: \`[updated 2026-04-18: …]\`.
+5. Never silently edit or delete existing dated Memory Entries. Prefer appending a correction: \`### 2026-04-18: Correction to 2026-03-09 entry — …\`. If a rewrite is needed, it's a destructive edit.
+6. When updating Key People or Wins / Case Study Material in place, annotate the change inline: \`[updated 2026-04-18: …]\`.
 7. If a piece of information has no known date, mark it \`[date unknown]\` rather than omitting or hedging.
 8. \`briefing\` is for the next meeting and may be overwritten freely. \`relationship_memory\` is permanent. Do not confuse the two.
-9. Destructive edits require \`confirmed_with_user: true\`, set ONLY after the user has explicitly approved the change in conversation. "Destructive" = shrinks the doc ≥20% OR mutates an existing \`### YYYY-MM-DD:\` Timeline heading. Typically happens at user direction — the flag confirms it.
+9. Destructive edits require \`confirmed_with_user: true\`, set ONLY after the user has explicitly approved the change in conversation. "Destructive" = shrinks the doc ≥20% OR mutates an existing \`### YYYY-MM-DD:\` Memory Entries heading. Typically happens at user direction — the flag confirms it.
 10. Write dense. Every word earns its place. No filler, no throat-clearing, no hedges. Capture maximum context per character.
 
 **Where does this content go?**
 - Short canonical fact about the person or company (title, location, website) → **contact fields**
 - Prep for the next specific meeting → **briefing** (ephemeral, replaced at next prep)
 - One discrete event that happened on a specific date (meeting, email, call) → **interactions**
-- Narrative context, engagement story, key people with roles, wins, open threads → **relationship_memory**
-- Anything the user explicitly pastes as "historical context" or "memory" for a client → **relationship_memory**, with dated entries in the Timeline section.
+- Stakeholder with a role → **relationship_memory → Key People**
+- Concrete outcome, measurable impact, quotable moment → **relationship_memory → Wins / Case Study Material**
+- Narrative "what happened and why it matters" for this engagement → **relationship_memory → Memory Entries** (dated)
+- Anything the user explicitly pastes as "historical context" or "memory" for a client → **relationship_memory**, dated entries in Memory Entries.
 
 ## Confidentiality
 - NEVER put pricing or deal terms in the CRM
@@ -998,9 +1007,10 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
 
   // --- Relationship memory ---
   const MEMORY_WRITE_RULES = [
+    "Document has exactly three top-level sections: `## Key People`, `## Wins / Case Study Material`, `## Memory Entries`. Do not invent new sections — everything new goes into Memory Entries as a dated `### YYYY-MM-DD: <title>` block, or edits in place into Key People / Wins.",
     "Writes must use ABSOLUTE DATES only. Every new substantive entry begins with an ISO date heading: `### YYYY-MM-DD: <title>`.",
     "Relative time phrases (today, tomorrow, yesterday, this/next/last week, this Friday, recently, soon, shortly, a few days ago, etc.) are REJECTED by the validator. Translate to absolute dates at write time.",
-    "Destructive edits require confirmed_with_user: true — triggered when the edit (a) shrinks the doc ≥20% or (b) mutates/removes an existing `### YYYY-MM-DD:` Timeline heading. Set only after the user has explicitly approved the change in conversation.",
+    "Destructive edits require confirmed_with_user: true — triggered when the edit (a) shrinks the doc ≥20% or (b) mutates/removes an existing `### YYYY-MM-DD:` Memory Entries heading. Set only after the user has explicitly approved the change in conversation.",
     "Write dense. Every word earns its place. No filler, no throat-clearing, no hedges. Capture maximum context per character.",
   ].join(" ");
 
@@ -1062,7 +1072,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
         .optional()
         .default(false)
         .describe(
-          "Set to true ONLY after the user has explicitly approved a destructive edit in conversation. Required when the edit shrinks the doc ≥20% (or ≥500 chars, whichever smaller) OR mutates/removes an existing `### YYYY-MM-DD:` Timeline heading.",
+          "Set to true ONLY after the user has explicitly approved a destructive edit in conversation. Required when the edit shrinks the doc ≥20% (or ≥500 chars, whichever smaller) OR mutates/removes an existing `### YYYY-MM-DD:` Memory Entries heading.",
         ),
     },
     async ({ contactId, oldString, newString, replaceAll, expectedHash, confirmed_with_user }) => {
@@ -1157,7 +1167,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
 
   server.tool(
     "append_memory",
-    `Append a new dated entry to the Timeline section of a contact's relationship_memory. Server auto-prepends today's ISO date as the \`###\` heading — you supply title and body only. If the memory doesn't exist yet, the server seeds the skeleton and then appends. ${MEMORY_WRITE_RULES}`,
+    `Append a new dated entry to the Memory Entries section of a contact's relationship_memory. Server auto-prepends today's ISO date as the \`###\` heading — you supply title and body only. If the memory doesn't exist yet, the server seeds the skeleton and then appends. ${MEMORY_WRITE_RULES}`,
     {
       contactId: z.number(),
       title: z
@@ -1195,7 +1205,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
         const baseDoc = seeded
           ? MEMORY_SKELETON(`${contact.firstName} ${contact.lastName}`)
           : (contact.relationshipMemory as string);
-        const { updated, entryHeading } = appendTimelineEntry(baseDoc, title, body);
+        const { updated, entryHeading } = appendMemoryEntry(baseDoc, title, body);
 
         if (updated.length > MEMORY_SIZE_LIMIT) {
           return {
@@ -1205,7 +1215,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
                 text: JSON.stringify({
                   ok: false,
                   reason: "size_limit",
-                  message: `Memory would exceed ${MEMORY_SIZE_LIMIT} chars. Compact older Timeline entries — capture more context per character.`,
+                  message: `Memory would exceed ${MEMORY_SIZE_LIMIT} chars. Compact older Memory Entries — capture more context per character.`,
                 }),
               },
             ],
@@ -1221,7 +1231,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
         if (!result.ok) {
           return { content: [{ type: "text" as const, text: JSON.stringify(result) }], isError: true };
         }
-        storage.logActivity("memory.appended", `Appended Timeline entry: ${entryHeading}`, {
+        storage.logActivity("memory.appended", `Appended memory entry: ${entryHeading}`, {
           contactId,
           source: "agent",
           metadata: { entryHeading, seeded },
