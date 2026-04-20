@@ -16,7 +16,8 @@ Most CRMs are built for sales teams. Claw is built for one person managing 10-50
 
 - **Notebook view** — your entire pipeline in one scrollable feed, sorted by urgency
 - **Slash commands** — `/fu 4/15 check on proposal`, `/mtg 4/3 2pm Coffee @ Verve`, `/stage PROPOSAL`
-- **AI agents write, you verify** — Claude connects via MCP and manages your CRM through 16+ tools
+- **AI agents write, you verify** — Claude connects via MCP and manages your CRM through 25+ tools
+- **Relationship journal** — a per-contact markdown document that's the durable home for the narrative of the relationship: Key People, Wins / Case Study Material, and dated Entries. Absolute-dates-only validator, full revision history with diff view, verbatim blockquote escape for preserving emails and transcripts.
 - **Rules engine** — business logic stored as data, not code. "Flag contacts with no interaction for 14 days." Agents can create, modify, and delete rules.
 - **Real-time** — SSE pushes every change to the UI instantly, whether you or an agent made it
 - **Privacy-first** — PIN-locked, teal privacy screen on window blur, no pricing or deal terms stored
@@ -78,6 +79,12 @@ Install paths:
 
 The skill assumes the MCP connector has already been registered. If tools are missing it tells Claude to prompt you to add the connector; it doesn't install anything itself.
 
+### Agent prompts
+
+Reference prompts for scheduled agents that operate on your behalf live in [`docs/agent-prompts/`](docs/agent-prompts/). Paste the prompt body into the agent's instructions (e.g. a Claude Cowork or OpenClaw scheduled agent) and point it at the relevant data source plus the CRM MCP connector.
+
+- [**CRM Inbox Agent**](docs/agent-prompts/crm-inbox-agent.md) — daily scan of your inbox (received + sent) to keep the CRM aligned. Logs new interactions, updates stages, completes stale follow-ups, builds briefings when a meeting is imminent, flags anything that needs your decision.
+
 ### MCP Tools
 
 | Tool | Description |
@@ -98,7 +105,8 @@ The skill assumes the MCP connector has already been registered. If tools are mi
 | `list_violations` | Active rule violations with contact names. |
 | `get_upcoming_meetings` / `cancel_meeting` | Meeting management. |
 | `save_briefing` / `get_briefing` | Per-contact prep notes. |
-| `read_journal` / `edit_journal` / `append_journal` | Per-contact `relationship_journal` — persistent markdown doc for the full living narrative of the relationship. Absolute-dates-only validator; destructive edits gated behind `confirmed_with_user`. Full revision history in the UI. |
+| `read_journal` / `peek_last_journal_entry` | Read the full `relationship_journal` (optional `section` scope) or just the most recent dated Entry + doc hash. |
+| `edit_journal` / `append_journal` / `batch_append_journal` | Modify the journal. Absolute-dates-only validator, verbatim blockquote escape, destructive edits gated behind `confirmed_with_user`. `batch_append_journal` writes many dated entries transactionally — the bulk-migration path. |
 
 Tools follow [Anthropic's best practices](https://www.anthropic.com/engineering/writing-tools-for-agents): enum validation, actionable errors, pagination, enriched responses.
 
@@ -152,6 +160,7 @@ Exceptions: `has_future_followup`, `stage_in` (exclude specific stages from rule
 | **Follow-ups** | Action items with due dates. |
 | **Meetings** | Future scheduled events. |
 | **Briefings** | Per-contact prep notes (upsert). |
+| **Journal** | Per-contact markdown narrative — Key People, Wins / Case Study Material, dated Entries. Full revision history. |
 | **Rules** | Business logic — conditions + actions as JSONB. |
 | **Violations** | Alerts created by rules, auto-cleared when resolved. |
 
