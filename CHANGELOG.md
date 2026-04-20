@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-04-20
+
+### Contact header: text links for Briefing/Journal, quieter status
+Emoji badges (📋 / 📓) are gone. Briefing and Journal now appear as plain teal text links on the right of the contact card header, matching the existing `more…` / `Show N earlier` link style already used inside the card. Much better tap targets on mobile, and consistent visual language across the row.
+
+Stage/status pills are also gone from the header row — they took real estate for values rarely touched in the list view. Status moved to a 3px colored left-edge bar on each card: teal for `ACTIVE`, violet for `HOLD`. Stage remains changeable via the existing `/stage XXX` slash command in the note input (and drag-drop on the kanban). Status still responds to `/status ACTIVE` / `/status HOLD`.
+
+Also removed the stale/violations warning triangle from the header — it was redundant with the violation rows rendered below the contact card and the red `OVERDUE` marker on tasks.
+
 ## 2026-04-19
 
 ### CRM Inbox Agent reference prompt + README cleanup

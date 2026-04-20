@@ -4,7 +4,9 @@ import { Square, AlertTriangle, Trash2, Clock } from "lucide-react";
 import type { ContactWithRelations } from "@shared/schema";
 import type { SearchSnippet } from "@/hooks/use-contact-search";
 import { fmtDate, fmtDateInput } from "@/lib/utils";
-import { useColors, BADGES } from "@/App";
+import { useColors } from "@/App";
+
+const HOLD_COLOR = "#6c5ce7";
 
 const STAGE_OPTIONS = ["LEAD", "MEETING", "PROPOSAL", "NEGOTIATION", "LIVE", "PASS", "RELATIONSHIP"] as const;
 
@@ -86,7 +88,6 @@ function HighlightedText({ text, terms }: { text: string; terms?: string[] }) {
 
 interface ContactBlockProps {
   contact: ContactWithRelations;
-  accentColor: string;
   onAddInteraction: (content: string, date: string, type?: string) => void;
   onUpdateInteraction: (id: number, data: { content?: string; type?: string }) => void;
   onDeleteInteraction: (id: number) => void;
@@ -105,7 +106,6 @@ interface ContactBlockProps {
 
 export function ContactBlock({
   contact,
-  accentColor,
   onAddInteraction,
   onUpdateInteraction,
   onDeleteInteraction,
@@ -123,8 +123,6 @@ export function ContactBlock({
   const [showAllInteractions, setShowAllInteractions] = useState(false);
   const [expandedInteractions, setExpandedInteractions] = useState<Set<number>>(new Set());
   const [newNote, setNewNote] = useState("");
-  const [showStageMenu, setShowStageMenu] = useState(false);
-  const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
   const [editingInteractionId, setEditingInteractionId] = useState<number | null>(null);
   const [editingInteractionText, setEditingInteractionText] = useState("");
@@ -137,12 +135,7 @@ export function ContactBlock({
   const [completingFollowupText, setCompletingFollowupText] = useState("");
 
   const companyName = contact.company?.name || "";
-  const hasViolations = contact.violations.length > 0;
   const activeFollowups = contact.followups.filter((f) => !f.completed);
-  const lastInteraction =
-    contact.interactions.length > 0 ? contact.interactions[contact.interactions.length - 1] : null;
-  const daysSinceLastTouch = lastInteraction ? differenceInDays(new Date(), new Date(lastInteraction.date)) : null;
-  const isStale = daysSinceLastTouch !== null && daysSinceLastTouch > 14 && contact.status === "ACTIVE";
   const hasDetails = !!(
     contact.background ||
     contact.source ||
@@ -236,11 +229,6 @@ export function ContactBlock({
     }
   };
 
-  const handleStageClick = (stage: string) => {
-    onUpdateContact({ stage });
-    setShowStageMenu(false);
-    showFlash(`Stage → ${stage}`);
-  };
   const handleBackgroundSave = () => {
     if (backgroundText !== (contact.background || "")) {
       onUpdateContact({ background: backgroundText });
@@ -270,12 +258,23 @@ export function ContactBlock({
   const command = detectCommand(newNote);
   const inputColor = command.type !== "none" ? COMMAND_COLORS[command.type] : undefined;
 
+  const statusColor = contact.status === "HOLD" ? HOLD_COLOR : C.accent;
+  const hasBriefing = Boolean(contact.briefing);
+  const hasJournal = Boolean(contact.relationshipJournal);
+
   return (
     <div
       id={`contact-${contact.id}`}
-      className={`relative bg-white mb-2 ${isInactive ? "opacity-50 hover:opacity-75" : ""}`}
-      style={{ border: `1px solid ${C.border}`, borderRadius: "10px", padding: "0.75rem 1rem" }}
+      className={`relative bg-white mb-2 overflow-hidden ${isInactive ? "opacity-50 hover:opacity-75" : ""}`}
+      style={{ border: `1px solid ${C.border}`, borderRadius: "10px", padding: "0.75rem 1rem 0.75rem 1.125rem" }}
     >
+      {/* Status bar — left edge, teal for ACTIVE, violet for HOLD */}
+      <div
+        className="absolute left-0 top-0 bottom-0 w-[3px]"
+        style={{ backgroundColor: statusColor }}
+        title={`Status: ${contact.status}`}
+        aria-label={`Status: ${contact.status}`}
+      />
       {/* Header */}
       <div className="flex items-center gap-1.5">
         {flash && (
@@ -286,122 +285,34 @@ export function ContactBlock({
             {flash}
           </span>
         )}
-        <h2 className="text-sm font-bold leading-tight" style={{ color: C.text }}>
+        <h2 className="text-sm font-bold leading-tight whitespace-nowrap" style={{ color: C.text }}>
           {contact.firstName} {contact.lastName}
         </h2>
 
         {companyName && (
-          <span className="text-xs" style={{ color: C.muted }}>
+          <span className="text-xs truncate min-w-0" style={{ color: C.muted }}>
             {companyName}
           </span>
         )}
 
-        <div className="relative ml-auto">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowStageMenu(!showStageMenu);
-            }}
-            className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full transition-colors hover:opacity-80"
-            style={{ backgroundColor: `${accentColor}15`, color: accentColor }}
-          >
-            {contact.stage}
-          </button>
-          {showStageMenu && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setShowStageMenu(false)} />
-              <div
-                className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg z-20 py-1 min-w-[130px]"
-                style={{ border: `1px solid ${C.border}` }}
-              >
-                {STAGE_OPTIONS.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => handleStageClick(s)}
-                    className="block w-full text-left px-3 py-1 text-[11px] transition-colors hover:opacity-70"
-                    style={{
-                      color: s === contact.stage ? C.text : C.muted,
-                      fontWeight: s === contact.stage ? 600 : 400,
-                      backgroundColor: s === contact.stage ? C.accentLight : "transparent",
-                    }}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-
-        <div className="relative">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowStatusMenu(!showStatusMenu);
-              setShowStageMenu(false);
-            }}
-            className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full transition-colors hover:opacity-80"
-            style={{
-              backgroundColor: contact.status === "HOLD" ? "#f0ecf8" : `${C.accent}15`,
-              color: contact.status === "HOLD" ? "#6c5ce7" : C.accent,
-            }}
-          >
-            {contact.status}
-          </button>
-          {showStatusMenu && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setShowStatusMenu(false)} />
-              <div
-                className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg z-20 py-1 min-w-[100px]"
-                style={{ border: `1px solid ${C.border}` }}
-              >
-                {(["ACTIVE", "HOLD"] as const).map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => {
-                      if (s !== contact.status) {
-                        onUpdateContact({ status: s });
-                        showFlash(`Status → ${s}`);
-                      }
-                      setShowStatusMenu(false);
-                    }}
-                    className="block w-full text-left px-3 py-1 text-[11px] transition-colors hover:opacity-70"
-                    style={{
-                      color: s === contact.status ? C.text : C.muted,
-                      fontWeight: s === contact.status ? 600 : 400,
-                      backgroundColor:
-                        s === contact.status ? (s === "HOLD" ? "#f0ecf8" : C.accentLight) : "transparent",
-                    }}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-
-        {isStale && <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" style={{ color: C.stale }} />}
-        {hasViolations && !isStale && (
-          <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" style={{ color: C.stale }} />
-        )}
-
-        {/* Feature badges */}
-        {BADGES.map((badge, i) => {
-          const present = Boolean((contact as ContactWithRelations & Record<string, unknown>)[badge.dataKey]);
-          if (!present && !badge.alwaysShow) return null;
-          return (
+        <div className="ml-auto flex items-center gap-3">
+          {hasBriefing && (
             <a
-              key={i}
-              href={badge.route.replace(":contactId", String(contact.id))}
-              className="flex-shrink-0 hover:opacity-70 transition-colors"
-              title={badge.tooltip || ""}
-              style={{ fontSize: "14px", opacity: present ? 1 : 0.35 }}
+              href={`/briefings/${contact.id}`}
+              className="text-[11px] font-medium leading-none py-1.5 -my-1.5 transition-opacity hover:opacity-70 flex-shrink-0"
+              style={{ color: C.accentDark }}
             >
-              {badge.icon}
+              Briefing
             </a>
-          );
-        })}
+          )}
+          <a
+            href={`/journal/${contact.id}`}
+            className="text-[11px] font-medium leading-none py-1.5 -my-1.5 transition-opacity hover:opacity-70 flex-shrink-0"
+            style={{ color: hasJournal ? C.accentDark : C.muted }}
+          >
+            Journal
+          </a>
+        </div>
       </div>
 
       {/* Search snippet */}

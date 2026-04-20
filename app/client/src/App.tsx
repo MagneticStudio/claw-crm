@@ -15,18 +15,6 @@ import JournalPage from "@/pages/journal-page";
 import SetupPage from "@/pages/setup-page";
 import NotFound from "@/pages/not-found";
 
-// Badge definitions — hardcoded, no plugin indirection
-export const BADGES = [
-  { dataKey: "briefing", icon: "📋", route: "/briefings/:contactId", tooltip: "View briefing", alwaysShow: false },
-  {
-    dataKey: "relationshipJournal",
-    icon: "📓",
-    route: "/journal/:contactId",
-    tooltip: "Relationship journal",
-    alwaysShow: true,
-  },
-];
-
 // App config context — org name from DB
 // Derive color variants from a hex primary color
 function deriveColors(hex: string) {
