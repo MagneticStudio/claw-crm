@@ -2,6 +2,16 @@
 
 ## 2026-04-19
 
+### CRM Inbox Agent reference prompt + README cleanup
+New `docs/agent-prompts/crm-inbox-agent.md` — a pastable prompt for scheduled agents (Claude Cowork, OpenClaw, etc.) that do a daily inbox scan and keep the CRM aligned. Covers read discipline (full threads, sent mail, CC/BCC), what to log vs. skip for LIVE clients, dedup, tool layering, briefing generation when a meeting is imminent, and terse reporting.
+
+README cleanup while I was there:
+- Tool count updated 16+ → 25+
+- Journal added to the Why Claw feature list (was invisible)
+- MCP Tools table updated with `peek_last_journal_entry` and `batch_append_journal`
+- Entities table gained a Journal row
+- New "Agent prompts" subsection linking to `docs/agent-prompts/`
+
 ### CRM skill — proactive mental model for Claude
 New `skills/crm/SKILL.md` — a ~3 KB always-loaded skill that orients Claude to the CRM concept (five-layer data model, data-partition rule, when to invoke) before any tool call. Progressive disclosure: skill loads first, then Claude calls `get_crm_guide` for the detailed contract (stage enums, writing validator, section structure), then individual tools on demand.
 
