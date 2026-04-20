@@ -32,17 +32,6 @@ import { useContactSearch } from "@/hooks/use-contact-search";
 // Pipeline order (funnel flow, top to bottom)
 const STAGES = ["ALL", "LEAD", "MEETING", "PROPOSAL", "NEGOTIATION", "LIVE", "RELATIONSHIP", "PASS"] as const;
 
-const STAGE_ACCENT: Record<string, string> = {
-  LIVE: "#2e7d32",
-  NEGOTIATION: "#d4880f",
-  PROPOSAL: "#2563eb",
-  MEETING: "#2bbcb3",
-  LEAD: "#5a7a7a",
-  HOLD: "#6c5ce7",
-  PASS: "#c0392b",
-  RELATIONSHIP: "#1a9e96",
-};
-
 const SORT_BUCKET: Record<string, number> = {
   NEGOTIATION: 0,
   PROPOSAL: 0,
@@ -692,7 +681,6 @@ export default function CrmPage() {
                 <ContactBlock
                   key={contact.id}
                   contact={contact}
-                  accentColor={STAGE_ACCENT[contact.stage] || "#5a7a7a"}
                   searchSnippet={snippet}
                   searchTerms={searchQuery.trim().split(/\s+/).filter(Boolean)}
                   onAddInteraction={(content, date, type) =>
@@ -721,7 +709,6 @@ export default function CrmPage() {
                 <ContactBlock
                   key={contact.id}
                   contact={contact}
-                  accentColor={STAGE_ACCENT[contact.stage] || "#5a7a7a"}
                   onAddInteraction={(content, date, type) =>
                     addInteraction.mutate({ contactId: contact.id, content, date, type })
                   }

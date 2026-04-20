@@ -102,8 +102,19 @@ curl -s http://localhost:3000/api/user  # should return 401 (not authenticated)
 ### 6. UI: Change stage via command
 - Type `/stage PROPOSAL` in a contact's input
 - Press Enter
-- Verify the stage badge updates to PROPOSAL
+- Verify the flash "Stage → PROPOSAL" appears on the contact's card (briefly)
+- Switch the top stage filter to `PROPOSAL` and verify the contact now appears in that list
 - **Screenshot** → `e2e-screenshots/07-stage-changed.png`
+
+### 6b. UI: Briefing/Journal text links and status bar
+- On the contact list, verify each contact card has:
+  - A 3px colored bar on its left edge (teal for ACTIVE, violet for HOLD)
+  - A `Journal` text link on the right of the header row — teal if the relationship journal is populated, muted gray if empty
+  - A `Briefing` text link on the right of the header row **only when a briefing exists** for that contact
+- Click the `Journal` link for a contact — verify it navigates to `/journal/<id>`
+- Navigate back; click the `Briefing` link for a contact that has one — verify it navigates to `/briefings/<id>`
+- Verify **no** stage pill, status pill, or emoji badges appear on the header row
+- **Screenshot** → `e2e-screenshots/07b-header-links.png`
 
 ### 7. UI: Search contacts (Cmd+K)
 - Click the search icon (magnifying glass) in the header, OR press Cmd+K
@@ -148,10 +159,10 @@ curl -s http://localhost:3000/api/user  # should return 401 (not authenticated)
 - Call `append_journal` again with `body: "follow up next week"` (intentionally relative). Verify `ok: false` and `reason: "relative_date"` naming the phrase `next week`.
 - Call `edit_journal` with a stale `expectedHash` (e.g. `"0"`). Verify `ok: false`, `reason: "hash_conflict"`.
 - Call `edit_journal` to mutate an existing `### YYYY-MM-DD:` heading without `confirmed_with_user`. Verify `ok: false`, `reason: "destructive_edit"`. Retry with `confirmed_with_user: true` — verify it succeeds.
-- **Screenshot** → `e2e-screenshots/13-mcp-journal.png` (the CRM page showing the journal badge 📓 on the contact)
+- **Screenshot** → `e2e-screenshots/13-mcp-journal.png` (the CRM page showing the teal `Journal` link on the contact)
 
 ### 10c. UI: View, edit, and restore journal
-- From the CRM page, click the 📓 badge next to a contact (dim if empty, full opacity if populated). Should navigate to `/journal/<id>`.
+- From the CRM page, click the `Journal` text link next to a contact (muted gray if empty, teal if populated). Should navigate to `/journal/<id>`.
 - Verify the journal renders as formatted text (no `**`, `#`, or `[` visible in the rendered view).
 - Click Edit → the Tiptap editor appears. Make a small change (add a bold phrase via toolbar or add a sentence).
 - Click Save → confirm content persists (reload page, change still visible).
