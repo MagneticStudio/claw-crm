@@ -5,12 +5,7 @@ import { AlertTriangle, ArrowLeft } from "lucide-react";
 import { Link, useParams } from "wouter";
 import { useColors } from "@/App";
 import type { ContactWithRelations } from "@shared/schema";
-import {
-  BRIEFING_TEMPLATE,
-  BRIEFING_STALE_DAYS,
-  isBriefingStale,
-  briefingAgeDays,
-} from "@shared/briefing";
+import { BRIEFING_TEMPLATE, BRIEFING_STALE_DAYS, isBriefingStale, briefingAgeDays } from "@shared/briefing";
 
 export default function BriefingPage() {
   const C = useColors();
