@@ -62,6 +62,13 @@ CREATE INDEX IF NOT EXISTS contact_journal_revisions_contact_created_idx
   ON contact_journal_revisions (contact_id, created_at DESC);
 `,
   },
+  {
+    // 2026-04-20: contacts.linkedin_url — optional handle to the contact's
+    // LinkedIn profile. Biggest research unlock for briefing agents (and the
+    // user) with no downside when absent.
+    name: "add_contacts_linkedin_url",
+    sql: `ALTER TABLE contacts ADD COLUMN IF NOT EXISTS linkedin_url TEXT;`,
+  },
 ];
 
 export async function runBootMigrations(): Promise<void> {

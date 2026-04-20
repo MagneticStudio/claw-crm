@@ -104,7 +104,8 @@ Reference prompts for scheduled agents that operate on your behalf live in [`doc
 | `list_rules` / `create_rule` / `update_rule` / `delete_rule` | Manage business rules. |
 | `list_violations` | Active rule violations with contact names. |
 | `get_upcoming_meetings` / `cancel_meeting` | Meeting management. |
-| `save_briefing` / `get_briefing` | Per-contact prep notes. |
+| `prepare_briefing` | Gather everything an agent needs before writing a briefing: contact record (with `linkedinUrl`), interactions, followups, journal, any previous briefing (with `ageDays` + `stale` flag), canonical 8-section template, and the research protocol. First call in every briefing workflow. |
+| `save_briefing` / `get_briefing` | Upsert / read the briefing. `save_briefing` validates the 8-section structure and rejects missing or out-of-order sections. `get_briefing` returns content + `ageDays` + `stale` (true after 7 days). |
 | `read_journal` / `peek_last_journal_entry` | Read the full `relationship_journal` (optional `section` scope) or just the most recent dated Entry + doc hash. |
 | `edit_journal` / `append_journal` / `batch_append_journal` | Modify the journal. Absolute-dates-only validator, verbatim blockquote escape, destructive edits gated behind `confirmed_with_user`. `batch_append_journal` writes many dated entries transactionally — the bulk-migration path. |
 
@@ -159,7 +160,7 @@ Exceptions: `has_future_followup`, `stage_in` (exclude specific stages from rule
 | **Interactions** | Timeline entries — what happened (past tense). |
 | **Follow-ups** | Action items with due dates. |
 | **Meetings** | Future scheduled events. |
-| **Briefings** | Per-contact prep notes (upsert). |
+| **Briefings** | Per-contact prep for the next specific meeting. Canonical 8-section structure (TL;DR, About them, About the company, Shared ground, Our history, What to discuss, Offers / asks, Watch-outs) enforced by the server. Stale after 7 days — old briefings stop surfacing on contact cards but remain readable on the briefing page. |
 | **Journal** | Per-contact markdown narrative — Key People, Wins / Case Study Material, dated Entries. Full revision history. |
 | **Rules** | Business logic — conditions + actions as JSONB. |
 | **Violations** | Alerts created by rules, auto-cleared when resolved. |

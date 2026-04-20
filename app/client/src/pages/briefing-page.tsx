@@ -1,10 +1,16 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ArrowLeft } from "lucide-react";
+import { AlertTriangle, ArrowLeft } from "lucide-react";
 import { Link, useParams } from "wouter";
 import { useColors } from "@/App";
 import type { ContactWithRelations } from "@shared/schema";
+import {
+  BRIEFING_TEMPLATE,
+  BRIEFING_STALE_DAYS,
+  isBriefingStale,
+  briefingAgeDays,
+} from "@shared/briefing";
 
 export default function BriefingPage() {
   const C = useColors();
@@ -19,6 +25,7 @@ export default function BriefingPage() {
   const briefing = contact?.briefing;
   const [editing, setEditing] = useState(false);
   const [content, setContent] = useState("");
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Init content from briefing
   if (briefing && !editing && content !== briefing.content) {
@@ -34,11 +41,32 @@ export default function BriefingPage() {
       queryClient.invalidateQueries({ queryKey: [`/api/contacts/${contactId}`] });
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
       setEditing(false);
+      setSaveError(null);
+    },
+    onError: (err: Error) => {
+      // apiRequest throws `${status}: ${body}`. Body for validation failures
+      // is JSON — pull the message out if we can, otherwise fall through.
+      const raw = err.message || "";
+      const jsonStart = raw.indexOf("{");
+      if (jsonStart > 0) {
+        try {
+          const parsed = JSON.parse(raw.slice(jsonStart));
+          if (parsed?.message) {
+            setSaveError(parsed.message);
+            return;
+          }
+        } catch {
+          // fall through to raw
+        }
+      }
+      setSaveError(raw || "Failed to save. Check that all 8 sections are present and in order.");
     },
   });
 
   const contactName = contact ? `${contact.firstName} ${contact.lastName}` : "Loading...";
   const companyName = contact?.company?.name || "";
+  const stale = briefing ? isBriefingStale(briefing.updatedAt) : false;
+  const ageDays = briefing ? briefingAgeDays(briefing.updatedAt) : 0;
 
   // Find upcoming meetings for this contact
   const upcomingMeetings = (contact?.followups || []).filter(
@@ -90,6 +118,23 @@ export default function BriefingPage() {
           </div>
         )}
 
+        {/* Stale banner — briefing exists but hasn't been refreshed in >7 days */}
+        {stale && !editing && (
+          <div
+            className="mb-3 flex items-start gap-2 rounded-lg px-3 py-2 text-xs"
+            style={{ backgroundColor: "#fef3c7", color: "#854d0e", border: "1px solid #fbbf24" }}
+          >
+            <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 mt-px" />
+            <div>
+              <div className="font-semibold">Stale — last updated {ageDays} days ago.</div>
+              <div>
+                Briefings older than {BRIEFING_STALE_DAYS} days stop surfacing on contact cards. Refresh with your agent
+                before the next meeting.
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Briefing content */}
         <div className="bg-white" style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1.25rem" }}>
           {editing ? (
@@ -98,10 +143,18 @@ export default function BriefingPage() {
                 autoFocus
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                className="w-full text-sm leading-relaxed rounded-lg p-3 outline-none resize-none min-h-[300px]"
+                className="w-full text-sm leading-relaxed rounded-lg p-3 outline-none resize-none min-h-[400px] font-mono"
                 style={{ color: C.text, backgroundColor: C.accentLight, border: `1px solid ${C.border}` }}
-                placeholder="Write your briefing here...&#10;&#10;Talking points:&#10;- &#10;&#10;Open items:&#10;- &#10;&#10;Notes:&#10;- "
+                placeholder="Fill in each ## section. All 8 are required."
               />
+              {saveError && (
+                <div
+                  className="mt-2 text-xs rounded-lg px-3 py-2"
+                  style={{ backgroundColor: "#fee2e2", color: "#991b1b", border: "1px solid #fecaca" }}
+                >
+                  {saveError}
+                </div>
+              )}
               <div className="flex gap-2 mt-3">
                 <button
                   onClick={() => saveBriefing.mutate(content)}
@@ -114,6 +167,7 @@ export default function BriefingPage() {
                   onClick={() => {
                     setEditing(false);
                     setContent(briefing?.content || "");
+                    setSaveError(null);
                   }}
                   className="text-xs px-3 py-1.5"
                   style={{ color: C.muted }}
@@ -152,15 +206,19 @@ export default function BriefingPage() {
               <p className="text-sm mb-3" style={{ color: C.muted }}>
                 No briefing yet
               </p>
+              <p className="text-[11px] mb-3" style={{ color: C.muted }}>
+                Ask your agent to call <code>prepare_briefing</code> for research-backed prep, or start from the
+                template below.
+              </p>
               <button
                 onClick={() => {
-                  setContent("");
+                  setContent(BRIEFING_TEMPLATE(contactName, companyName));
                   setEditing(true);
                 }}
                 className="text-xs font-medium text-white px-4 py-2 rounded-lg"
                 style={{ backgroundColor: C.accentDark }}
               >
-                Create Briefing
+                Start from template
               </button>
             </div>
           )}

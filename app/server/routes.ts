@@ -17,6 +17,7 @@ import {
 import { db } from "./db";
 import { eq, and, isNull, gte, lte, asc, desc } from "drizzle-orm";
 import { toNoonUTC } from "@shared/dates";
+import { validateBriefingSections } from "@shared/briefing";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   setupAuth(app);
@@ -422,6 +423,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/briefings/:contactId", requireAuth, async (req, res) => {
     const { content } = req.body;
     if (!content || typeof content !== "string") return res.status(400).json({ message: "content required" });
+    const validation = validateBriefingSections(content);
+    if (!validation.ok) {
+      return res.status(400).json({
+        message: validation.message,
+        reason: validation.reason,
+        missing: validation.missing,
+      });
+    }
     const contactId = parseInt(req.params.contactId);
     const [existing] = await db.select().from(briefings).where(eq(briefings.contactId, contactId));
     let result;
@@ -435,7 +444,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       [result] = await db.insert(briefings).values({ contactId, content }).returning();
     }
     sseManager.broadcast({ type: "briefing_updated", contactId });
-    storage.logActivity("briefing.saved", `Briefing updated (${content.length} chars)`, { contactId, source: "agent" });
+    storage.logActivity("briefing.saved", `Briefing updated (${content.length} chars)`, { contactId, source: "user" });
     searchService.invalidate();
     res.json(result);
   });

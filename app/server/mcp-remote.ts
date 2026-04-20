@@ -32,6 +32,15 @@ import {
   ACCEPTED_DATE_FORMATS,
   todayIso,
 } from "@shared/journal";
+import {
+  BRIEFING_SECTIONS,
+  BRIEFING_STALE_DAYS,
+  BRIEFING_TEMPLATE,
+  BRIEFING_RESEARCH_PROTOCOL,
+  validateBriefingSections,
+  isBriefingStale,
+  briefingAgeDays,
+} from "@shared/briefing";
 import { db } from "./db";
 import { eq, and, isNull, gte, lte, asc, sql } from "drizzle-orm";
 import { sseManager } from "./sse";
@@ -247,8 +256,17 @@ Meetings appear alongside tasks in contact cards and the Upcoming strip.
 After a meeting happens, log it as an interaction with add_interaction.
 
 ## Briefings
-Use save_briefing to store prep notes for a contact (one per contact, upsert).
-Good for: talking points, recent news, open items before a meeting.
+A briefing is a research-backed prep document for the **next specific meeting** with one contact. One per contact (upsert). Stale after ${BRIEFING_STALE_DAYS} days — old briefings stop surfacing on contact cards until refreshed.
+
+**Workflow — always in this order:**
+1. Call \`prepare_briefing(contactId)\` to get a prep pack: the contact record (including \`linkedinUrl\` if set), interactions, active + recent followups, journal content, any existing briefing (labeled \`previousBriefing\` with \`ageDays\`), the canonical template, and the research protocol.
+2. Do the research the protocol requires: fetch LinkedIn, web-search the person + company, cross-reference against what you know about your user, re-read the journal.
+3. Write the briefing into the 8-section template.
+4. Call \`save_briefing(contactId, content)\`. The server validates every canonical section is present and in order — missing sections are rejected with a specific error.
+
+**Canonical 8 sections, enforced in order:** ${BRIEFING_SECTIONS.map((s) => `\`## ${s}\``).join(" → ")}.
+
+If a \`previousBriefing\` exists, update it in place: preserve what's still true, change what's changed, add new signal. Do not rewrite from scratch.
 
 ## Relationship Journal
 The persistent, file-like narrative of the relationship. Freeform markdown per contact, everlasting, append-mostly. Tools: \`read_journal\`, \`peek_last_journal_entry\`, \`edit_journal\`, \`append_journal\`, \`batch_append_journal\`.
@@ -589,6 +607,7 @@ IMPORTANT formatting rules:
 - email: Their direct email address. Always populate if known.
 - phone: Their direct phone number. Always populate if known.
 - website: Company website domain only (no https://), e.g. "standardcommunities.com"
+- linkedinUrl: Full URL to the contact's personal LinkedIn profile, e.g. "https://www.linkedin.com/in/jane-doe". Populate whenever known — briefing research leans on it.
 - location: City or short location, e.g. "LA" or "Torrance, CA" or "Monterrey, Mexico"
 - background: 1-2 sentences about the company and why they're relevant. Keep it SHORT — this is a quick-scan tearsheet, not a full bio. Do NOT dump all context here.
 - source: How we met or who referred them, e.g. "Ryan Chan (referral)" or "Direct" or "Met at YPO event"
@@ -608,6 +627,10 @@ After creating the contact, use add_interaction to log the key events (meetings,
       email: z.string().optional().describe("Direct email address — always include if known"),
       phone: z.string().optional().describe("Direct phone number"),
       website: z.string().optional().describe("Company website domain (no https://), e.g. 'acme.com'"),
+      linkedinUrl: z
+        .string()
+        .optional()
+        .describe("Full URL to the contact's LinkedIn profile, e.g. 'https://www.linkedin.com/in/jane-doe'"),
       location: z.string().optional().describe("City or short location, e.g. 'LA' or 'NYC'"),
       background: z
         .string()
@@ -656,6 +679,7 @@ After creating the contact, use add_interaction to log the key events (meetings,
       email: z.string().optional().describe("Direct email address"),
       phone: z.string().optional().describe("Direct phone number"),
       website: z.string().optional().describe("Company website domain (no https://)"),
+      linkedinUrl: z.string().optional().describe("Full URL to the contact's LinkedIn profile"),
       location: z.string().optional().describe("City or short location"),
       background: z.string().optional().describe("1-2 sentence company context. Keep short."),
       source: z.string().optional().describe("Referral source"),
@@ -978,15 +1002,122 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
   });
 
   // --- Briefings ---
+  // Shared contract so save_briefing and prepare_briefing stay in sync. Points
+  // at get_crm_guide for the full decision tree.
+  const BRIEFING_CONTRACT =
+    `A briefing is research-backed prep for the **next specific meeting**. One per contact. Stale after ${BRIEFING_STALE_DAYS} days. ` +
+    `Required sections in order: ${BRIEFING_SECTIONS.map((s) => `## ${s}`).join(" → ")}. ` +
+    "See get_crm_guide → Briefings for the full workflow. " +
+    "ALWAYS call prepare_briefing(contactId) first to get the template, the contact's full context, and the research protocol.";
+
+  server.tool(
+    "prepare_briefing",
+    `Get everything needed to write a briefing for a contact: the contact record (including linkedinUrl if set), all interactions, active + recently-completed followups, the relationship journal, any existing briefing (as \`previousBriefing\` with ageDays + stale flag), the canonical template, and the research protocol the agent MUST follow. Call this BEFORE save_briefing. ${BRIEFING_CONTRACT}`,
+    {
+      contactId: z.number().describe("Contact ID. Get from search_contacts."),
+    },
+    async ({ contactId }) => {
+      try {
+        const contact = await storage.getContactWithRelations(contactId);
+        if (!contact) return notFoundError("Contact", contactId, "search_contacts");
+
+        const now = new Date();
+        const previousBriefing = contact.briefing
+          ? {
+              content: contact.briefing.content,
+              updatedAt: contact.briefing.updatedAt,
+              ageDays: briefingAgeDays(contact.briefing.updatedAt, now),
+              stale: isBriefingStale(contact.briefing.updatedAt, now),
+            }
+          : null;
+
+        // Separate active followups from recently-completed ones so the agent
+        // can see both "what's open" and "what just closed" without a giant list.
+        const activeFollowups = contact.followups.filter((f) => !f.completed);
+        const completedFollowups = contact.followups
+          .filter((f) => f.completed)
+          .sort((a, b) => new Date(b.completedAt ?? 0).getTime() - new Date(a.completedAt ?? 0).getTime())
+          .slice(0, 5);
+
+        const prepPack = {
+          contact: {
+            id: contact.id,
+            firstName: contact.firstName,
+            lastName: contact.lastName,
+            title: contact.title,
+            email: contact.email,
+            phone: contact.phone,
+            website: contact.website,
+            linkedinUrl: contact.linkedinUrl,
+            location: contact.location,
+            background: contact.background,
+            source: contact.source,
+            additionalContacts: contact.additionalContacts,
+            stage: contact.stage,
+            status: contact.status,
+            cadence: contact.cadence,
+            company: contact.company
+              ? { id: contact.company.id, name: contact.company.name, website: contact.company.website }
+              : null,
+          },
+          interactions: contact.interactions.map((i) => ({
+            date: i.date,
+            type: i.type,
+            content: i.content,
+          })),
+          activeFollowups: activeFollowups.map((f) => ({
+            id: f.id,
+            type: f.type,
+            dueDate: f.dueDate,
+            content: f.content,
+            time: f.time,
+            location: f.location,
+          })),
+          recentlyCompletedFollowups: completedFollowups.map((f) => ({
+            type: f.type,
+            completedAt: f.completedAt,
+            content: f.content,
+          })),
+          journal: contact.relationshipJournal ?? null,
+          previousBriefing,
+          template: BRIEFING_TEMPLATE(`${contact.firstName} ${contact.lastName}`, contact.company?.name),
+          research_protocol: BRIEFING_RESEARCH_PROTOCOL,
+          required_sections: BRIEFING_SECTIONS,
+          instructions:
+            "Follow the research_protocol above. Then write a briefing that exactly matches the template: all 8 sections in order. Call save_briefing(contactId, content) with the result. Validation will reject the save if any canonical section is missing or out of order.",
+        };
+
+        return { content: [{ type: "text" as const, text: JSON.stringify(prepPack, null, 2) }] };
+      } catch (err: unknown) {
+        return {
+          content: [{ type: "text" as const, text: actionableError("preparing briefing", err) }],
+          isError: true,
+        };
+      }
+    },
+  );
+
   server.tool(
     "save_briefing",
-    "Save a meeting prep briefing for a contact. One per contact (upsert). Use bullet points for scannability.",
+    `Save a meeting prep briefing for a contact (upsert). Validates the 8-section canonical structure — rejects content with missing or out-of-order sections. ${BRIEFING_CONTRACT}`,
     {
       contactId: z.number(),
-      content: z.string().describe("Briefing text — talking points, context, prep notes"),
+      content: z
+        .string()
+        .describe(
+          `Full briefing markdown. MUST contain all 8 canonical sections as \`## Section\` headers in order: ${BRIEFING_SECTIONS.map((s) => `## ${s}`).join(" → ")}. Produce via prepare_briefing's template.`,
+        ),
     },
     async ({ contactId, content }) => {
       try {
+        const validation = validateBriefingSections(content);
+        if (!validation.ok) {
+          return {
+            content: [{ type: "text" as const, text: validation.message }],
+            isError: true,
+          };
+        }
+
         const [existing] = await db.select().from(briefings).where(eq(briefings.contactId, contactId));
         if (existing) {
           await db.update(briefings).set({ content, updatedAt: new Date() }).where(eq(briefings.contactId, contactId));
@@ -1021,7 +1152,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
 
   server.tool(
     "get_briefing",
-    "Get the prep briefing for a contact.",
+    `Get the current briefing for a contact. Returns content plus ageDays and stale (true if >${BRIEFING_STALE_DAYS}d old). Stale briefings are still returned so the agent can refresh them via prepare_briefing + save_briefing. For writing a new briefing, use prepare_briefing instead — it bundles everything the agent needs.`,
     {
       contactId: z.number(),
     },
@@ -1031,10 +1162,20 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
         if (!b)
           return {
             content: [
-              { type: "text" as const, text: `No briefing for contact ${contactId}. Use save_briefing to create one.` },
+              {
+                type: "text" as const,
+                text: `No briefing for contact ${contactId}. Use prepare_briefing to start one.`,
+              },
             ],
           };
-        return { content: [{ type: "text" as const, text: b.content }] };
+        const now = new Date();
+        const payload = {
+          content: b.content,
+          updatedAt: b.updatedAt,
+          ageDays: briefingAgeDays(b.updatedAt, now),
+          stale: isBriefingStale(b.updatedAt, now),
+        };
+        return { content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }] };
       } catch (err: unknown) {
         return { content: [{ type: "text" as const, text: actionableError("reading briefing", err) }], isError: true };
       }

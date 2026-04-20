@@ -55,6 +55,7 @@ export const contacts = pgTable("contacts", {
   email: text("email"),
   phone: text("phone"),
   website: text("website"),
+  linkedinUrl: text("linkedin_url"),
   location: text("location"),
   background: text("background"),
   status: text("status").notNull().default("ACTIVE"), // ACTIVE | HOLD
