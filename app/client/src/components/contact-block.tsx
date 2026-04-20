@@ -5,6 +5,7 @@ import type { ContactWithRelations } from "@shared/schema";
 import type { SearchSnippet } from "@/hooks/use-contact-search";
 import { fmtDate, fmtDateInput } from "@/lib/utils";
 import { useColors } from "@/App";
+import { isBriefingStale } from "@shared/briefing";
 
 const HOLD_COLOR = "#6c5ce7";
 
@@ -259,7 +260,9 @@ export function ContactBlock({
   const inputColor = command.type !== "none" ? COMMAND_COLORS[command.type] : undefined;
 
   const statusColor = contact.status === "HOLD" ? HOLD_COLOR : C.accent;
-  const hasBriefing = Boolean(contact.briefing);
+  // Stale briefings (>7d) stop surfacing here — they're not prep material.
+  // Content is still available via the briefing page so the user can refresh.
+  const hasBriefing = Boolean(contact.briefing && !isBriefingStale(contact.briefing.updatedAt));
   const hasJournal = Boolean(contact.relationshipJournal);
 
   return (

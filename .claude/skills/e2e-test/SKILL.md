@@ -110,11 +110,28 @@ curl -s http://localhost:3000/api/user  # should return 401 (not authenticated)
 - On the contact list, verify each contact card has:
   - A 3px colored bar on its left edge (teal for ACTIVE, violet for HOLD)
   - A `Journal` text link on the right of the header row — teal if the relationship journal is populated, muted gray if empty
-  - A `Briefing` text link on the right of the header row **only when a briefing exists** for that contact
+  - A `Briefing` text link on the right of the header row **only when a briefing exists AND it's <7 days old** for that contact
 - Click the `Journal` link for a contact — verify it navigates to `/journal/<id>`
 - Navigate back; click the `Briefing` link for a contact that has one — verify it navigates to `/briefings/<id>`
 - Verify **no** stage pill, status pill, or emoji badges appear on the header row
 - **Screenshot** → `e2e-screenshots/07b-header-links.png`
+
+### 6c. UI: Briefing template + validation + staleness
+- Navigate to `/briefings/<id>` for a contact without a briefing. Verify the empty state reads "No briefing yet" and shows a **Start from template** button. Click it.
+- Verify the textarea prefills with the 8-section skeleton (`## TL;DR` → `## About them` → `## About the company` → `## Shared ground` → `## Our history` → `## What to discuss` → `## Offers / asks` → `## Watch-outs`), monospace, HTML comments acting as placeholders.
+- Edit one section and click **Save**. Verify it persists.
+- Now test validation: edit the briefing, delete the `## Watch-outs` section, click Save. Verify the save is rejected with a red error box naming the missing section and telling you to call `prepare_briefing`.
+- Fabricate a stale briefing (age > 7 days) — via DB: `UPDATE briefings SET updated_at = NOW() - INTERVAL '8 days' WHERE contact_id = <id>;`
+- Reload `/briefings/<id>`. Verify a yellow **Stale** banner appears above the briefing: "Stale — last updated 8 days ago. Briefings older than 7 days stop surfacing on contact cards."
+- Navigate back to the contact list (`/`). Verify the `Briefing` text link on that contact's card is **gone** (the Journal link is still there).
+- **Screenshot** → `e2e-screenshots/07c-briefing-template-and-staleness.png`
+
+### 6d. MCP: prepare_briefing + save_briefing validation
+- Call `prepare_briefing` via MCP with a known contactId. Verify the response JSON includes: `contact` (with `linkedinUrl` field), `interactions`, `activeFollowups`, `recentlyCompletedFollowups`, `journal`, `previousBriefing` (with `content`, `updatedAt`, `ageDays`, `stale`) if one exists, `template`, `research_protocol`, `required_sections`, and `instructions`.
+- Call `save_briefing` via MCP with malformed content (e.g. missing sections). Verify `isError: true` and the error text enumerates every missing section plus the canonical order.
+- Call `save_briefing` via MCP with content that has all 8 sections out of order. Verify `isError: true` and the error names the first out-of-order header.
+- Call `save_briefing` via MCP with a valid 8-section briefing. Verify it succeeds.
+- Call `get_briefing` via MCP on the contact. Verify the response JSON includes `content`, `updatedAt`, `ageDays`, and `stale: false`.
 
 ### 7. UI: Search contacts (Cmd+K)
 - Click the search icon (magnifying glass) in the header, OR press Cmd+K

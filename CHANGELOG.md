@@ -2,6 +2,21 @@
 
 ## 2026-04-20
 
+### Briefing upgrade — research protocol, enforced 8-section format, staleness
+Briefings were a single free-form blob. The agent got no guidance on what to research, no target format, no prior context beyond what it bothered to look up. Every briefing was invented from vibes.
+
+**New MCP tool — `prepare_briefing(contactId)`.** Always call this first. Returns a JSON prep pack: the contact record (including `linkedinUrl` if set), every interaction, active + recently-completed followups, the relationship journal, any existing briefing (labeled `previousBriefing` with `ageDays` + `stale` flag), the canonical template, a `required_sections` list, and the research protocol the agent must follow before writing. The protocol tells the agent to draw on its knowledge of the user, fetch the contact's LinkedIn, web-search the person and company, cross-reference for shared ground, and re-read the journal. If a previous briefing exists, it's handed back as a starting point — agents update in place rather than rewriting.
+
+**Canonical 8-section format, enforced server-side.** Every briefing must contain `## TL;DR → ## About them → ## About the company → ## Shared ground → ## Our history → ## What to discuss → ## Offers / asks → ## Watch-outs`, in order. `save_briefing` validates and rejects with a specific error naming missing or out-of-order sections; the REST PUT endpoint validates too, so the UI gets the same guardrail. The error message points the agent back at `prepare_briefing` for the template. UI "Start from template" prefills the 8-section skeleton on first create.
+
+**Staleness — 7-day TTL.** A briefing stops surfacing on the contact list once it's >7 days old. The `Briefing` text link disappears from the contact card. The briefing page still renders the content with a yellow stale banner + age callout so the user can review and refresh with their agent. `get_briefing` and `prepare_briefing` both return `stale` + `ageDays` so agents know when to refresh vs. preserve.
+
+**New contact field — `linkedinUrl`.** Optional text field on `contacts`. Exposed through `create_contact`, `update_contact`, `get_contact`, and `prepare_briefing`. Biggest research unlock for the agent: a direct pointer to the person's profile. Boot migration adds the column idempotently.
+
+**Rewritten `get_crm_guide` → Briefings section.** The one-liner that said "store prep notes" is now a full workflow: always call prepare_briefing → research per protocol → write to template → save_briefing validates. Points at the enforced section list and the staleness rule.
+
+`app/shared/briefing.ts` owns the contract — constants, template, validator, staleness helper — so server (MCP + REST), client (contact card + briefing page) all read the same truth.
+
 ### Contact header: text links for Briefing/Journal, quieter status
 Emoji badges (📋 / 📓) are gone. Briefing and Journal now appear as plain teal text links on the right of the contact card header, matching the existing `more…` / `Show N earlier` link style already used inside the card. Much better tap targets on mobile, and consistent visual language across the row.
 
