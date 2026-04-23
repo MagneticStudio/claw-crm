@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-04-23
+
+### Fix: "days until" off-by-one for followups due tomorrow
+The Upcoming list and contact-card follow-up chips used `differenceInDays` from date-fns, which measures 24-hour periods rather than calendar-day boundaries. With due dates stored at noon UTC and "now" at 8 AM PT, tomorrow's item was only ~21 hours away and rounded down to `0d` — items due tomorrow displayed as "today-ish" when they should have read `1d`. Switched both spots to `differenceInCalendarDays`, which counts midnight crossings independent of the hour-of-day. Items due 4/24 now correctly show `1d` on 4/23.
+
 ## 2026-04-20
 
 ### Briefing upgrade — research protocol, enforced 8-section format, staleness

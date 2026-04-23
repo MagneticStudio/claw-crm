@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { KanbanBoard } from "@/components/kanban/kanban-board";
 import { Link } from "wouter";
-import { format, isPast, isToday, differenceInDays } from "date-fns";
+import { format, isPast, isToday, differenceInCalendarDays } from "date-fns";
 import type { Followup, ActivityLogEntry, Briefing } from "@shared/schema";
 import { fmtDate } from "@/lib/utils";
 import { useConfig, useColors } from "@/App";
@@ -491,7 +491,10 @@ export default function CrmPage() {
                   const due = new Date(fu.dueDate);
                   const isOverdue = isPast(due) && !isToday(due);
                   const isTodayDue = isToday(due);
-                  const daysUntil = differenceInDays(due, new Date());
+                  // Calendar-day difference — counts midnight crossings, so an item due tomorrow
+                  // reads as "1d" regardless of what hour it is today. differenceInDays measures
+                  // 24h periods, which is wrong for human-facing "days until".
+                  const daysUntil = differenceInCalendarDays(due, new Date());
                   const dateColor = isOverdue ? C.red : isTodayDue ? C.stale : C.accentDark;
                   const isCompleting = completingUpcomingId === fu.id;
 
