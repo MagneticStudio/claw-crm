@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { isPast, isToday, differenceInDays } from "date-fns";
+import { isPast, isToday, differenceInCalendarDays } from "date-fns";
 import { Square, AlertTriangle, Trash2, Clock } from "lucide-react";
 import type { ContactWithRelations } from "@shared/schema";
 import type { SearchSnippet } from "@/hooks/use-contact-search";
@@ -551,7 +551,8 @@ export function ContactBlock({
               const due = new Date(fu.dueDate);
               const isOverdue = isPast(due) && !isToday(due);
               const isTodayDue = isToday(due);
-              const daysUntil = differenceInDays(due, new Date());
+              // Calendar-day difference — see note in crm-page.tsx.
+              const daysUntil = differenceInCalendarDays(due, new Date());
               const isEditingFu = editingFollowupId === fu.id;
               const isCompleting = completingFollowupId === fu.id;
 
