@@ -6,6 +6,7 @@ import { Link, useParams } from "wouter";
 import { useColors } from "@/App";
 import type { ContactWithRelations } from "@shared/schema";
 import { BRIEFING_TEMPLATE, BRIEFING_STALE_DAYS, isBriefingStale, briefingAgeDays } from "@shared/briefing";
+import { Markdown } from "@/components/markdown";
 
 export default function BriefingPage() {
   const C = useColors();
@@ -173,12 +174,8 @@ export default function BriefingPage() {
             </div>
           ) : briefing ? (
             <div>
-              <div
-                className="text-sm leading-relaxed whitespace-pre-wrap cursor-text"
-                style={{ color: C.text }}
-                onClick={() => setEditing(true)}
-              >
-                {briefing.content}
+              <div className="cursor-text" onClick={() => setEditing(true)}>
+                <Markdown>{briefing.content}</Markdown>
               </div>
               <div
                 className="flex items-center justify-between mt-4 pt-3"

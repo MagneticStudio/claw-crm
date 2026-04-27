@@ -2,6 +2,17 @@
 
 ## 2026-04-27
 
+### Briefing + journal render markdown properly, sized for the app
+The briefing page wasn't rendering markdown at all (`whitespace-pre-wrap` over the raw content). The journal page used Tailwind Typography's `prose prose-sm`, which produces big article-style typography that doesn't match the rest of the UI's compact 11–13px Montserrat aesthetic. Both pages also surfaced HTML comment placeholders from the skeleton templates (e.g. `<!-- Roster of stakeholders... -->`) directly in the read view.
+
+New shared `<Markdown>` component in `client/src/components/markdown.tsx` is now used by both pages. It:
+- Strips HTML comments before rendering, so skeleton placeholders never leak.
+- Replaces `prose` with custom-sized components matching the app: 13px body, 15px title, 11px uppercase tracked section labels, teal-accented `### YYYY-MM-DD:` entries, compact bullets, teal-bordered italic blockquotes for verbatim email/transcript material, JetBrains-style inline `code`.
+- Uses Montserrat throughout, inherits theme colors via `useColors()`.
+
+### Untrack stray `.playwright-hub` artifacts
+`.playwright-mcp/` is gitignored (line 6 of `.gitignore`) but four `console-*.log` files were tracked from before the rule existed. Removed via `git rm --cached` — the directory remains on disk and will keep being created by the playwright tooling, just not synced to GitHub.
+
 ### Fix: followup date edits silently revert on Save
 The followup edit flow's Save button used `onMouseDown` + `e.preventDefault()` — pattern copy-pasted from the *interaction* edit flow, where it correctly prevents the input's `onBlur` from firing `handleInteractionSave` first. The followup inputs have no `onBlur`, so the `preventDefault` was unnecessary and actively broke the native `<input type="date">` picker: focus stayed on the input, the picker's value didn't always commit to React state in time, and the save handler closed over a stale `editingFollowupDate`. New date got dropped, old date persisted.
 
