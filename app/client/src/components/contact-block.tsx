@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { isPast, isToday, differenceInCalendarDays } from "date-fns";
 import { Square, AlertTriangle, Trash2, Clock } from "lucide-react";
 import type { ContactWithRelations } from "@shared/schema";
@@ -132,6 +132,10 @@ export function ContactBlock({
   const [editingFollowupId, setEditingFollowupId] = useState<number | null>(null);
   const [editingFollowupText, setEditingFollowupText] = useState("");
   const [editingFollowupDate, setEditingFollowupDate] = useState("");
+  // Live reference to the date <input> so save can read the committed value
+  // directly. Bypasses any React batching / browser quirk where onChange
+  // doesn't fire until blur (Safari's <input type="date"> behavior).
+  const followupDateRef = useRef<HTMLInputElement>(null);
   const [completingFollowupId, setCompletingFollowupId] = useState<number | null>(null);
   const [completingFollowupText, setCompletingFollowupText] = useState("");
 
@@ -247,8 +251,10 @@ export function ContactBlock({
   const handleFollowupSave = (id: number, origDate: string) => {
     const updates: { content?: string; dueDate?: string } = {};
     if (editingFollowupText.trim()) updates.content = editingFollowupText;
-    if (editingFollowupDate && editingFollowupDate !== origDate)
-      updates.dueDate = new Date(editingFollowupDate + "T12:00:00").toISOString();
+    // Prefer the live DOM value over React state — `<input type="date">` on
+    // Safari only fires onChange on blur, so state can lag behind the picker.
+    const liveDate = followupDateRef.current?.value || editingFollowupDate;
+    if (liveDate && liveDate !== origDate) updates.dueDate = new Date(liveDate + "T12:00:00").toISOString();
     if (Object.keys(updates).length > 0) {
       onUpdateFollowup(id, updates);
       showFlash("Updated");
@@ -623,6 +629,7 @@ export function ContactBlock({
                 return (
                   <div key={fu.id} className="flex items-center gap-1.5 text-xs">
                     <input
+                      ref={followupDateRef}
                       type="date"
                       value={editingFollowupDate}
                       onChange={(e) => setEditingFollowupDate(e.target.value)}
@@ -646,18 +653,19 @@ export function ContactBlock({
                       style={{ border: `1px solid ${C.border}`, color: C.text }}
                     />
                     <button
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        handleFollowupSave(fu.id, fmtDateInput(due));
-                      }}
+                      // onClick (not onMouseDown+preventDefault): the date inputs here
+                      // have no onBlur handler, so the focus-trap pattern used in the
+                      // interaction edit flow is unnecessary — and it actively breaks
+                      // the native date picker, which can leave its value uncommitted
+                      // when the user hits Save without first clicking elsewhere.
+                      onClick={() => handleFollowupSave(fu.id, fmtDateInput(due))}
                       className="text-[10px] font-medium"
                       style={{ color: C.accentDark }}
                     >
                       Save
                     </button>
                     <button
-                      onMouseDown={(e) => {
-                        e.preventDefault();
+                      onClick={() => {
                         onDeleteFollowup(fu.id);
                         setEditingFollowupId(null);
                         showFlash("Deleted");

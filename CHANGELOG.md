@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-04-27
+
+### Fix: followup date edits silently revert on Save
+The followup edit flow's Save button used `onMouseDown` + `e.preventDefault()` — pattern copy-pasted from the *interaction* edit flow, where it correctly prevents the input's `onBlur` from firing `handleInteractionSave` first. The followup inputs have no `onBlur`, so the `preventDefault` was unnecessary and actively broke the native `<input type="date">` picker: focus stayed on the input, the picker's value didn't always commit to React state in time, and the save handler closed over a stale `editingFollowupDate`. New date got dropped, old date persisted.
+
+Two fixes:
+- Switched the Save and Trash buttons from `onMouseDown` + `preventDefault` to plain `onClick`. The focus-trap pattern wasn't needed here.
+- Added a `ref` on the date input and read its live DOM value at save time, falling back to React state. This bulletproofs against Safari's `<input type="date">` quirk where `onChange` only fires on blur — the live ref always has the committed value regardless of React batching.
+
+Verified by manually setting the DOM input value without dispatching events (mimicking Safari's stale-state scenario) and clicking Save — date persisted correctly.
+
 ## 2026-04-23
 
 ### Fix: "days until" off-by-one for followups due tomorrow
