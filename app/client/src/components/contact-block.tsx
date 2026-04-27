@@ -254,8 +254,7 @@ export function ContactBlock({
     // Prefer the live DOM value over React state — `<input type="date">` on
     // Safari only fires onChange on blur, so state can lag behind the picker.
     const liveDate = followupDateRef.current?.value || editingFollowupDate;
-    if (liveDate && liveDate !== origDate)
-      updates.dueDate = new Date(liveDate + "T12:00:00").toISOString();
+    if (liveDate && liveDate !== origDate) updates.dueDate = new Date(liveDate + "T12:00:00").toISOString();
     if (Object.keys(updates).length > 0) {
       onUpdateFollowup(id, updates);
       showFlash("Updated");
