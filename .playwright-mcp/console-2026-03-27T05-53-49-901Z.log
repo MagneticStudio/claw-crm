@@ -1,2 +1,0 @@
-[  330739ms] [ERROR] WebSocket connection to 'ws://localhost:3000/?token=2irCGwN7y58j' failed:  @ http://localhost:3000/@vite/client:535
-[  331747ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0

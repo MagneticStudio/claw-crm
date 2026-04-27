@@ -4,8 +4,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ArrowLeft, Clock, RefreshCw } from "lucide-react";
 import { Link, useParams } from "wouter";
 import { useColors } from "@/App";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { Markdown as MarkdownView } from "@/components/markdown";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Markdown } from "tiptap-markdown";
@@ -204,9 +203,7 @@ export default function JournalPage() {
           ) : (
             <div>
               {journal.initialized ? (
-                <div className="prose prose-sm max-w-none" style={{ color: C.text }}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{journal.content}</ReactMarkdown>
-                </div>
+                <MarkdownView>{journal.content}</MarkdownView>
               ) : (
                 <div className="text-center py-8">
                   <p className="text-sm mb-3" style={{ color: C.muted }}>
