@@ -579,11 +579,11 @@ export default function CrmPage() {
                   };
 
                   return (
-                    <div key={fu.id} className="group/upcoming">
-                      <div className="flex items-center gap-2 text-sm">
+                    <div key={fu.id} className="group/upcoming py-0.5">
+                      <div className="flex items-start gap-2">
                         {isMeeting ? (
                           <span
-                            className={`flex-shrink-0 ${isTodayMeeting ? "cursor-pointer" : ""}`}
+                            className={`flex-shrink-0 leading-none mt-0.5 ${isTodayMeeting ? "cursor-pointer" : ""}`}
                             onClick={isTodayMeeting ? () => toggleMeetingExpand(fu.id) : undefined}
                           >
                             {meetingIcon}
@@ -594,58 +594,66 @@ export default function CrmPage() {
                               setCompletingUpcomingId(fu.id);
                               setCompletingUpcomingText(fu.content);
                             }}
-                            className="flex-shrink-0 hover:opacity-70 transition-colors"
+                            className="flex-shrink-0 hover:opacity-70 transition-colors mt-1"
                             title="Complete"
                           >
                             <Square className="h-3.5 w-3.5" style={{ color: dateColor }} />
                           </button>
                         )}
-                        <span className="font-bold flex-shrink-0" style={{ color: isMeeting ? "#2563eb" : dateColor }}>
-                          {fmtDate(due)}
-                          {fu.time ? ` ${fu.time}` : ""}
-                        </span>
-                        <span className="truncate min-w-0" style={{ color: C.text }}>
-                          {fu.content}
-                          {fu.location ? ` — ${fu.location}` : ""}
-                        </span>
-                        <span className="text-xs flex-shrink-0 whitespace-nowrap" style={{ color: C.muted }}>
-                          {contactName}
-                        </span>
-                        {isOverdue && (
-                          <span className="text-xs font-semibold flex-shrink-0" style={{ color: C.red }}>
-                            OVERDUE
-                          </span>
-                        )}
-                        {isTodayDue && (
-                          <span className="text-xs font-semibold flex-shrink-0" style={{ color: C.stale }}>
-                            TODAY
-                          </span>
-                        )}
-                        {!isOverdue && !isTodayDue && daysUntil <= 7 && (
-                          <span className="text-xs flex-shrink-0" style={{ color: C.muted }}>
-                            {daysUntil}d
-                          </span>
-                        )}
-                        <span className="hidden group-hover/upcoming:inline-flex items-center gap-1 flex-shrink-0">
-                          <Clock className="h-3 w-3" style={{ color: C.muted }} />
-                          {[1, 7, 14].map((d) => (
-                            <button
-                              key={d}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleUpcomingSnooze(d);
-                              }}
-                              className="text-[10px] px-1.5 py-0.5 rounded-full transition-colors hover:opacity-80"
-                              style={{ backgroundColor: C.accentLight, color: C.accentDark }}
-                              title={`Snooze ${d} day${d > 1 ? "s" : ""}`}
+                        <div className="flex-1 min-w-0">
+                          {/* Meta line — date, time, contact, relative pill, hover snooze */}
+                          <div className="flex items-center gap-1.5 text-[11px] leading-tight flex-wrap">
+                            <span
+                              className="font-semibold whitespace-nowrap"
+                              style={{ color: isMeeting ? "#2563eb" : dateColor }}
                             >
-                              +{d}d
-                            </button>
-                          ))}
-                        </span>
+                              {fmtDate(due)}
+                              {fu.time ? ` ${fu.time}` : ""}
+                            </span>
+                            {isOverdue && (
+                              <span className="font-semibold uppercase tracking-wide" style={{ color: C.red }}>
+                                · Overdue
+                              </span>
+                            )}
+                            {isTodayDue && (
+                              <span className="font-semibold uppercase tracking-wide" style={{ color: C.stale }}>
+                                · Today
+                              </span>
+                            )}
+                            {!isOverdue && !isTodayDue && daysUntil <= 7 && (
+                              <span style={{ color: C.muted }}>· {daysUntil}d</span>
+                            )}
+                            <span style={{ color: C.muted }}>·</span>
+                            <span className="truncate" style={{ color: C.muted }}>
+                              {contactName}
+                            </span>
+                            <span className="hidden group-hover/upcoming:inline-flex items-center gap-1 ml-auto">
+                              <Clock className="h-3 w-3" style={{ color: C.muted }} />
+                              {[1, 7, 14].map((d) => (
+                                <button
+                                  key={d}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleUpcomingSnooze(d);
+                                  }}
+                                  className="text-[10px] px-1.5 py-0.5 rounded-full transition-colors hover:opacity-80"
+                                  style={{ backgroundColor: C.accentLight, color: C.accentDark }}
+                                  title={`Snooze ${d} day${d > 1 ? "s" : ""}`}
+                                >
+                                  +{d}d
+                                </button>
+                              ))}
+                            </span>
+                          </div>
+                          {/* Content line — full width, primary readable */}
+                          <div className="text-sm leading-snug mt-0.5" style={{ color: C.text }}>
+                            {fu.content}
+                            {fu.location ? <span style={{ color: C.muted }}> — {fu.location}</span> : null}
+                          </div>
+                        </div>
                         {isTodayMeeting && (
                           <ChevronDown
-                            className={`h-3 w-3 flex-shrink-0 transition-transform cursor-pointer ${isExp ? "rotate-180" : ""}`}
+                            className={`h-3.5 w-3.5 flex-shrink-0 mt-1 transition-transform cursor-pointer ${isExp ? "rotate-180" : ""}`}
                             style={{ color: C.muted }}
                             onClick={() => toggleMeetingExpand(fu.id)}
                           />

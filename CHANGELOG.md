@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-04-29
+
+### Upcoming list: 2-line layout so task content is actually readable on mobile
+At 390 px viewport every Upcoming row crammed checkbox + date + time + content + contact name + day-relative onto a single flex line. The content column had `truncate min-w-0` and the others were `flex-shrink-0`, so the content got squashed — a "Check for replies on Santa Monica deal" task displayed as `Check for repl…` with the meta still visible. Useless when the whole point of Upcoming is scanning what to do next.
+
+Restructured each row into a small meta strip on top (`4/28 · TODAY · Laurent Slutzky`, smaller and muted) and the task content on its own line below, full-width and readable. Day-relative markers (`OVERDUE`, `TODAY`, `1d`) move from screaming bold pills to inline `· Today` / `· Overdue` segments that keep their warning colors but stop dominating. Snooze hover row stays put (desktop hover only). Meeting expand chevron still aligned to the row top.
+
+Same layout works at all widths — desktop has the same 2-line structure but everything reads even more easily.
+
 ## 2026-04-27
 
 ### Briefing + journal render markdown properly, sized for the app
