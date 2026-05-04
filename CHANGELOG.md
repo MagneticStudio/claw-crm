@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-05-04
+
+### Seed: idempotent wipe-then-insert; populates journal, briefings, linkedin URLs
+The seed accumulated duplicates on each re-run (we'd end up with three "Sarah Chen" rows). Now TRUNCATEs every table CASCADE before inserting, so re-running gives a clean state every time. Adds a safety guardrail: refuses to run against a non-local DB unless `CLAW_SEED_FORCE=1` is set, prints the target host, and pauses 3 seconds for the operator to abort.
+
+Also catches the seed up to features that have shipped since:
+- **Sarah Chen:** rich relationship journal (Key People + Wins + 3 Entries with absolute dates) + a fresh 8-section briefing dated today.
+- **Marcus Webb:** smaller journal + a 10-day-old briefing that demonstrates the staleness banner + hidden-on-card behavior.
+- **Elena Vasquez & James Thornton:** medium journals.
+- **Rachel Foster:** initialised journal skeleton.
+- **All five active prospects:** populated `linkedinUrl` so briefing-research flows have something to follow.
+
+New `dIso(daysFromToday)` helper produces inline `YYYY-MM-DD` strings for the journal/briefing prose so dated content stays anchored against today regardless of when the seed runs.
+
 ## 2026-04-29
 
 ### Upcoming list: 2-line layout so task content is actually readable on mobile
