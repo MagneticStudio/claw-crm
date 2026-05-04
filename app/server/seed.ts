@@ -46,23 +46,40 @@ function assertSafeToWipe(): void {
 /**
  * Wipe every app table CASCADE so the seed is idempotent. Lists tables
  * explicitly (not `pg_class`) so a typo never reaches a table we don't expect.
+ * Skips tables that don't exist yet — `session` is created lazily by
+ * connect-pg-simple at runtime, so it's missing on a freshly-pushed schema
+ * (notably CI's test DB).
  */
 async function wipeAllTables(): Promise<void> {
-  await db.execute(sql`
-    TRUNCATE
-      contacts,
-      companies,
-      interactions,
-      followups,
-      briefings,
-      rules,
-      rule_violations,
-      contact_journal_revisions,
-      activity_log,
-      users,
-      session
-    RESTART IDENTITY CASCADE;
-  `);
+  const candidates = [
+    "contacts",
+    "companies",
+    "interactions",
+    "followups",
+    "briefings",
+    "rules",
+    "rule_violations",
+    "contact_journal_revisions",
+    "activity_log",
+    "users",
+    "session",
+  ];
+  // Inline the candidate list — names are literal and trusted, no SQL injection
+  // surface. Avoids drizzle's array-binding quirks across drivers.
+  const inList = candidates.map((t) => `'${t}'`).join(", ");
+  const result = await db.execute<{ table_name: string }>(
+    sql.raw(
+      `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN (${inList})`,
+    ),
+  );
+  // drizzle's `db.execute` returns either { rows: [...] } or [...] depending on the driver.
+  const rows =
+    (result as unknown as { rows?: { table_name: string }[] }).rows ?? (result as unknown as { table_name: string }[]);
+  const existing = rows.map((r) => r.table_name);
+  if (existing.length === 0) return;
+  // Names are drawn from the literal allow-list above, so quoting + raw is safe.
+  const truncateList = existing.map((t) => `"${t}"`).join(", ");
+  await db.execute(sql.raw(`TRUNCATE ${truncateList} RESTART IDENTITY CASCADE;`));
 }
 
 async function seed() {
