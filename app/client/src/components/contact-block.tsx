@@ -5,7 +5,7 @@ import type { ContactWithRelations } from "@shared/schema";
 import type { SearchSnippet } from "@/hooks/use-contact-search";
 import { fmtDate, fmtDateInput } from "@/lib/utils";
 import { useColors } from "@/App";
-import { isBriefingStale } from "@shared/briefing";
+import { getBriefingStaleness } from "@shared/briefing";
 
 const HOLD_COLOR = "#6c5ce7";
 
@@ -268,7 +268,17 @@ export function ContactBlock({
   const statusColor = contact.status === "HOLD" ? HOLD_COLOR : C.accent;
   // Stale briefings (>7d) stop surfacing here — they're not prep material.
   // Content is still available via the briefing page so the user can refresh.
-  const hasBriefing = Boolean(contact.briefing && !isBriefingStale(contact.briefing.updatedAt));
+  // Briefing stops surfacing here when stale — by age (>7d) OR by meeting
+  // linkage (the meeting it was scoped to has happened, or a newer meeting is
+  // now next on this contact). Raw content stays available on the briefing
+  // page so the user can review + refresh.
+  const meetingCtx = contact.followups
+    .filter((f) => f.type === "meeting")
+    .map((f) => ({ id: f.id, dueDate: f.dueDate, completed: f.completed, cancelled: !!f.cancelledAt }));
+  const briefingStaleness = contact.briefing
+    ? getBriefingStaleness({ meetingId: contact.briefing.meetingId, updatedAt: contact.briefing.updatedAt }, meetingCtx)
+    : null;
+  const hasBriefing = Boolean(contact.briefing && !briefingStaleness?.stale);
   const hasJournal = Boolean(contact.relationshipJournal);
 
   return (

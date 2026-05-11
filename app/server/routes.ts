@@ -421,7 +421,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.put("/api/briefings/:contactId", requireAuth, async (req, res) => {
-    const { content } = req.body;
+    const { content, meetingId } = req.body;
     if (!content || typeof content !== "string") return res.status(400).json({ message: "content required" });
     const validation = validateBriefingSections(content);
     if (!validation.ok) {
@@ -431,17 +431,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         missing: validation.missing,
       });
     }
+    // meetingId is optional; accept null/undefined/number. Anything else is bad input.
+    const normalizedMeetingId =
+      meetingId === null || meetingId === undefined
+        ? null
+        : typeof meetingId === "number" && Number.isFinite(meetingId)
+          ? meetingId
+          : undefined;
+    if (normalizedMeetingId === undefined) {
+      return res.status(400).json({ message: "meetingId must be a number, null, or omitted" });
+    }
     const contactId = parseInt(req.params.contactId);
     const [existing] = await db.select().from(briefings).where(eq(briefings.contactId, contactId));
     let result;
     if (existing) {
       [result] = await db
         .update(briefings)
-        .set({ content, updatedAt: new Date() })
+        .set({ content, meetingId: normalizedMeetingId, updatedAt: new Date() })
         .where(eq(briefings.contactId, contactId))
         .returning();
     } else {
-      [result] = await db.insert(briefings).values({ contactId, content }).returning();
+      [result] = await db.insert(briefings).values({ contactId, content, meetingId: normalizedMeetingId }).returning();
     }
     sseManager.broadcast({ type: "briefing_updated", contactId });
     storage.logActivity("briefing.saved", `Briefing updated (${content.length} chars)`, { contactId, source: "user" });

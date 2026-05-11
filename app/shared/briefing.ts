@@ -146,6 +146,69 @@ export function isBriefingStale(updatedAt: Date | string | number, now: Date = n
 }
 
 /**
+ * Why a briefing is considered stale. `null` means it isn't stale.
+ *   - `age`: simply >7 days old.
+ *   - `meeting_completed`: the meeting it was scoped to has already happened.
+ *   - `wrong_meeting`: the contact's next pending meeting is a different one
+ *     than the briefing's linked meeting.
+ */
+export type BriefingStaleReason = "age" | "meeting_completed" | "wrong_meeting" | null;
+
+export interface BriefingMeetingContext {
+  /** The meeting (followup of type "meeting") the briefing was written for. */
+  meetingId?: number | null;
+  updatedAt: Date | string | number;
+}
+
+export interface MeetingLite {
+  id: number;
+  dueDate: Date | string;
+  completed: boolean;
+  cancelled?: boolean;
+}
+
+/**
+ * Full staleness check with optional meeting linkage. Pass the briefing's
+ * `meetingId` + `updatedAt`, and the contact's full list of meetings
+ * (active + completed; cancelled are ignored). Returns { stale, reason }.
+ *
+ * A briefing without a `meetingId` falls back to age-only — backward
+ * compatible with all pre-2026-05-04 briefings.
+ */
+export function getBriefingStaleness(
+  briefing: BriefingMeetingContext,
+  meetings: MeetingLite[],
+  now: Date = new Date(),
+): { stale: boolean; reason: BriefingStaleReason } {
+  // Age check first — applies regardless of linkage.
+  if (isBriefingStale(briefing.updatedAt, now)) {
+    return { stale: true, reason: "age" };
+  }
+  if (briefing.meetingId == null) {
+    return { stale: false, reason: null };
+  }
+  const linked = meetings.find((m) => m.id === briefing.meetingId);
+  if (linked) {
+    if (linked.completed) {
+      return { stale: true, reason: "meeting_completed" };
+    }
+    if (linked.cancelled) {
+      return { stale: true, reason: "meeting_completed" };
+    }
+  }
+  // Find the next pending (uncancelled, uncompleted, future-or-today) meeting.
+  const pending = meetings
+    .filter((m) => !m.completed && !m.cancelled)
+    .slice()
+    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+  const next = pending[0];
+  if (next && next.id !== briefing.meetingId) {
+    return { stale: true, reason: "wrong_meeting" };
+  }
+  return { stale: false, reason: null };
+}
+
+/**
  * Integer days since the briefing was last updated. Floors to the full day.
  */
 export function briefingAgeDays(updatedAt: Date | string | number, now: Date = new Date()): number {

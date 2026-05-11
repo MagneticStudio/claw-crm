@@ -30,6 +30,7 @@ import {
   CANONICAL_SECTIONS,
   OPTIONAL_SECTIONS,
   ACCEPTED_DATE_FORMATS,
+  detectDateSpanDays,
   todayIso,
 } from "@shared/journal";
 import {
@@ -38,7 +39,7 @@ import {
   BRIEFING_TEMPLATE,
   BRIEFING_RESEARCH_PROTOCOL,
   validateBriefingSections,
-  isBriefingStale,
+  getBriefingStaleness,
   briefingAgeDays,
 } from "@shared/briefing";
 import { db } from "./db";
@@ -256,29 +257,32 @@ Meetings appear alongside tasks in contact cards and the Upcoming strip.
 After a meeting happens, log it as an interaction with add_interaction.
 
 ## Briefings
-A briefing is a research-backed prep document for the **next specific meeting** with one contact. One per contact (upsert). Stale after ${BRIEFING_STALE_DAYS} days — old briefings stop surfacing on contact cards until refreshed.
+A briefing is a research-backed prep document for the **next specific meeting** with one contact. One per contact (upsert). Stale when the briefing's linked meeting is completed, when a newer meeting is now next on the contact, OR after ${BRIEFING_STALE_DAYS} days — whichever comes first.
 
 **Workflow — always in this order:**
-1. Call \`prepare_briefing(contactId)\` to get a prep pack: the contact record (including \`linkedinUrl\` if set), interactions, active + recent followups, journal content, any existing briefing (labeled \`previousBriefing\` with \`ageDays\`), the canonical template, and the research protocol.
+1. Call \`prepare_briefing(contactId)\` to get a prep pack: the contact record (including \`linkedinUrl\` if set), interactions, active + recent followups, journal content, any existing briefing (labeled \`previousBriefing\` with \`ageDays\` + \`staleReason\` + \`linkedMeeting\`), a \`candidateMeetingId\` (the next pending meeting), the canonical template, and the research protocol.
 2. Do the research the protocol requires: fetch LinkedIn, web-search the person + company, cross-reference against what you know about your user, re-read the journal.
 3. Write the briefing into the 8-section template.
-4. Call \`save_briefing(contactId, content)\`. The server validates every canonical section is present and in order — missing sections are rejected with a specific error.
+4. Call \`save_briefing(contactId, content, meetingId)\`. Pass \`candidateMeetingId\` as \`meetingId\` so future staleness checks know which meeting this was for. The server validates every canonical section is present and in order — missing sections are rejected with a specific error.
 
 **Canonical 8 sections, enforced in order:** ${BRIEFING_SECTIONS.map((s) => `\`## ${s}\``).join(" → ")}.
+
+**Meeting linkage:** when \`previousBriefing.meetingId\` differs from the contact's current next pending meeting, \`staleReason: "wrong_meeting"\` — the briefing was for a different conversation. Refresh it. When the linked meeting is already completed, \`staleReason: "meeting_completed"\`. If you can't write a fresh one immediately and the existing one is misleading, use \`delete_briefing\`.
 
 If a \`previousBriefing\` exists, update it in place: preserve what's still true, change what's changed, add new signal. Do not rewrite from scratch.
 
 ## Relationship Journal
 The persistent, file-like narrative of the relationship. Freeform markdown per contact, everlasting, append-mostly. Tools: \`read_journal\`, \`peek_last_journal_entry\`, \`edit_journal\`, \`append_journal\`, \`batch_append_journal\`.
 
-**Document structure — canonical three, optional three more:**
+**Document structure — canonical four, optional three more:**
 1. \`## Key People\` — stakeholder roster with roles and current relationship state. Edit in place.
 2. \`## Wins / Case Study Material\` — durable outcomes, measurable impact, quotable moments. Case-study fodder. Edit in place.
-3. \`## Entries\` — dated narrative entries. Append-only via \`append_journal\` / \`batch_append_journal\`. Each entry: \`### YYYY-MM-DD: <title>\` followed by body.
+3. \`## Engagement History\` — retrospective phase summaries, scope evolution, role changes, compensation history. Edit in place via \`edit_journal\`. No \`### YYYY-MM-DD:\` headings required. Use this when authoring content about a span (weeks/months/years) rather than a single dated event — those entries belong here, NOT in \`## Entries\` with backdated headings.
+4. \`## Entries\` — dated narrative entries. Append-only via \`append_journal\` / \`batch_append_journal\`. Each entry: \`### YYYY-MM-DD: <title>\` followed by body.
 
 Optional sections, add only when you have real signal that doesn't fit: \`## Open Questions\`, \`## Risks\`, \`## Next Moves\`. Default answer is still Entries.
 
-Every new dated content lands in Entries. Evergreen context edits in place in Key People / Wins.
+Every single-date narrative lands in Entries. Span-based retrospectives land in Engagement History. Evergreen context edits in place in Key People / Wins.
 
 **THE DATA-PARTITION RULE (read this every time you're about to write):**
 
@@ -293,6 +297,7 @@ Every piece of info has exactly ONE home. The DATE belongs to the atom; the MEAN
 | Prep for the **next specific** conversation | **briefing** | save_briefing | bullets, replaced at next prep |
 | A stakeholder with a role | **journal → Key People** | edit_journal | edit in place |
 | A durable outcome / case-study material | **journal → Wins** | edit_journal | edit in place |
+| Retrospective phase summary, scope evolution, role/comp change | **journal → Engagement History** | edit_journal | edit in place, no \`### date:\` heading |
 | Interpretation, strategic read, "what this means", narrative context | **journal → Entries** | append_journal | long-form prose, dated |
 
 **Worked example — single call with Jeff on 2026-04-18:**
@@ -1012,7 +1017,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
 
   server.tool(
     "prepare_briefing",
-    `Get everything needed to write a briefing for a contact: the contact record (including linkedinUrl if set), all interactions, active + recently-completed followups, the relationship journal, any existing briefing (as \`previousBriefing\` with ageDays + stale flag), the canonical template, and the research protocol the agent MUST follow. Call this BEFORE save_briefing. ${BRIEFING_CONTRACT}`,
+    `Get everything needed to write a briefing for a contact: the contact record (including linkedinUrl if set), all interactions, active + recently-completed followups, the relationship journal, any existing briefing (as \`previousBriefing\` with ageDays + stale + staleReason + linkedMeeting), the canonical template, the research protocol, and a \`candidateMeetingId\` (the next pending meeting on the contact, if any — pass through to save_briefing.meetingId so future staleness checks know which meeting this was for). Call this BEFORE save_briefing. ${BRIEFING_CONTRACT}`,
     {
       contactId: z.number().describe("Contact ID. Get from search_contacts."),
     },
@@ -1022,17 +1027,54 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
         if (!contact) return notFoundError("Contact", contactId, "search_contacts");
 
         const now = new Date();
+        // Meeting context for the briefing's staleness + the candidate meeting id.
+        const meetings = contact.followups
+          .filter((f) => f.type === "meeting")
+          .map((f) => ({
+            id: f.id,
+            dueDate: f.dueDate,
+            completed: f.completed,
+            cancelled: !!f.cancelledAt,
+            content: f.content,
+            time: f.time,
+            location: f.location,
+          }));
+        const nextPendingMeeting = meetings
+          .filter((m) => !m.completed && !m.cancelled)
+          .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0];
+
         const previousBriefing = contact.briefing
-          ? {
-              content: contact.briefing.content,
-              updatedAt: contact.briefing.updatedAt,
-              ageDays: briefingAgeDays(contact.briefing.updatedAt, now),
-              stale: isBriefingStale(contact.briefing.updatedAt, now),
-            }
+          ? (() => {
+              const stale = getBriefingStaleness(
+                { meetingId: contact.briefing?.meetingId, updatedAt: contact.briefing!.updatedAt },
+                meetings,
+                now,
+              );
+              const linked = contact.briefing!.meetingId
+                ? (meetings.find((m) => m.id === contact.briefing!.meetingId) ?? null)
+                : null;
+              return {
+                content: contact.briefing!.content,
+                updatedAt: contact.briefing!.updatedAt,
+                meetingId: contact.briefing!.meetingId,
+                ageDays: briefingAgeDays(contact.briefing!.updatedAt, now),
+                stale: stale.stale,
+                staleReason: stale.reason,
+                linkedMeeting: linked
+                  ? {
+                      id: linked.id,
+                      dueDate: linked.dueDate,
+                      content: linked.content,
+                      time: linked.time,
+                      location: linked.location,
+                      completed: linked.completed,
+                      cancelled: linked.cancelled,
+                    }
+                  : null,
+              };
+            })()
           : null;
 
-        // Separate active followups from recently-completed ones so the agent
-        // can see both "what's open" and "what just closed" without a giant list.
         const activeFollowups = contact.followups.filter((f) => !f.completed);
         const completedFollowups = contact.followups
           .filter((f) => f.completed)
@@ -1080,11 +1122,24 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
           })),
           journal: contact.relationshipJournal ?? null,
           previousBriefing,
+          // The meeting this briefing should be threaded against. Pass to
+          // save_briefing.meetingId so staleness can later detect when the
+          // briefing's meeting has passed or been replaced.
+          candidateMeetingId: nextPendingMeeting?.id ?? null,
+          candidateMeeting: nextPendingMeeting
+            ? {
+                id: nextPendingMeeting.id,
+                dueDate: nextPendingMeeting.dueDate,
+                content: nextPendingMeeting.content,
+                time: nextPendingMeeting.time,
+                location: nextPendingMeeting.location,
+              }
+            : null,
           template: BRIEFING_TEMPLATE(`${contact.firstName} ${contact.lastName}`, contact.company?.name),
           research_protocol: BRIEFING_RESEARCH_PROTOCOL,
           required_sections: BRIEFING_SECTIONS,
           instructions:
-            "Follow the research_protocol above. Then write a briefing that exactly matches the template: all 8 sections in order. Call save_briefing(contactId, content) with the result. Validation will reject the save if any canonical section is missing or out of order.",
+            "Follow the research_protocol above. Write a briefing matching the 8-section template, then call save_briefing(contactId, content, meetingId). Pass candidateMeetingId as meetingId so the briefing is scoped to this specific meeting — staleness checks rely on it. If candidateMeetingId is null (no pending meeting), omit meetingId.",
         };
 
         return { content: [{ type: "text" as const, text: JSON.stringify(prepPack, null, 2) }] };
@@ -1099,7 +1154,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
 
   server.tool(
     "save_briefing",
-    `Save a meeting prep briefing for a contact (upsert). Validates the 8-section canonical structure — rejects content with missing or out-of-order sections. ${BRIEFING_CONTRACT}`,
+    `Save a meeting prep briefing for a contact (upsert). Validates the 8-section canonical structure — rejects content with missing or out-of-order sections. Pass \`meetingId\` (from prepare_briefing.candidateMeetingId) to scope the briefing to a specific meeting so staleness can detect when that meeting has passed or been replaced. ${BRIEFING_CONTRACT}`,
     {
       contactId: z.number(),
       content: z
@@ -1107,8 +1162,15 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
         .describe(
           `Full briefing markdown. MUST contain all 8 canonical sections as \`## Section\` headers in order: ${BRIEFING_SECTIONS.map((s) => `## ${s}`).join(" → ")}. Produce via prepare_briefing's template.`,
         ),
+      meetingId: z
+        .number()
+        .nullable()
+        .optional()
+        .describe(
+          "Followup ID of the meeting this briefing was written for. Use prepare_briefing.candidateMeetingId. Optional — when null/omitted, staleness falls back to age-only (>7 days).",
+        ),
     },
-    async ({ contactId, content }) => {
+    async ({ contactId, content, meetingId }) => {
       try {
         const validation = validateBriefingSections(content);
         if (!validation.ok) {
@@ -1120,9 +1182,12 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
 
         const [existing] = await db.select().from(briefings).where(eq(briefings.contactId, contactId));
         if (existing) {
-          await db.update(briefings).set({ content, updatedAt: new Date() }).where(eq(briefings.contactId, contactId));
+          await db
+            .update(briefings)
+            .set({ content, meetingId: meetingId ?? null, updatedAt: new Date() })
+            .where(eq(briefings.contactId, contactId));
         } else {
-          await db.insert(briefings).values({ contactId, content });
+          await db.insert(briefings).values({ contactId, content, meetingId: meetingId ?? null });
         }
         sseManager.broadcast({ type: "briefing_updated", contactId });
         storage.logActivity("briefing.saved", `Briefing saved (${content.length} chars)`, {
@@ -1131,7 +1196,12 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
         });
         return {
           content: [
-            { type: "text" as const, text: `Briefing saved for contact ${contactId} (${content.length} chars)` },
+            {
+              type: "text" as const,
+              text:
+                `Briefing saved for contact ${contactId} (${content.length} chars)` +
+                (meetingId ? `, linked to meeting ${meetingId}.` : "."),
+            },
           ],
         };
       } catch (err: unknown) {
@@ -1140,7 +1210,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
             content: [
               {
                 type: "text" as const,
-                text: `Contact ${contactId} not found. Use search_contacts to find valid contacts.`,
+                text: `Contact ${contactId} or meeting ${meetingId} not found. Use search_contacts / get_upcoming_meetings to find valid ids.`,
               },
             ],
             isError: true,
@@ -1152,7 +1222,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
 
   server.tool(
     "get_briefing",
-    `Get the current briefing for a contact. Returns content plus ageDays and stale (true if >${BRIEFING_STALE_DAYS}d old). Stale briefings are still returned so the agent can refresh them via prepare_briefing + save_briefing. For writing a new briefing, use prepare_briefing instead — it bundles everything the agent needs.`,
+    `Get the current briefing for a contact. Returns content + ageDays + stale + staleReason (\`age\` / \`meeting_completed\` / \`wrong_meeting\` / null) + linkedMeeting (date/content/location of the meeting it was scoped to, when meetingId is set). Stale briefings are still returned so the agent can refresh them. For writing a new briefing, use prepare_briefing — it bundles everything the agent needs.`,
     {
       contactId: z.number(),
     },
@@ -1168,16 +1238,72 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
               },
             ],
           };
+        // Pull the contact's meetings to compute meeting-aware staleness.
+        const allFollowups = await db.select().from(followups).where(eq(followups.contactId, contactId));
+        const meetings = allFollowups
+          .filter((f) => f.type === "meeting")
+          .map((f) => ({
+            id: f.id,
+            dueDate: f.dueDate,
+            completed: f.completed,
+            cancelled: !!f.cancelledAt,
+            content: f.content,
+            time: f.time,
+            location: f.location,
+          }));
         const now = new Date();
+        const stale = getBriefingStaleness({ meetingId: b.meetingId, updatedAt: b.updatedAt }, meetings, now);
+        const linked = b.meetingId ? (meetings.find((m) => m.id === b.meetingId) ?? null) : null;
         const payload = {
           content: b.content,
           updatedAt: b.updatedAt,
+          meetingId: b.meetingId,
           ageDays: briefingAgeDays(b.updatedAt, now),
-          stale: isBriefingStale(b.updatedAt, now),
+          stale: stale.stale,
+          staleReason: stale.reason,
+          linkedMeeting: linked
+            ? {
+                id: linked.id,
+                dueDate: linked.dueDate,
+                content: linked.content,
+                time: linked.time,
+                location: linked.location,
+                completed: linked.completed,
+                cancelled: linked.cancelled,
+              }
+            : null,
         };
         return { content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }] };
       } catch (err: unknown) {
         return { content: [{ type: "text" as const, text: actionableError("reading briefing", err) }], isError: true };
+      }
+    },
+  );
+
+  server.tool(
+    "delete_briefing",
+    `Delete the current briefing for a contact. Use when the existing briefing is stale-and-targeting-a-completed-meeting (or otherwise wrong) and you don't have a fresh one ready to replace it. Re-create via prepare_briefing + save_briefing when ready.`,
+    {
+      contactId: z.number(),
+    },
+    async ({ contactId }) => {
+      try {
+        const result = await db.delete(briefings).where(eq(briefings.contactId, contactId)).returning();
+        if (result.length === 0) {
+          return {
+            content: [
+              { type: "text" as const, text: `No briefing found for contact ${contactId} — nothing to delete.` },
+            ],
+          };
+        }
+        sseManager.broadcast({ type: "briefing_deleted", contactId });
+        storage.logActivity("briefing.deleted", `Briefing deleted`, { contactId, source: "agent" });
+        return { content: [{ type: "text" as const, text: `Briefing deleted for contact ${contactId}.` }] };
+      } catch (err: unknown) {
+        return {
+          content: [{ type: "text" as const, text: actionableError("deleting briefing", err) }],
+          isError: true,
+        };
       }
     },
   );
@@ -1194,11 +1320,19 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
 
   server.tool(
     "read_journal",
-    `Read a contact's relationship_journal. Returns the document text, a content hash (pass as expectedHash on subsequent edits to avoid silent overwrite), and whether the doc has been initialized. Call this BEFORE any edit so you're working from current content. Use the optional \`section\` parameter to scope the read when you only need Key People, Wins, or Entries — saves context on mature journals. ${JOURNAL_CONTRACT}`,
+    `Read a contact's relationship_journal. Returns the document text, a content hash (pass as expectedHash on subsequent edits to avoid silent overwrite), and whether the doc has been initialized. Call this BEFORE any edit so you're working from current content. Use the optional \`section\` parameter to scope the read when you only need Key People, Wins, Engagement History, or Entries — saves context on mature journals. ${JOURNAL_CONTRACT}`,
     {
       contactId: z.number().describe("Contact ID. Get from search_contacts or get_contact."),
       section: z
-        .enum(["Key People", "Wins / Case Study Material", "Entries", "Open Questions", "Risks", "Next Moves"])
+        .enum([
+          "Key People",
+          "Wins / Case Study Material",
+          "Engagement History",
+          "Entries",
+          "Open Questions",
+          "Risks",
+          "Next Moves",
+        ])
         .optional()
         .describe(
           "Return only the named section (between `## Section` and the next `## `). If omitted, returns the full doc. Full-doc hash is always returned for use with edit_journal.",
@@ -1291,7 +1425,15 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
           "Replacement text. Absolute dates only. Substantive content (>40 chars) must contain an absolute date. On rejection the error payload includes: field, reason, offending phrase, excerpt around the match, and position — enough to fix without guessing.",
         ),
       section: z
-        .enum(["Key People", "Wins / Case Study Material", "Entries", "Open Questions", "Risks", "Next Moves"])
+        .enum([
+          "Key People",
+          "Wins / Case Study Material",
+          "Engagement History",
+          "Entries",
+          "Open Questions",
+          "Risks",
+          "Next Moves",
+        ])
         .optional()
         .describe(
           "Scope the edit to within one named section. When set, oldString is matched only inside that section's content and the edit cannot cross section boundaries.",
@@ -1550,6 +1692,17 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
           source: "agent",
           metadata: { entryHeading, seeded, backdated: date !== undefined && date !== todayIso() },
         });
+        // Soft warning when the body contains absolute dates spanning >7 days —
+        // retrospective spans almost certainly belong in `## Engagement History`
+        // rather than a single dated `## Entries` entry. Non-blocking.
+        const spanDays = detectDateSpanDays(body);
+        const spanWarning =
+          spanDays !== null && spanDays > 7
+            ? {
+                code: "wide_date_span",
+                message: `Body references dates spanning ${spanDays} days. Retrospective spans usually belong in \`## Engagement History\` (edited in place) rather than a single dated \`## Entries\` entry. Consider edit_journal to move this content there instead.`,
+              }
+            : null;
         return {
           content: [
             {
@@ -1560,6 +1713,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
                 newHash: result.newHash,
                 newSize: result.newSize,
                 seeded,
+                ...(spanWarning ? { warning: spanWarning } : {}),
               }),
             },
           ],
