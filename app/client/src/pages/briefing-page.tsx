@@ -5,7 +5,7 @@ import { AlertTriangle, ArrowLeft } from "lucide-react";
 import { Link, useParams } from "wouter";
 import { useColors } from "@/App";
 import type { ContactWithRelations } from "@shared/schema";
-import { BRIEFING_TEMPLATE, BRIEFING_STALE_DAYS, isBriefingStale, briefingAgeDays } from "@shared/briefing";
+import { BRIEFING_TEMPLATE, BRIEFING_STALE_DAYS, getBriefingStaleness, briefingAgeDays } from "@shared/briefing";
 import { Markdown } from "@/components/markdown";
 
 export default function BriefingPage() {
@@ -61,8 +61,20 @@ export default function BriefingPage() {
 
   const contactName = contact ? `${contact.firstName} ${contact.lastName}` : "Loading...";
   const companyName = contact?.company?.name || "";
-  const stale = briefing ? isBriefingStale(briefing.updatedAt) : false;
+
+  // Meeting context for the new staleness check (age + meeting linkage).
+  const meetingCtx = (contact?.followups || [])
+    .filter((f) => f.type === "meeting")
+    .map((f) => ({ id: f.id, dueDate: f.dueDate, completed: f.completed, cancelled: !!f.cancelledAt }));
+  const staleness = briefing
+    ? getBriefingStaleness({ meetingId: briefing.meetingId, updatedAt: briefing.updatedAt }, meetingCtx)
+    : { stale: false, reason: null as null | string };
+  const stale = staleness.stale;
+  const staleReason = staleness.reason;
   const ageDays = briefing ? briefingAgeDays(briefing.updatedAt) : 0;
+  const linkedMeeting = briefing?.meetingId
+    ? (contact?.followups || []).find((f) => f.id === briefing.meetingId) || null
+    : null;
 
   // Find upcoming meetings for this contact
   const upcomingMeetings = (contact?.followups || []).filter(
@@ -114,7 +126,7 @@ export default function BriefingPage() {
           </div>
         )}
 
-        {/* Stale banner — briefing exists but hasn't been refreshed in >7 days */}
+        {/* Stale banner — briefing exists but is stale (age OR meeting linkage). */}
         {stale && !editing && (
           <div
             className="mb-3 flex items-start gap-2 rounded-lg px-3 py-2 text-xs"
@@ -122,12 +134,29 @@ export default function BriefingPage() {
           >
             <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 mt-px" />
             <div>
-              <div className="font-semibold">Stale — last updated {ageDays} days ago.</div>
+              <div className="font-semibold">
+                {staleReason === "meeting_completed"
+                  ? "Stale — the meeting this briefing was for has already happened."
+                  : staleReason === "wrong_meeting"
+                    ? "Stale — a newer meeting is now next on this contact. This briefing was for a different conversation."
+                    : `Stale — last updated ${ageDays} days ago.`}
+              </div>
               <div>
-                Briefings older than {BRIEFING_STALE_DAYS} days stop surfacing on contact cards. Refresh with your agent
-                before the next meeting.
+                {staleReason === "age"
+                  ? `Briefings older than ${BRIEFING_STALE_DAYS} days stop surfacing on contact cards. Refresh with your agent before the next meeting.`
+                  : "Refresh with your agent before the next meeting, or delete the briefing if it's no longer useful."}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Linked meeting context — small line below the stale banner / above the briefing card. */}
+        {linkedMeeting && !editing && (
+          <div className="mb-3 text-[11px]" style={{ color: C.muted }}>
+            <span className="font-semibold uppercase tracking-wider mr-1.5">For meeting:</span>
+            {new Date(linkedMeeting.dueDate).toLocaleDateString()}
+            {linkedMeeting.time ? ` ${linkedMeeting.time}` : ""} — {linkedMeeting.content}
+            {linkedMeeting.location ? ` · ${linkedMeeting.location}` : ""}
           </div>
         )}
 

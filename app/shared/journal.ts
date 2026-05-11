@@ -118,15 +118,27 @@ const ABSOLUTE_DATE_PATTERNS: Array<{ label: string; re: RegExp }> = [
 export const ACCEPTED_DATE_FORMATS = ABSOLUTE_DATE_PATTERNS.map((p) => p.label);
 
 /**
- * Required top-level sections. Every journal has at least these three.
+ * Required top-level sections. Every journal has at least these four.
  * Destructive-heading detection only protects `### YYYY-MM-DD:` entry headings;
  * `##` sections are documentation contract, not enforcement.
+ *
+ * Engagement History sits between Wins and Entries. It's edited in place
+ * (no `### YYYY-MM-DD:` requirement) and is the canonical home for
+ * retrospective phase summaries — content authored about a span rather than
+ * about a single date (scope evolution, role changes, compensation history,
+ * "Q1 2025 — Phase 1 AI enablement"). Mixing these into Entries with
+ * backdated headings distorts the chronological timeline.
  */
-export const CANONICAL_SECTIONS = ["Key People", "Wins / Case Study Material", "Entries"] as const;
+export const CANONICAL_SECTIONS = [
+  "Key People",
+  "Wins / Case Study Material",
+  "Engagement History",
+  "Entries",
+] as const;
 
 /**
  * Sections an agent MAY add when they have genuine signal that doesn't fit the
- * canonical three. Keep the list short; the journal should favor narrative over
+ * canonical set. Keep the list short; the journal should favor narrative over
  * structure.
  */
 export const OPTIONAL_SECTIONS = ["Open Questions", "Risks", "Next Moves"] as const;
@@ -135,10 +147,13 @@ export function JOURNAL_SKELETON(name: string): string {
   return `# ${name}
 
 ## Key People
-<!-- Roster of stakeholders with roles and the current relationship state. Who matters, what they care about. -->
+<!-- Roster of stakeholders with roles and the current relationship state. Who matters, what they care about. Edit in place. -->
 
 ## Wins / Case Study Material
-<!-- Durable wins worth preserving for future BD and case studies. Concrete outcomes, measurable impact, quotable moments. -->
+<!-- Durable wins worth preserving for future BD and case studies. Concrete outcomes, measurable impact, quotable moments. Edit in place. -->
+
+## Engagement History
+<!-- Retrospective phase summaries, scope evolution, role changes, compensation history. For content authored about a span rather than about a single date. Edit in place. No \`### YYYY-MM-DD:\` headings required here. -->
 
 ## Entries
 <!-- Dated narrative entries, newest at the bottom. Append-only. Each entry: ### YYYY-MM-DD: <title> -->
@@ -310,10 +325,87 @@ export function todayIso(): string {
 }
 
 /**
+ * Strip a leading absolute-date prefix from a title. Agents (especially LLMs)
+ * regularly prepend the date as the first token of `title`, producing
+ * double-dated headings like `### 2026-05-10: 2026-05-10: Foo`. Stripped
+ * silently — no existing valid title format starts with one of these
+ * date+colon patterns, so this is purely additive cleanup.
+ */
+export function stripDatePrefix(title: string): string {
+  const t = title.trim();
+  // Patterns mirror the absolute-date allow-list; each anchored to start
+  // and tolerates a trailing colon + whitespace before the actual title.
+  const patterns = [
+    // 2026-05-10 / 2026-05-10:
+    /^\d{4}-\d{2}-\d{2}\s*:?\s*/,
+    // 5/10/2026 / 05/10/2026:
+    /^\d{1,2}\/\d{1,2}\/\d{4}\s*:?\s*/,
+    // May 10, 2026 / May 10 2026:
+    /^(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2},?\s+\d{4}\s*:?\s*/i,
+    // August 2025 / Q3 2025 / Spring 2026 — year-only or coarse anchors used as title prefixes
+    /^(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}\s*:?\s*/i,
+    /^Q[1-4]\s+\d{4}\s*:?\s*/i,
+    /^(?:spring|summer|fall|autumn|winter)\s+\d{4}\s*:?\s*/i,
+  ];
+  for (const re of patterns) {
+    if (re.test(t)) return t.replace(re, "").trim();
+  }
+  return t;
+}
+
+/**
+ * Detect the date span (max - min, in days) implied by a body of journal
+ * prose. Returns null when fewer than two absolute dates are present. Used
+ * to softly warn agents that retrospective spans probably belong in
+ * `## Engagement History` rather than a single `## Entries` entry.
+ */
+export function detectDateSpanDays(body: string): number | null {
+  const masked = maskBlockquotes(body);
+  const dates: Date[] = [];
+  // Only the unambiguous patterns are useful for span detection.
+  const yyyy = /\b(\d{4})-(\d{2})-(\d{2})\b/g;
+  const mdyyyy = /\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/g;
+  const monthName =
+    /\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2}),?\s+(\d{4})\b/gi;
+  let m: RegExpExecArray | null;
+  while ((m = yyyy.exec(masked))) {
+    const dt = new Date(`${m[1]}-${m[2]}-${m[3]}T12:00:00Z`);
+    if (!isNaN(dt.getTime())) dates.push(dt);
+  }
+  while ((m = mdyyyy.exec(masked))) {
+    const dt = new Date(`${m[3]}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}T12:00:00Z`);
+    if (!isNaN(dt.getTime())) dates.push(dt);
+  }
+  const months: Record<string, number> = {
+    january: 1,
+    february: 2,
+    march: 3,
+    april: 4,
+    may: 5,
+    june: 6,
+    july: 7,
+    august: 8,
+    september: 9,
+    october: 10,
+    november: 11,
+    december: 12,
+  };
+  while ((m = monthName.exec(masked))) {
+    const mm = months[m[1].toLowerCase()];
+    const dt = new Date(`${m[3]}-${String(mm).padStart(2, "0")}-${m[2].padStart(2, "0")}T12:00:00Z`);
+    if (!isNaN(dt.getTime())) dates.push(dt);
+  }
+  if (dates.length < 2) return null;
+  const times = dates.map((d) => d.getTime());
+  return Math.round((Math.max(...times) - Math.min(...times)) / (1000 * 60 * 60 * 24));
+}
+
+/**
  * Append a new Entry to the doc. If `## Entries` is missing, appends it at the
  * end. Caller may supply an explicit ISO `dateIso` to backdate migrated notes;
  * otherwise today's date is used. Returns the updated doc and the full entry
- * heading.
+ * heading. Strips any leading absolute-date prefix from `title` so the
+ * heading doesn't end up double-dated.
  */
 export function appendJournalEntry(
   doc: string,
@@ -322,7 +414,8 @@ export function appendJournalEntry(
   dateIso?: string,
 ): { updated: string; entryHeading: string } {
   const effectiveDate = dateIso && isReasonableIsoDate(dateIso) ? dateIso : todayIso();
-  const heading = `### ${effectiveDate}: ${title.trim()}`;
+  const cleanTitle = stripDatePrefix(title);
+  const heading = `### ${effectiveDate}: ${cleanTitle}`;
   const entry = `${heading}\n\n${body.trim()}\n`;
 
   const sectionRe = /^##\s+Entries\s*$/m;

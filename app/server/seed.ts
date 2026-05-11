@@ -7,6 +7,7 @@ import { hashPin } from "./auth";
 import { randomBytes } from "crypto";
 import { toNoonUTC } from "@shared/dates";
 import { JOURNAL_SKELETON } from "@shared/journal";
+import { runBootMigrations } from "./boot-migrations";
 
 /**
  * SAFETY GUARDRAIL — prevent accidentally seeding (and wiping!) a real DB.
@@ -88,6 +89,12 @@ async function seed() {
   if (process.env.CLAW_SEED_FORCE === "1") {
     await new Promise((r) => setTimeout(r, 3000));
   }
+
+  // Run idempotent boot migrations first — keeps the seed in sync with new
+  // columns (e.g. linkedin_url, briefings.meeting_id) without requiring the
+  // dev server to start once before seeding.
+  console.log("Running boot migrations...");
+  await runBootMigrations();
 
   console.log("Wiping existing data...");
   await wipeAllTables();

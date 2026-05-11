@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-05-11
+
+### Journal hygiene: triple-shot — double-dated headings, briefing/meeting linkage, Engagement History
+Three related issues surfaced during a CRM audit, all in the journal/briefing subsystem. Shipping together because they share an audience and a fix shape.
+
+**Issue 1 — Double-dated entry headings.** `append_journal` / `batch_append_journal` prepended `### YYYY-MM-DD:` while LLM callers regularly included the date as the first token of `title`, producing `### 2026-05-10: 2026-05-10: Foo`. New `stripDatePrefix(title)` helper in `shared/journal.ts` silently strips a leading absolute-date pattern from the title (YYYY-MM-DD, M/D/YYYY, "May 10, 2026", year-only "August 2025", "Q3 2025", "spring 2026") before composing the heading. Purely additive — no valid title started with one of those patterns. Existing entries untouched; the agent-side `crm-dreaming` skill handles historical cleanup via `edit_journal`.
+
+**Issue 2 — Briefings linked to a specific meeting.** Schema: new optional `briefings.meeting_id` (FK to `followups.id`, ON DELETE SET NULL). Boot migration adds the column idempotently. Tools:
+- `prepare_briefing` returns `candidateMeetingId` (next pending meeting on the contact) + `previousBriefing.linkedMeeting` / `previousBriefing.staleReason`. Agent passes `candidateMeetingId` through to `save_briefing.meetingId`.
+- `save_briefing` accepts and persists optional `meetingId`.
+- `get_briefing` returns `meetingId` + `linkedMeeting` (date/content/location) + `staleReason` (`age` / `meeting_completed` / `wrong_meeting` / null).
+- New `getBriefingStaleness(briefing, meetings)` helper in `shared/briefing.ts` — single source of truth used by client + server. A briefing is stale when age >7d, OR the linked meeting has completed, OR a newer meeting is now next pending on the contact.
+- Briefings without `meetingId` fall back to age-only — backward compatible.
+- Briefing page surfaces the reason in the stale banner ("the meeting this was for has already happened" / "a newer meeting is now next") and shows the linked meeting context line above the briefing.
+
+**Issue 3 — `## Engagement History` canonical section.** New canonical section between Wins and Entries. Edited in place via `edit_journal`, no `### YYYY-MM-DD:` requirement. Home for retrospective phase summaries — content authored about a *span* rather than about a single date (scope evolution, role changes, "Q1 2025 — Phase 1"). Mixing those into Entries with backdated headings distorted long-running timelines. Added to `CANONICAL_SECTIONS`, included in `JOURNAL_SKELETON`, accepted by `read_journal`'s `section` enum, documented in `get_crm_guide`. New `detectDateSpanDays(body)` helper plus a non-blocking `wide_date_span` warning on `append_journal` responses when the body references dates spanning >7 days — soft nudge that the content probably belongs in Engagement History.
+
+**Follow-up — `delete_briefing` MCP tool.** New tool so the dreaming skill can clear briefings flagged as stale-and-targeting-completed-meeting without an awkward placeholder save. Idempotent.
+
 ## 2026-05-04
 
 ### Seed: idempotent wipe-then-insert; populates journal, briefings, linkedin URLs

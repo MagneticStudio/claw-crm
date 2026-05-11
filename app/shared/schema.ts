@@ -169,6 +169,12 @@ export const briefings = pgTable("briefings", {
     .notNull()
     .references(() => contacts.id, { onDelete: "cascade" }),
   content: text("content").notNull(),
+  // Optional: the meeting (followup of type "meeting") this briefing was
+  // written for. When set, staleness considers whether that meeting still
+  // matches the contact's next pending meeting and whether it's completed.
+  // ON DELETE SET NULL — if the meeting is deleted, the briefing survives
+  // but reverts to age-only staleness.
+  meetingId: integer("meeting_id").references(() => followups.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

@@ -69,6 +69,29 @@ CREATE INDEX IF NOT EXISTS contact_journal_revisions_contact_created_idx
     name: "add_contacts_linkedin_url",
     sql: `ALTER TABLE contacts ADD COLUMN IF NOT EXISTS linkedin_url TEXT;`,
   },
+  {
+    // 2026-05-04: briefings.meeting_id — optional FK to the meeting (a
+    // followup of type "meeting") this briefing was prepped for. Lets the
+    // staleness check detect when the meeting has already happened or when
+    // a newer meeting is now next on the contact. ON DELETE SET NULL so the
+    // briefing survives a meeting deletion and reverts to age-only staleness.
+    name: "add_briefings_meeting_id",
+    sql: `
+ALTER TABLE briefings ADD COLUMN IF NOT EXISTS meeting_id INTEGER;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'briefings_meeting_id_followups_id_fk'
+      AND table_name = 'briefings'
+  ) THEN
+    ALTER TABLE briefings
+      ADD CONSTRAINT briefings_meeting_id_followups_id_fk
+      FOREIGN KEY (meeting_id) REFERENCES followups(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+`,
+  },
 ];
 
 export async function runBootMigrations(): Promise<void> {
