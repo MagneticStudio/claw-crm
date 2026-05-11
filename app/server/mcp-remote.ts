@@ -334,9 +334,9 @@ Tasks and interactions should be SHORT reminders. The journal is where detail li
 10. Write dense. Every word earns its place. No filler, no throat-clearing, no hedges. Capture maximum context per character.
 
 ## Confidentiality
-- NEVER put pricing or deal terms in the CRM
-- NEVER cross-reference client details between prospects
-- Proposals reference dates only, no dollar amounts
+- Pricing, dollar amounts, deal terms, fees, commission rates: allowed in the journal only (Entries, Engagement History, Wins, Key People). Forbidden in tasks, interactions, briefings, contact fields (background, source, additionalContacts). When a task or interaction needs to reference a payment or invoice, use date and scope only ("Standard paid invoice INV-2035 on 2026-05-11"), not the figure.
+- Cross-client specifics: never, in any layer. Generic patterns are fine; named-client details are not.
+- Credentials, account numbers, secrets: never, anywhere.
 `,
           },
         ],

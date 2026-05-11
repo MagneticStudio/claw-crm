@@ -2,6 +2,14 @@
 
 ## 2026-05-11
 
+### Confidentiality rule: layer-specific scoping
+The previous `get_crm_guide` confidentiality block was too blunt — "NEVER put pricing or deal terms in the CRM" — and forced agents to strip strategically important content from the journal where it actually belongs (case-study material, engagement history, partnership terms over time). New rules:
+- **Pricing / dollar amounts / fees / commission rates:** allowed in the journal only (Entries, Engagement History, Wins, Key People). Forbidden in tasks, interactions, briefings, and contact fields. Tasks/interactions reference payments by date + scope, not figure.
+- **Cross-client specifics:** never, in any layer.
+- **Credentials / account numbers / secrets:** never, anywhere.
+
+Pure text/policy update. No validator changes; the journal already accepts dollar amounts. Existing entries stay valid; cleanup of pricing in tasks/interactions is a `crm-dreaming` skill job.
+
 ### Journal hygiene: triple-shot — double-dated headings, briefing/meeting linkage, Engagement History
 Three related issues surfaced during a CRM audit, all in the journal/briefing subsystem. Shipping together because they share an audience and a fix shape.
 
