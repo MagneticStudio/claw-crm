@@ -809,7 +809,7 @@ export function ContactBlock({
               value={newNote}
               onChange={(e) => setNewNote(e.target.value)}
               onKeyDown={handleNoteSubmit}
-              placeholder="+ note, /fu 4/15 task, /mtg 4/3 2pm meeting"
+              placeholder="+ note · /fu · /mtg · /stage · /status"
               className="w-full text-xs bg-transparent border-none outline-none transition-colors"
               style={{
                 color: inputColor || C.muted,

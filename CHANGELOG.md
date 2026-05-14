@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-05-14
+
+### Slash-command placeholder advertises `/stage` and `/status`
+The contact card's slash-command input used to read `+ note, /fu 4/15 task, /mtg 4/3 2pm meeting` — only two of the four available commands. After we removed the stage/status pills (PR #77), `/stage` and `/status` became the primary edit path for those fields but weren't discoverable from the input itself. New placeholder is `+ note · /fu · /mtg · /stage · /status` — all four advertised, dropping the M/D + time syntax cues since the typing-time contextual hint above the input already shows those when you start typing.
+
 ## 2026-05-11
 
 ### Confidentiality rule: layer-specific scoping
