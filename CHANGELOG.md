@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-05-15
+
+### Meetings are never "overdue"
+A meeting is a scheduled event — once its date is in the past, it has *happened*, not become overdue. The CRM was treating past-dated meetings the same as past-dated tasks: flagging them with the red `OVERDUE` label in the Upcoming list and on contact cards, and generating Past-Due Follow-Up rule violations. Wrong semantics, wrong visual treatment.
+
+Gated three spots on `type !== "meeting"`:
+- `crm-page.tsx` Upcoming list — `isOverdue` no longer flips true for meetings.
+- `contact-block.tsx` per-contact followup display — same fix.
+- `rules-engine.ts` `followup_past_due` condition (and its activity-message helper) — meetings never match, so the rule fires on tasks only.
+
+Past meetings now render with their normal blue date prefix and neutral body text. The `no_followup_after_meeting` rule still handles the "you should log this" nudge — that's the right surface for it.
+
 ## 2026-05-14
 
 ### Slash-command placeholder advertises `/stage` and `/status`

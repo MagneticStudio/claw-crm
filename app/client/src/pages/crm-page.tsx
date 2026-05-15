@@ -489,7 +489,9 @@ export default function CrmPage() {
               <div className="space-y-1.5">
                 {allFollowups.map(({ followup: fu, contactName, briefing }) => {
                   const due = new Date(fu.dueDate);
-                  const isOverdue = isPast(due) && !isToday(due);
+                  // Meetings are scheduled events, not action items — a past meeting has
+                  // happened, it's not "overdue". Overdue only applies to tasks.
+                  const isOverdue = fu.type !== "meeting" && isPast(due) && !isToday(due);
                   const isTodayDue = isToday(due);
                   // Calendar-day difference — counts midnight crossings, so an item due tomorrow
                   // reads as "1d" regardless of what hour it is today. differenceInDays measures
