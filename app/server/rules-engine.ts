@@ -113,7 +113,12 @@ function checkCondition(
     }
     case "followup_past_due": {
       const now = new Date();
-      violated = contactFollowups.some((f) => !f.completed && new Date(f.dueDate) < now);
+      // Meetings are scheduled events, not action items — a past meeting has happened,
+      // it's not "overdue". The no_followup_after_meeting rule handles the "you should
+      // log this" nudge. Restrict past-due to tasks only.
+      violated = contactFollowups.some(
+        (f) => !f.completed && f.type !== "meeting" && new Date(f.dueDate) < now,
+      );
       break;
     }
     case "no_followup_after_meeting": {
@@ -171,7 +176,10 @@ function buildMessage(
     const daysSince = Math.floor((Date.now() - new Date(last.date).getTime()) / (1000 * 60 * 60 * 24));
     message = message.replace("{{days_since_last}}", String(daysSince));
   }
-  const overdue = contactFollowups.filter((f) => !f.completed && new Date(f.dueDate) < new Date());
+  // Same restriction as the rule itself — overdue tasks only, never meetings.
+  const overdue = contactFollowups.filter(
+    (f) => !f.completed && f.type !== "meeting" && new Date(f.dueDate) < new Date(),
+  );
   if (overdue.length > 0) message = message.replace("{{followup_content}}", overdue[0].content);
   const pastMeetings = contactInteractions.filter((i) => i.type === "meeting");
   if (pastMeetings.length > 0)

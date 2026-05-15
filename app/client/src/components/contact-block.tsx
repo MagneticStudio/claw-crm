@@ -565,7 +565,9 @@ export function ContactBlock({
           <div className="space-y-1 mb-2">
             {activeFollowups.map((fu) => {
               const due = new Date(fu.dueDate);
-              const isOverdue = isPast(due) && !isToday(due);
+              // Meetings are scheduled events, not action items — a past meeting has
+              // happened, it's not "overdue". Overdue only applies to tasks.
+              const isOverdue = fu.type !== "meeting" && isPast(due) && !isToday(due);
               const isTodayDue = isToday(due);
               // Calendar-day difference — see note in crm-page.tsx.
               const daysUntil = differenceInCalendarDays(due, new Date());
