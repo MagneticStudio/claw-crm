@@ -116,9 +116,7 @@ function checkCondition(
       // Meetings are scheduled events, not action items — a past meeting has happened,
       // it's not "overdue". The no_followup_after_meeting rule handles the "you should
       // log this" nudge. Restrict past-due to tasks only.
-      violated = contactFollowups.some(
-        (f) => !f.completed && f.type !== "meeting" && new Date(f.dueDate) < now,
-      );
+      violated = contactFollowups.some((f) => !f.completed && f.type !== "meeting" && new Date(f.dueDate) < now);
       break;
     }
     case "no_followup_after_meeting": {
