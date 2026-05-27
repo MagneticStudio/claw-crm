@@ -27,4 +27,19 @@ if command -v psql >/dev/null 2>&1; then
       echo 'export SESSION_SECRET="dev-session-secret-not-for-prod"'
     } >> "$CLAUDE_ENV_FILE"
   fi
+
+  # Push schema (idempotent) so the seed and the dev server have tables.
+  DATABASE_URL="postgresql://claw:claw@localhost:5432/claw_crm" \
+    SESSION_SECRET="dev-session-secret-not-for-prod" \
+    npm run db:push
+
+  # Seed demo data on first boot only — `npm run db:seed` wipes existing
+  # rows, so skip if a user already exists from a prior session.
+  has_user=$(sudo -u postgres psql -tAd claw_crm -c \
+    "SELECT EXISTS (SELECT 1 FROM users);" 2>/dev/null || echo "f")
+  if [ "$has_user" != "t" ]; then
+    DATABASE_URL="postgresql://claw:claw@localhost:5432/claw_crm" \
+      SESSION_SECRET="dev-session-secret-not-for-prod" \
+      npm run db:seed
+  fi
 fi
