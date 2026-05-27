@@ -45,7 +45,6 @@ import {
 import { db } from "./db";
 import { eq, and, isNull, gte, lte, asc, sql } from "drizzle-orm";
 import { sseManager } from "./sse";
-import { searchService } from "./search";
 import type { Express, Request, Response } from "express";
 import { randomUUID } from "crypto";
 
@@ -92,11 +91,11 @@ function actionableError(operation: string, err: unknown, hints?: string): strin
   // Auto-detect common issues and add guidance
   const msg = (err instanceof Error ? err.message : "").toLowerCase();
   if (msg.includes("invalid input syntax for type integer"))
-    return `${base}\n\nHint: The ID parameter must be a number. Use search_contacts to find valid IDs.`;
+    return `${base}\n\nHint: The ID parameter must be a number. Use get_dashboard to find valid IDs.`;
   if (msg.includes("not null") || msg.includes("violates not-null"))
     return `${base}\n\nHint: A required field is missing. Check the tool parameters.`;
   if (msg.includes("foreign key") || msg.includes("violates foreign key"))
-    return `${base}\n\nHint: The referenced record doesn't exist. Use search_contacts or list_rules to find valid IDs.`;
+    return `${base}\n\nHint: The referenced record doesn't exist. Use get_dashboard or list_rules to find valid IDs.`;
   return base;
 }
 
@@ -203,7 +202,7 @@ ${onboardingSection}
 
 ## Key Principles
 - This is a NOTEBOOK, not a database. Keep entries concise and scannable.
-- Always search_contacts BEFORE creating — never create duplicates.
+- Always check existing contacts via get_dashboard BEFORE creating — never create duplicates.
 - One contact record = one PRIMARY person. Use additionalContacts for secondary people at the same company.
 - The background field is 1-2 sentences of company context. Do NOT dump full history there.
 - Use add_interaction for timeline events (past tense, factual, concise).
@@ -438,112 +437,6 @@ Tasks and interactions should be SHORT reminders. The journal is where detail li
 
   // --- Read Tools ---
   server.tool(
-    "search_contacts",
-    "Full-text search across all contact data including notes, tasks, and briefings. Returns a ranked summary list with pagination.",
-    {
-      query: z
-        .string()
-        .optional()
-        .describe("Search term (full-text search across name, company, notes, tasks, briefings, email, and more)"),
-      stage: stageEnum.optional().describe(`Filter by stage: ${STAGES.join(", ")}`),
-      status: statusEnum.optional().describe(`Filter by status: ${STATUSES.join(", ")}`),
-      limit: z.number().optional().describe("Max results to return (default 25)"),
-      offset: z.number().optional().describe("Skip this many results (default 0, for pagination)"),
-    },
-    async ({ query, stage, status, limit, offset }) => {
-      try {
-        const l = limit || 25;
-        const o = offset || 0;
-
-        // Use BM25 search when query is provided
-        if (query && query.length >= 2) {
-          const searchResult = await searchService.search(query, { stage, status, limit: l, offset: o });
-          const summary = searchResult.results
-            .map((r) => {
-              const c = searchService.getContact(r.contactId);
-              if (!c) return null;
-              return {
-                id: c.id,
-                name: `${c.firstName} ${c.lastName}`,
-                company: c.company?.name,
-                stage: c.stage,
-                status: c.status,
-                email: c.email,
-                lastInteraction:
-                  c.interactions.length > 0
-                    ? {
-                        date: c.interactions[c.interactions.length - 1].date,
-                        content: c.interactions[c.interactions.length - 1].content,
-                      }
-                    : null,
-                activeFollowups: c.followups.filter((f) => !f.completed).length,
-                violations: c.violations.length,
-              };
-            })
-            .filter(Boolean);
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: JSON.stringify(
-                  { results: summary, totalCount: searchResult.totalCount, hasMore: searchResult.hasMore },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
-        }
-
-        // No query or too short — fall back to listing with optional filters
-        let results = await storage.getContactsWithRelations();
-        if (query) {
-          const q = query.toLowerCase();
-          results = results.filter(
-            (c) =>
-              `${c.firstName} ${c.lastName}`.toLowerCase().includes(q) ||
-              c.company?.name?.toLowerCase().includes(q) ||
-              c.email?.toLowerCase().includes(q),
-          );
-        }
-        if (stage) results = results.filter((c) => c.stage === stage);
-        if (status) results = results.filter((c) => c.status === status);
-
-        const { items, totalCount, hasMore } = paginate(results, l, o);
-
-        const summary = items.map((c) => ({
-          id: c.id,
-          name: `${c.firstName} ${c.lastName}`,
-          company: c.company?.name,
-          stage: c.stage,
-          status: c.status,
-          email: c.email,
-          lastInteraction:
-            c.interactions.length > 0
-              ? {
-                  date: c.interactions[c.interactions.length - 1].date,
-                  content: c.interactions[c.interactions.length - 1].content,
-                }
-              : null,
-          activeFollowups: c.followups.filter((f) => !f.completed).length,
-          violations: c.violations.length,
-        }));
-
-        return {
-          content: [
-            { type: "text" as const, text: JSON.stringify({ results: summary, totalCount, hasMore }, null, 2) },
-          ],
-        };
-      } catch (err: unknown) {
-        return {
-          content: [{ type: "text" as const, text: actionableError("searching contacts", err) }],
-          isError: true,
-        };
-      }
-    },
-  );
-
-  server.tool(
     "get_contact",
     "Get full contact details including interactions, follow-ups, and violations.",
     {
@@ -552,7 +445,7 @@ Tasks and interactions should be SHORT reminders. The journal is where detail li
     async ({ contactId }) => {
       try {
         const contact = await storage.getContactWithRelations(contactId);
-        if (!contact) return notFoundError("Contact", contactId, "search_contacts");
+        if (!contact) return notFoundError("Contact", contactId, "get_dashboard");
         return { content: [{ type: "text" as const, text: JSON.stringify(contact, null, 2) }] };
       } catch (err: unknown) {
         return {
@@ -604,7 +497,7 @@ Tasks and interactions should be SHORT reminders. The journal is where detail li
     "create_contact",
     `Create a new contact in the CRM. This is a personal advisory CRM for a solo consultant.
 
-BEFORE CREATING: Always search_contacts first to check if this person already exists. Do not create duplicates.
+BEFORE CREATING: Always check existing contacts via get_dashboard first to check if this person already exists. Do not create duplicates.
 
 IMPORTANT formatting rules:
 - firstName/lastName: The PRIMARY contact person only (one person per contact record)
@@ -699,7 +592,7 @@ After creating the contact, use add_interaction to log the key events (meetings,
         );
         if (companyName) filtered.companyId = await findOrCreateCompany(companyName);
         const c = await storage.updateContact(contactId, filtered);
-        if (!c) return notFoundError("Contact", contactId, "search_contacts");
+        if (!c) return notFoundError("Contact", contactId, "get_dashboard");
         return { content: [{ type: "text" as const, text: `Updated: ${c.firstName} ${c.lastName}` }] };
       } catch (err: unknown) {
         return { content: [{ type: "text" as const, text: actionableError("updating contact", err) }], isError: true };
@@ -740,7 +633,7 @@ Do NOT log follow-up tasks here — use create_task for those.`,
             content: [
               {
                 type: "text" as const,
-                text: `Contact ${contactId} not found. Use search_contacts to find valid contacts.`,
+                text: `Contact ${contactId} not found. Use get_dashboard to find valid contacts.`,
               },
             ],
             isError: true,
@@ -840,7 +733,7 @@ For meetings (type "meeting"): scheduled events with optional time/location.
             content: [
               {
                 type: "text" as const,
-                text: `Contact ${contactId} not found. Use search_contacts to find valid contacts.`,
+                text: `Contact ${contactId} not found. Use get_dashboard to find valid contacts.`,
               },
             ],
             isError: true,
@@ -889,7 +782,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
     async ({ contactId }) => {
       try {
         const contact = await storage.getContact(contactId);
-        if (!contact) return notFoundError("Contact", contactId, "search_contacts");
+        if (!contact) return notFoundError("Contact", contactId, "get_dashboard");
         const name = `${contact.firstName} ${contact.lastName}`;
         const deleted = await storage.deleteContact(contactId);
         if (!deleted)
@@ -1019,12 +912,12 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
     "prepare_briefing",
     `Get everything needed to write a briefing for a contact: the contact record (including linkedinUrl if set), all interactions, active + recently-completed followups, the relationship journal, any existing briefing (as \`previousBriefing\` with ageDays + stale + staleReason + linkedMeeting), the canonical template, the research protocol, and a \`candidateMeetingId\` (the next pending meeting on the contact, if any — pass through to save_briefing.meetingId so future staleness checks know which meeting this was for). Call this BEFORE save_briefing. ${BRIEFING_CONTRACT}`,
     {
-      contactId: z.number().describe("Contact ID. Get from search_contacts."),
+      contactId: z.number().describe("Contact ID. Get from get_dashboard."),
     },
     async ({ contactId }) => {
       try {
         const contact = await storage.getContactWithRelations(contactId);
-        if (!contact) return notFoundError("Contact", contactId, "search_contacts");
+        if (!contact) return notFoundError("Contact", contactId, "get_dashboard");
 
         const now = new Date();
         // Meeting context for the briefing's staleness + the candidate meeting id.
@@ -1210,7 +1103,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
             content: [
               {
                 type: "text" as const,
-                text: `Contact ${contactId} or meeting ${meetingId} not found. Use search_contacts / get_upcoming_meetings to find valid ids.`,
+                text: `Contact ${contactId} or meeting ${meetingId} not found. Use get_dashboard / get_upcoming_meetings to find valid ids.`,
               },
             ],
             isError: true,
@@ -1322,7 +1215,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
     "read_journal",
     `Read a contact's relationship_journal. Returns the document text, a content hash (pass as expectedHash on subsequent edits to avoid silent overwrite), and whether the doc has been initialized. Call this BEFORE any edit so you're working from current content. Use the optional \`section\` parameter to scope the read when you only need Key People, Wins, Engagement History, or Entries — saves context on mature journals. ${JOURNAL_CONTRACT}`,
     {
-      contactId: z.number().describe("Contact ID. Get from search_contacts or get_contact."),
+      contactId: z.number().describe("Contact ID. Get from get_dashboard.or get_contact."),
       section: z
         .enum([
           "Key People",
@@ -1341,7 +1234,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
     async ({ contactId, section }) => {
       try {
         const contact = await storage.getContact(contactId);
-        if (!contact) return notFoundError("Contact", contactId, "search_contacts");
+        if (!contact) return notFoundError("Contact", contactId, "get_dashboard");
         const initialized = contact.relationshipJournal !== null;
         const fullContent = initialized
           ? (contact.relationshipJournal as string)
@@ -1373,7 +1266,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
     async ({ contactId }) => {
       try {
         const contact = await storage.getContact(contactId);
-        if (!contact) return notFoundError("Contact", contactId, "search_contacts");
+        if (!contact) return notFoundError("Contact", contactId, "get_dashboard");
         if (contact.relationshipJournal === null) {
           return {
             content: [
@@ -1460,7 +1353,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
     async ({ contactId, oldString, newString, section, replaceAll, expectedHash, confirmed_with_user }) => {
       try {
         const contact = await storage.getContact(contactId);
-        if (!contact) return notFoundError("Contact", contactId, "search_contacts");
+        if (!contact) return notFoundError("Contact", contactId, "get_dashboard");
         if (contact.relationshipJournal === null) {
           return {
             content: [
@@ -1623,7 +1516,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
     async ({ contactId, title, body, date }) => {
       try {
         const contact = await storage.getContact(contactId);
-        if (!contact) return notFoundError("Contact", contactId, "search_contacts");
+        if (!contact) return notFoundError("Contact", contactId, "get_dashboard");
 
         if (date !== undefined && !isReasonableIsoDate(date)) {
           return {
@@ -1744,7 +1637,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
     async ({ contactId, entries }) => {
       try {
         const contact = await storage.getContact(contactId);
-        if (!contact) return notFoundError("Contact", contactId, "search_contacts");
+        if (!contact) return notFoundError("Contact", contactId, "get_dashboard");
 
         // Validate every entry first. If any fail, return per-entry results and skip the write.
         const perEntry = entries.map((e, i) => {

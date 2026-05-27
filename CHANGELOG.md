@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-05-27
+
+### Remove global search
+Removed the Cmd+K search bar, the BM25 server index, the `search_contacts` MCP tool, the `/api/search` endpoint, the `minisearch` dependency, and all inline highlight/auto-expand logic. The truncate-toggle on long interaction notes is preserved. Clears the deck so the feature can be rebuilt from scratch as a coding demo.
+
 ## 2026-05-15
 
 ### Meetings are never "overdue"
@@ -227,7 +232,6 @@ Based on hands-on migration of historical notes. All server-side; no schema chan
 
 ### Truncate long interaction notes
 - Individual notes over 280 characters now collapse with a `more...` / `less` toggle so one long note can't fill the page
-- Auto-expands when a search term matches inside the note, so matches stay visible
 
 ## 2026-04-15
 
@@ -240,20 +244,6 @@ Based on hands-on migration of historical notes. All server-side; no schema chan
 - Flash notifications no longer overlap stage/status badges — now inline in the header row (fixes #42)
 - Status badge (ACTIVE/HOLD) is always visible and clickable to toggle — no more slash commands needed (fixes #39)
 - Date picker in followup edit mode styled with teal accent, rounded corners, Montserrat font (fixes #41)
-
-## 2026-04-14
-
-### Full-text search with BM25 ranking
-- Added Cmd+K search with instant contact filtering across all fields (names, notes, tasks, briefings, email, etc.)
-- Server-side MiniSearch (BM25) engine powers both the UI and MCP `search_contacts` tool
-- Weighted field ranking: name/company 5x, tasks 3x, notes 2x, metadata 1x
-- Prefix matching + fuzzy typo tolerance (edit distance ~20%)
-- Preview snippets with teal background + yellow match highlights for non-name matches
-- Search ignores active stage filter; hides Upcoming panel; auto-switches kanban to list view
-- New `GET /api/search` REST endpoint; lazy index rebuild on data mutations
-- Removed stats line from header; added search icon with ⌘K tooltip
-- Client bundle reduced ~20KB (MiniSearch moved server-side)
-- E2E test steps added for search flows
 
 ## 2026-04-12
 
@@ -308,7 +298,7 @@ Based on hands-on migration of historical notes. All server-side; no schema chan
 - **New `get_dashboard` tool**: One-call CRM snapshot — contacts by stage, overdue tasks, upcoming meetings (48h), violations by severity, recent activity. All with contact names pre-resolved.
 - **New `create_task` tool**: Consolidates `set_followup` and `set_meeting` into a single tool with a `type` parameter ("task" or "meeting"). Meeting-specific fields (meetingType, time, location) are optional params.
 - **Enriched list responses**: `list_violations` and `get_upcoming_meetings` now include `contactName` alongside `contactId`, eliminating N+1 lookup calls.
-- **Pagination**: `search_contacts`, `list_violations`, `get_upcoming_meetings`, and `list_rules` accept `limit`/`offset` and return `{ results, totalCount, hasMore }`.
+- **Pagination**: `list_violations`, `get_upcoming_meetings`, and `list_rules` accept `limit`/`offset` and return `{ results, totalCount, hasMore }`.
 - **Enum validation**: Stage, status, interaction type, severity, condition type, and meeting type all use `z.enum()` derived from shared constants in `shared/schema.ts`. Adding a new value means updating one array.
 - **Actionable error messages**: Not-found errors tell agents which tool to use to find valid IDs. Common DB errors (bad types, FK violations) get auto-detected hints.
 - **Dynamic `get_crm_guide`**: Now includes a live snapshot (contact counts by stage, violation count, meetings this week, overdue tasks) and lists all valid enums dynamically.
@@ -341,8 +331,8 @@ Based on hands-on migration of historical notes. All server-side; no schema chan
 ## 2026-04-06
 
 ### Remove redundant MCP tools
-- Cut `get_dashboard` (data available via `search_contacts`)
-- Cut `get_pipeline` (data available via `search_contacts` with stage filter)
+- Cut `get_dashboard` (later re-added with a richer payload)
+- Cut `get_pipeline`
 - Cut `get_activity_log` (debugging tool, not an agent action)
 - Removed from all 3 MCP servers (remote, stdio, client)
 - REST API endpoints (`/api/dashboard`, `/api/activity`) unchanged — UI still uses them
