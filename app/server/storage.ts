@@ -43,19 +43,6 @@ async function triggerRulesEvaluation(contactId: number) {
   evaluateRulesForContact(contactId).catch((err) => console.error("Reactive rules evaluation failed:", err));
 }
 
-// Lazy import for search index invalidation
-let _searchInvalidate: (() => void) | null = null;
-function invalidateSearch() {
-  if (!_searchInvalidate) {
-    import("./search").then((m) => {
-      _searchInvalidate = m.searchService.invalidate.bind(m.searchService);
-      _searchInvalidate();
-    });
-  } else {
-    _searchInvalidate();
-  }
-}
-
 const PostgresSessionStore = connectPg(session);
 
 export class Storage {
@@ -195,7 +182,6 @@ export class Storage {
       contactId: contact.id,
       source: "agent",
     });
-    invalidateSearch();
     return contact;
   }
 
@@ -214,7 +200,6 @@ export class Storage {
         source: "agent",
         metadata: data as Record<string, unknown>,
       });
-      invalidateSearch();
     }
     return contact;
   }
@@ -229,7 +214,6 @@ export class Storage {
           contactId: id,
           source: "agent",
         });
-      invalidateSearch();
     }
     return result.length > 0;
   }
@@ -251,7 +235,6 @@ export class Storage {
       `Added ${data.type || "note"} for ${name}: ${(data.content as string).slice(0, 80)}`,
       { contactId: data.contactId },
     );
-    invalidateSearch();
     return interaction;
   }
 
@@ -260,7 +243,6 @@ export class Storage {
     if (interaction) {
       sseManager.broadcast({ type: "interaction_updated", contactId: interaction.contactId });
       this.logActivity("interaction.updated", `Edited interaction ${id}`, { contactId: interaction.contactId });
-      invalidateSearch();
     }
     return interaction;
   }
@@ -270,7 +252,6 @@ export class Storage {
     if (deleted) {
       sseManager.broadcast({ type: "interaction_deleted", contactId: deleted.contactId });
       this.logActivity("interaction.deleted", `Deleted interaction ${id}`, { contactId: deleted.contactId });
-      invalidateSearch();
     }
     return !!deleted;
   }
@@ -305,7 +286,6 @@ export class Storage {
       `Created ${data.type || "task"} for ${name}: ${(data.content as string).slice(0, 80)}`,
       { contactId: data.contactId },
     );
-    invalidateSearch();
     return followup;
   }
 
@@ -317,7 +297,6 @@ export class Storage {
       this.logActivity("followup.updated", `Updated ${followup.type || "task"} ${id}: ${changes}`, {
         contactId: followup.contactId,
       });
-      invalidateSearch();
     }
     return followup;
   }
@@ -338,7 +317,6 @@ export class Storage {
         `Completed ${followup.type || "task"} for ${name}: ${followup.content.slice(0, 80)}`,
         { contactId: followup.contactId },
       );
-      invalidateSearch();
     }
     return followup;
   }
@@ -350,7 +328,6 @@ export class Storage {
       this.logActivity("followup.deleted", `Deleted ${deleted.type || "task"}: ${deleted.content.slice(0, 80)}`, {
         contactId: deleted.contactId,
       });
-      invalidateSearch();
     }
     return !!deleted;
   }
@@ -412,7 +389,6 @@ export class Storage {
       source: `rule:${data.ruleId}`,
       metadata: { ruleId: data.ruleId, severity: data.severity },
     });
-    invalidateSearch();
     return violation;
   }
 
@@ -424,7 +400,6 @@ export class Storage {
       .returning();
     if (violation) {
       sseManager.broadcast({ type: "violation_resolved", contactId: violation.contactId });
-      invalidateSearch();
     }
     return violation;
   }
@@ -440,7 +415,6 @@ export class Storage {
           isNull(ruleViolations.resolvedAt),
         ),
       );
-    invalidateSearch();
   }
 
   async hasActiveViolation(ruleId: number, contactId: number): Promise<boolean> {
@@ -552,7 +526,6 @@ export class Storage {
         },
       },
     );
-    invalidateSearch();
     return { ok: true, newHash, newSize: newContent.length };
   }
 

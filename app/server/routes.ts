@@ -1,7 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { searchService } from "./search";
 import { setupAuth, requireAuth } from "./auth";
 import { sseManager } from "./sse";
 import {
@@ -209,19 +208,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateContact(id, { sortOrder });
     }
     res.json({ ok: true });
-  });
-
-  // --- Search ---
-  app.get("/api/search", requireAuth, async (req, res) => {
-    const q = (req.query.q as string) || "";
-    if (q.length < 2) return res.json({ results: [], totalCount: 0, hasMore: false });
-    const result = await searchService.search(q, {
-      stage: req.query.stage as string | undefined,
-      status: req.query.status as string | undefined,
-      limit: req.query.limit ? parseInt(req.query.limit as string) : undefined,
-      offset: req.query.offset ? parseInt(req.query.offset as string) : undefined,
-    });
-    res.json(result);
   });
 
   // --- Companies ---
@@ -455,7 +441,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     sseManager.broadcast({ type: "briefing_updated", contactId });
     storage.logActivity("briefing.saved", `Briefing updated (${content.length} chars)`, { contactId, source: "user" });
-    searchService.invalidate();
     res.json(result);
   });
 
@@ -466,7 +451,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       .returning();
     if (result.length === 0) return res.status(404).json({ message: "Briefing not found" });
     sseManager.broadcast({ type: "briefing_deleted", contactId: parseInt(req.params.contactId) });
-    searchService.invalidate();
     res.status(204).send();
   });
 
