@@ -1,10 +1,5 @@
 # Changelog
 
-## 2026-05-27
-
-### Remove global search
-Removed the Cmd+K search bar, the BM25 server index, the `search_contacts` MCP tool, the `/api/search` endpoint, the `minisearch` dependency, and all inline highlight/auto-expand logic. The truncate-toggle on long interaction notes is preserved. Clears the deck so the feature can be rebuilt from scratch as a coding demo.
-
 ## 2026-05-15
 
 ### Meetings are never "overdue"
