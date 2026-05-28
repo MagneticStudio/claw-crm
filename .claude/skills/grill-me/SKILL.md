@@ -12,7 +12,7 @@ the codebase instead.
 
 For each question, provide your recommended answer.
 
-Use the AskUserQuestion tool to present 3–5 questions together in
-a single round so the user can answer them as a batch in Claude
-Code's structured interface. Group related decisions; don't drip
-questions out one at a time.
+Use the AskUserQuestion tool for every question so the user gets
+the structured question/answer interface in Claude Code. Ask one
+question at a time — do not batch multiple questions into a single
+prompt.
