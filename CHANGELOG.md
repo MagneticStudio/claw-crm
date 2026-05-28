@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-05-27
+
+### Batch grill-me questions in single round
+The `grill-me` skill drip-fed one AskUserQuestion at a time, which is slower and less natural than answering related decisions together. Updated the skill body to present 3–5 grouped questions per round so the user can batch-answer in Claude Code's structured interface.
+
 ## 2026-05-15
 
 ### Meetings are never "overdue"
