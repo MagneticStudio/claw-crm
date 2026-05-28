@@ -21,6 +21,7 @@ Most CRMs are built for sales teams. Claw is built for one person managing 10-50
 - **Rules engine** — business logic stored as data, not code. "Flag contacts with no interaction for 14 days." Agents can create, modify, and delete rules.
 - **Real-time** — SSE pushes every change to the UI instantly, whether you or an agent made it
 - **Privacy-first** — PIN-locked, teal privacy screen on window blur, no pricing or deal terms stored
+- **Dark mode** — follows your OS by default; manual System / Light / Dark override in Settings, plus a Sun/Moon toggle in the header
 
 ## Quick Start
 

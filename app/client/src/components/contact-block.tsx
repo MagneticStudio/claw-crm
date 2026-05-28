@@ -222,8 +222,13 @@ export function ContactBlock({
   return (
     <div
       id={`contact-${contact.id}`}
-      className={`relative bg-white mb-2 overflow-hidden ${isInactive ? "opacity-50 hover:opacity-75" : ""}`}
-      style={{ border: `1px solid ${C.border}`, borderRadius: "10px", padding: "0.75rem 1rem 0.75rem 1.125rem" }}
+      className={`relative mb-2 overflow-hidden ${isInactive ? "opacity-50 hover:opacity-75" : ""}`}
+      style={{
+        backgroundColor: C.card,
+        border: `1px solid ${C.border}`,
+        borderRadius: "10px",
+        padding: "0.75rem 1rem 0.75rem 1.125rem",
+      }}
     >
       {/* Status bar — left edge, teal for ACTIVE, violet for HOLD */}
       <div
@@ -333,7 +338,7 @@ export function ContactBlock({
                   ) : contact.background ? (
                     <div
                       onClick={() => setEditingBackground(true)}
-                      className="cursor-text rounded px-1 -mx-1 py-0.5 transition-colors hover:bg-[#e6f7f6] mt-0.5"
+                      className="cursor-text rounded px-1 -mx-1 py-0.5 transition-colors hover:bg-[var(--app-highlight)] mt-0.5"
                     >
                       {contact.background}
                     </div>
@@ -439,7 +444,7 @@ export function ContactBlock({
                         {fmtDate(interaction.date)}
                       </span>
                       <span
-                        className="group-hover/line:bg-[#e6f7f6] rounded px-0.5 -mx-0.5 transition-colors"
+                        className="group-hover/line:bg-[var(--app-highlight)] rounded px-0.5 -mx-0.5 transition-colors"
                         style={{ color: C.text }}
                       >
                         {displayText}
@@ -505,8 +510,8 @@ export function ContactBlock({
                         if (e.key === "Escape") setCompletingFollowupId(null);
                       }}
                       placeholder="What happened?"
-                      className="w-full text-xs bg-white rounded px-2 py-1 outline-none"
-                      style={{ color: C.text, border: `1px solid ${C.accent}40` }}
+                      className="w-full text-xs rounded px-2 py-1 outline-none"
+                      style={{ backgroundColor: C.card, color: C.text, border: `1px solid ${C.accent}40` }}
                     />
                     <div className="flex items-center gap-2">
                       <button

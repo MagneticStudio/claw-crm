@@ -113,8 +113,8 @@ export default function JournalPage() {
   const companyName = contact?.company?.name || "";
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "#f0f8f8" }}>
-      <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: `1px solid ${C.border}` }}>
+    <div className="min-h-screen" style={{ backgroundColor: C.bg }}>
+      <header className="sticky top-0 z-50" style={{ backgroundColor: C.card, borderBottom: `1px solid ${C.border}` }}>
         <div className="max-w-[640px] mx-auto px-4 py-3 flex items-center gap-3">
           <Link href="/" className="transition-colors hover:opacity-70" style={{ color: C.muted }}>
             <ArrowLeft className="h-4 w-4" />
@@ -162,7 +162,9 @@ export default function JournalPage() {
       )}
 
       <main className="max-w-[640px] mx-auto px-4 py-5">
-        <div className="bg-white" style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1.25rem" }}>
+        <div
+          style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1.25rem" }}
+        >
           {!journal ? (
             <p className="text-sm" style={{ color: C.muted }}>
               Loading...
@@ -276,7 +278,10 @@ function HistoryDrawer({ contactId, currentContent }: { contactId: number; curre
   }, [selected, currentContent]);
 
   return (
-    <div className="mt-4 bg-white" style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem" }}>
+    <div
+      className="mt-4"
+      style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem" }}
+    >
       <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: C.accentDark }}>
         Revisions
       </h2>
@@ -334,14 +339,14 @@ function HistoryDrawer({ contactId, currentContent }: { contactId: number; curre
           </div>
           <pre
             className="text-[11px] leading-snug overflow-x-auto whitespace-pre-wrap rounded p-2"
-            style={{ border: `1px solid ${C.border}`, backgroundColor: "#fafcfc" }}
+            style={{ border: `1px solid ${C.border}`, backgroundColor: C.diffPaneBg }}
           >
             {diff.map((part, i) => (
               <span
                 key={i}
                 style={{
-                  backgroundColor: part.added ? "#e6ffed" : part.removed ? "#ffeef0" : "transparent",
-                  color: part.added ? "#22863a" : part.removed ? "#b31d28" : C.text,
+                  backgroundColor: part.added ? C.diffAddBg : part.removed ? C.diffRemoveBg : "transparent",
+                  color: part.added ? C.diffAddText : part.removed ? C.diffRemoveText : C.text,
                   display: "block",
                 }}
               >

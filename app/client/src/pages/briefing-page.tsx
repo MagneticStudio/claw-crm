@@ -82,8 +82,8 @@ export default function BriefingPage() {
   );
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "#f0f8f8" }}>
-      <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: `1px solid ${C.border}` }}>
+    <div className="min-h-screen" style={{ backgroundColor: C.bg }}>
+      <header className="sticky top-0 z-50" style={{ backgroundColor: C.card, borderBottom: `1px solid ${C.border}` }}>
         <div className="max-w-[640px] mx-auto px-4 py-3 flex items-center gap-3">
           <Link href="/" className="transition-colors hover:opacity-70" style={{ color: C.muted }}>
             <ArrowLeft className="h-4 w-4" />
@@ -130,7 +130,7 @@ export default function BriefingPage() {
         {stale && !editing && (
           <div
             className="mb-3 flex items-start gap-2 rounded-lg px-3 py-2 text-xs"
-            style={{ backgroundColor: "#fef3c7", color: "#854d0e", border: "1px solid #fbbf24" }}
+            style={{ backgroundColor: C.warnBg, color: C.warnText, border: `1px solid ${C.warnBorder}` }}
           >
             <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 mt-px" />
             <div>
@@ -161,7 +161,9 @@ export default function BriefingPage() {
         )}
 
         {/* Briefing content */}
-        <div className="bg-white" style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1.25rem" }}>
+        <div
+          style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1.25rem" }}
+        >
           {editing ? (
             <div>
               <textarea
@@ -175,7 +177,7 @@ export default function BriefingPage() {
               {saveError && (
                 <div
                   className="mt-2 text-xs rounded-lg px-3 py-2"
-                  style={{ backgroundColor: "#fee2e2", color: "#991b1b", border: "1px solid #fecaca" }}
+                  style={{ backgroundColor: C.errorBg, color: C.errorText, border: `1px solid ${C.errorBorder}` }}
                 >
                   {saveError}
                 </div>

@@ -76,11 +76,12 @@ export function KanbanCard({ contact, accentColor, isDragOverlay, compact }: Kan
   // Full desktop card
   const cardContent = (
     <div
-      className="bg-white rounded-xl px-3 py-2.5 mb-2 cursor-grab active:cursor-grabbing select-none"
+      className="rounded-xl px-3 py-2.5 mb-2 cursor-grab active:cursor-grabbing select-none"
       data-contact-id={contact.id}
       style={{
+        backgroundColor: C.card,
         border: `1px solid ${C.border}`,
-        boxShadow: isDragOverlay ? "0 8px 24px rgba(0,0,0,0.15)" : "0 1px 3px rgba(0,0,0,0.04)",
+        boxShadow: isDragOverlay ? "0 8px 24px rgba(0,0,0,0.25)" : "0 1px 3px rgba(0,0,0,0.08)",
       }}
     >
       <div className="text-sm font-semibold truncate" style={{ color: C.text }}>

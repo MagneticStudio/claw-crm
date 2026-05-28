@@ -56,8 +56,8 @@ export default function RulesPage() {
   }
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "#f0f8f8" }}>
-      <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: `1px solid ${C.border}` }}>
+    <div className="min-h-screen" style={{ backgroundColor: C.bg }}>
+      <header className="sticky top-0 z-50" style={{ backgroundColor: C.card, borderBottom: `1px solid ${C.border}` }}>
         <div className="max-w-[640px] mx-auto px-4 py-3 flex items-center gap-3">
           <Link href="/" className="transition-colors hover:opacity-70" style={{ color: C.muted }}>
             <ArrowLeft className="h-4 w-4" />
@@ -90,8 +90,12 @@ export default function RulesPage() {
             return (
               <div
                 key={rule.id}
-                className="bg-white"
-                style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}
+                style={{
+                  backgroundColor: C.card,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: "12px",
+                  padding: "1rem 1.25rem",
+                }}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1">
@@ -102,7 +106,7 @@ export default function RulesPage() {
                       {!rule.enabled && (
                         <span
                           className="text-[10px] font-mono px-1.5 py-0.5 rounded"
-                          style={{ backgroundColor: "#f5f5f5", color: "#999" }}
+                          style={{ backgroundColor: C.offBadgeBg, color: C.offBadgeText }}
                         >
                           OFF
                         </span>
@@ -175,7 +179,7 @@ export default function RulesPage() {
                     )}
 
                     {rule.lastEvaluatedAt && (
-                      <p className="text-[10px] mt-2" style={{ color: "#bbb" }}>
+                      <p className="text-[10px] mt-2" style={{ color: C.faintText }}>
                         Last evaluated: {new Date(rule.lastEvaluatedAt).toLocaleString()}
                       </p>
                     )}
@@ -187,7 +191,7 @@ export default function RulesPage() {
                       width: 36,
                       height: 20,
                       position: "relative",
-                      backgroundColor: rule.enabled ? C.accentDark : "#d1d5db",
+                      backgroundColor: rule.enabled ? C.accentDark : C.toggleOffBg,
                     }}
                   >
                     <div

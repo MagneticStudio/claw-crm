@@ -5,6 +5,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { Switch, Route } from "wouter";
 import { AuthProvider } from "./hooks/use-auth";
 import { ProtectedRoute } from "./lib/protected-route";
+import { ThemeProvider, useTheme } from "./hooks/use-theme";
+import { paletteFor, LIGHT_PALETTE_DEFAULT, type Palette } from "./lib/theme";
 
 import CrmPage from "@/pages/crm-page";
 import RulesPage from "@/pages/rules-page";
@@ -15,70 +17,31 @@ import JournalPage from "@/pages/journal-page";
 import SetupPage from "@/pages/setup-page";
 import NotFound from "@/pages/not-found";
 
-// App config context — org name from DB
-// Derive color variants from a hex primary color
-function deriveColors(hex: string) {
-  const r = parseInt(hex.slice(1, 3), 16),
-    g = parseInt(hex.slice(3, 5), 16),
-    b = parseInt(hex.slice(5, 7), 16);
-  const darken = (amt: number) =>
-    `#${[r, g, b]
-      .map((c) =>
-        Math.max(0, Math.round(c * (1 - amt)))
-          .toString(16)
-          .padStart(2, "0"),
-      )
-      .join("")}`;
-  const lighten = (amt: number) =>
-    `#${[r, g, b]
-      .map((c) =>
-        Math.min(255, Math.round(c + (255 - c) * amt))
-          .toString(16)
-          .padStart(2, "0"),
-      )
-      .join("")}`;
-  return {
-    accent: hex,
-    accentDark: darken(0.15),
-    accentLight: lighten(0.9),
-    bg: lighten(0.95),
-  };
-}
-
 interface AppConfig {
   orgName: string;
   primaryColor: string;
   upcomingDays: number;
-  colors: ReturnType<typeof deriveColors>;
 }
 
-const defaultColors = deriveColors("#2bbcb3");
 const ConfigContext = createContext<AppConfig>({
   orgName: "Claw CRM",
   primaryColor: "#2bbcb3",
   upcomingDays: 7,
-  colors: defaultColors,
 });
 export function useConfig() {
   return useContext(ConfigContext);
 }
 
-// Static palette colors that don't change with the primary color
-const STATIC_COLORS = {
-  text: "#1a2f2f",
-  muted: "#5a7a7a",
-  border: "#d4e8e8",
-  stale: "#d4880f",
-  staleBg: "#fef7ec",
-  red: "#c0392b",
-  redBg: "#fde8e8",
-} as const;
-
-/** Dynamic accent colors + static palette. Use instead of hardcoded C = {...} objects. */
-export function useColors() {
-  const { colors } = useContext(ConfigContext);
-  return { ...STATIC_COLORS, ...colors };
+/** Theme-aware palette: brand accent + semantic surfaces (text/muted/border/bg/...). */
+export function useColors(): Palette {
+  const { primaryColor } = useContext(ConfigContext);
+  const { resolved } = useTheme();
+  return paletteFor(resolved, primaryColor);
 }
+
+/** Always-light palette — for surfaces pinned to the branded gradient
+ *  (Auth, Setup, PrivacyScreen) regardless of theme. */
+export const lightColors = LIGHT_PALETTE_DEFAULT;
 
 function ConfigProvider({ children }: { children: React.ReactNode }) {
   const { data } = useQuery<{ orgName: string; primaryColor: string; upcomingDays: number }>({
@@ -86,20 +49,23 @@ function ConfigProvider({ children }: { children: React.ReactNode }) {
     staleTime: 60_000,
   });
   const primaryColor = data?.primaryColor || "#2bbcb3";
-  const colors = deriveColors(primaryColor);
+  const { resolved } = useTheme();
 
-  // Set CSS custom properties on document root
+  // Expose accent CSS custom properties so any consumer using
+  // `var(--accent)` keeps working. Values are theme-aware.
   useEffect(() => {
     const root = document.documentElement;
-    root.style.setProperty("--accent", colors.accent);
-    root.style.setProperty("--accent-dark", colors.accentDark);
-    root.style.setProperty("--accent-light", colors.accentLight);
-    root.style.setProperty("--bg", colors.bg);
-  }, [colors]);
+    const p = paletteFor(resolved, primaryColor);
+    root.style.setProperty("--accent-color", p.accent);
+    root.style.setProperty("--accent-dark", p.accentDark);
+    root.style.setProperty("--accent-light", p.accentLight);
+    root.style.setProperty("--bg-color", p.bg);
+    root.style.setProperty("--app-highlight", p.highlight);
+  }, [primaryColor, resolved]);
 
   return (
     <ConfigContext.Provider
-      value={{ orgName: data?.orgName || "Claw CRM", primaryColor, upcomingDays: data?.upcomingDays ?? 7, colors }}
+      value={{ orgName: data?.orgName || "Claw CRM", primaryColor, upcomingDays: data?.upcomingDays ?? 7 }}
     >
       {children}
     </ConfigContext.Provider>
@@ -169,13 +135,15 @@ function PrivacyScreen() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ConfigProvider>
-        <AuthProvider>
-          <Toaster />
-          <PrivacyScreen />
-          <Router />
-        </AuthProvider>
-      </ConfigProvider>
+      <ThemeProvider>
+        <ConfigProvider>
+          <AuthProvider>
+            <Toaster />
+            <PrivacyScreen />
+            <Router />
+          </AuthProvider>
+        </ConfigProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

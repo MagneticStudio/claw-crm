@@ -2,16 +2,65 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Shadcn-style design tokens. tailwind.config.ts references hsl(var(--*))
+   for `bg-background`, `text-foreground`, `border-border`, etc. — these
+   definitions back them. Both light and dark variants are declared so the
+   `.dark` class on <html> (set by ThemeProvider) flips the theme. */
 @layer base {
+  :root {
+    --background: 180 33% 96%;        /* #f0f8f8 */
+    --foreground: 180 28% 14%;        /* #1a2f2f */
+    --card: 0 0% 100%;                /* #ffffff */
+    --card-foreground: 180 28% 14%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 180 28% 14%;
+    --primary: 175 64% 45%;           /* approx #2bbcb3 */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 180 30% 92%;
+    --secondary-foreground: 180 28% 14%;
+    --muted: 180 25% 94%;
+    --muted-foreground: 180 14% 42%;  /* #5a7a7a */
+    --accent: 180 30% 92%;
+    --accent-foreground: 180 28% 14%;
+    --destructive: 6 64% 46%;         /* #c0392b */
+    --destructive-foreground: 0 0% 100%;
+    --border: 180 35% 87%;            /* #d4e8e8 */
+    --input: 180 35% 87%;
+    --ring: 175 64% 45%;
+    --radius: 12px;
+  }
+
+  .dark {
+    --background: 180 28% 8%;         /* #0e1818 */
+    --foreground: 180 12% 91%;        /* #e5edec */
+    --card: 180 22% 12%;              /* #172626 */
+    --card-foreground: 180 12% 91%;
+    --popover: 180 22% 12%;
+    --popover-foreground: 180 12% 91%;
+    --primary: 175 64% 50%;
+    --primary-foreground: 180 28% 10%;
+    --secondary: 180 18% 18%;
+    --secondary-foreground: 180 12% 91%;
+    --muted: 180 18% 16%;
+    --muted-foreground: 180 11% 60%;  /* #8aa3a3 */
+    --accent: 180 18% 18%;
+    --accent-foreground: 180 12% 91%;
+    --destructive: 8 80% 65%;
+    --destructive-foreground: 180 28% 10%;
+    --border: 180 14% 19%;             /* #2a3838 */
+    --input: 180 14% 19%;
+    --ring: 175 64% 50%;
+  }
+
   * {
-    @apply border-[#d4e8e8];
+    border-color: hsl(var(--border));
   }
 
   body {
     font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     @apply antialiased;
-    background-color: #f0f8f8;
-    color: #1a2f2f;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
   }
 
   .font-mono {

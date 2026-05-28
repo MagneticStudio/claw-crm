@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ArrowLeft, Copy, RefreshCw, Check } from "lucide-react";
+import { ArrowLeft, Copy, RefreshCw, Check, Sun, Moon, Monitor } from "lucide-react";
 import { Link } from "wouter";
 import { useColors, useConfig } from "@/App";
+import { useTheme } from "@/hooks/use-theme";
+import { type ThemeChoice } from "@/lib/theme";
 
 export default function SettingsPage() {
   const C = useColors();
+  const { choice: themeChoice, setChoice: setThemeChoice } = useTheme();
   const { data: settings } = useQuery<{ orgName: string; primaryColor: string; apiKey: string; mcpToken: string }>({
     queryKey: ["/api/settings"],
   });
@@ -105,8 +108,8 @@ export default function SettingsPage() {
   const mcpUrl = settings?.mcpToken ? `${window.location.origin}/mcp/${settings.mcpToken}` : "";
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "#f0f8f8" }}>
-      <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: `1px solid ${C.border}` }}>
+    <div className="min-h-screen" style={{ backgroundColor: C.bg }}>
+      <header className="sticky top-0 z-50" style={{ backgroundColor: C.card, borderBottom: `1px solid ${C.border}` }}>
         <div className="max-w-[640px] mx-auto px-4 py-3 flex items-center gap-3">
           <Link href="/" className="transition-colors hover:opacity-70" style={{ color: C.muted }}>
             <ArrowLeft className="h-4 w-4" />
@@ -120,8 +123,12 @@ export default function SettingsPage() {
       <main className="max-w-[640px] mx-auto px-4 py-5 space-y-4">
         {/* Org Name */}
         <div
-          className="bg-white"
-          style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}
+          style={{
+            backgroundColor: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: "12px",
+            padding: "1rem 1.25rem",
+          }}
         >
           <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>
             Organization Name
@@ -152,8 +159,12 @@ export default function SettingsPage() {
 
         {/* Brand Color */}
         <div
-          className="bg-white"
-          style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}
+          style={{
+            backgroundColor: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: "12px",
+            padding: "1rem 1.25rem",
+          }}
         >
           <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>
             Brand Color
@@ -198,8 +209,12 @@ export default function SettingsPage() {
 
         {/* Upcoming Days */}
         <div
-          className="bg-white"
-          style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}
+          style={{
+            backgroundColor: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: "12px",
+            padding: "1rem 1.25rem",
+          }}
         >
           <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>
             Upcoming Window
@@ -225,10 +240,58 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {/* Theme */}
+        <div
+          style={{
+            backgroundColor: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: "12px",
+            padding: "1rem 1.25rem",
+          }}
+        >
+          <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>
+            Theme
+          </label>
+          <p className="text-[11px] mt-0.5 mb-2" style={{ color: C.muted }}>
+            System follows your device. Saved per device.
+          </p>
+          <div className="flex gap-1">
+            {(
+              [
+                { value: "system", label: "System", Icon: Monitor },
+                { value: "light", label: "Light", Icon: Sun },
+                { value: "dark", label: "Dark", Icon: Moon },
+              ] as Array<{ value: ThemeChoice; label: string; Icon: typeof Sun }>
+            ).map(({ value, label, Icon }) => {
+              const active = themeChoice === value;
+              return (
+                <button
+                  key={value}
+                  onClick={() => setThemeChoice(value)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                  style={{
+                    backgroundColor: active ? C.accent : "transparent",
+                    color: active ? "white" : C.muted,
+                    border: active ? "none" : `1px solid ${C.border}`,
+                  }}
+                  aria-pressed={active}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* MCP Connection */}
         <div
-          className="bg-white"
-          style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}
+          style={{
+            backgroundColor: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: "12px",
+            padding: "1rem 1.25rem",
+          }}
         >
           <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>
             MCP Connection
@@ -238,8 +301,8 @@ export default function SettingsPage() {
           </p>
           <div className="flex items-center gap-2 mb-2">
             <code
-              className="flex-1 text-[11px] font-mono bg-stone-50 rounded px-2 py-1.5 break-all"
-              style={{ color: C.text }}
+              className="flex-1 text-[11px] font-mono rounded px-2 py-1.5 break-all"
+              style={{ backgroundColor: C.codeBg, color: C.text }}
             >
               {mcpUrl || "Loading..."}
             </code>
@@ -262,8 +325,12 @@ export default function SettingsPage() {
 
         {/* API Key */}
         <div
-          className="bg-white"
-          style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}
+          style={{
+            backgroundColor: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: "12px",
+            padding: "1rem 1.25rem",
+          }}
         >
           <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>
             API Key
@@ -273,8 +340,8 @@ export default function SettingsPage() {
           </p>
           <div className="flex items-center gap-2 mb-2">
             <code
-              className="flex-1 text-[11px] font-mono bg-stone-50 rounded px-2 py-1.5 break-all"
-              style={{ color: C.text }}
+              className="flex-1 text-[11px] font-mono rounded px-2 py-1.5 break-all"
+              style={{ backgroundColor: C.codeBg, color: C.text }}
             >
               {settings?.apiKey || "Loading..."}
             </code>
@@ -297,8 +364,12 @@ export default function SettingsPage() {
 
         {/* Change PIN */}
         <div
-          className="bg-white"
-          style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}
+          style={{
+            backgroundColor: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: "12px",
+            padding: "1rem 1.25rem",
+          }}
         >
           <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>
             Change PIN
@@ -334,7 +405,7 @@ export default function SettingsPage() {
             </button>
           </div>
           {pinMessage && (
-            <p className="text-xs mt-1" style={{ color: pinMessage === "PIN changed" ? C.accentDark : "#c0392b" }}>
+            <p className="text-xs mt-1" style={{ color: pinMessage === "PIN changed" ? C.accentDark : C.red }}>
               {pinMessage}
             </p>
           )}

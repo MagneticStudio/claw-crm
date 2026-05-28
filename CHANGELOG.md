@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-05-28
+
+### Dark mode (#101)
+Added a dark theme that follows the OS by default, with a manual override (System / Light / Dark) persisted per device in `localStorage`. Sun/Moon toggle lives in the CRM header for quick access; full three-way control is in Settings.
+
+Foundation work the issue called out:
+- `tailwind.config.ts` was referencing `hsl(var(--background))`, `hsl(var(--foreground))`, `hsl(var(--card))`, `hsl(var(--border))`, etc. that were never defined. Defined them in `client/src/index.css` for both light and dark, with a brand-aligned teal-tinted neutral scale. Body now reads `background-color: hsl(var(--background))` and `color: hsl(var(--foreground))` — themes flip via the `.dark` class on `<html>`.
+- Centralized colors via a new `useColors()` palette that returns the right hex per resolved theme (light or dark). Same shape as before, so call sites didn't change — values switch automatically.
+- Swept hard-coded `bg-white`, `"#f0f8f8"`, `"#fff"`, `hover:bg-gray-50`, `bg-stone-50`, and inline hex codes across `crm-page`, `briefing-page`, `journal-page`, `rules-page`, `settings-page`, `contact-block`, `kanban-card`, and `not-found` to semantic tokens (`bg-card`, `bg-background`, `text-foreground`, `border-border`) or palette properties.
+
+Auth, Setup, and the Privacy Screen stay pinned to the branded light gradient — they're marketing/lock surfaces, not app chrome — so they read from a constant `lightColors` palette regardless of theme choice.
+
+E2E coverage in `tests/theme.spec.ts`: header toggle, Settings three-way control, and Auth-page gradient persistence under a forced-dark localStorage.
+
 ## 2026-05-27
 
 ### Polish README and MCP tool descriptions

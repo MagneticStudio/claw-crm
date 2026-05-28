@@ -2,10 +2,12 @@ import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Loader2, Copy, Check } from "lucide-react";
-import { useColors } from "@/App";
+import { lightColors } from "@/App";
 
 export default function SetupPage() {
-  const C = useColors();
+  // Setup is pinned to the branded light gradient (marketing/lock surface),
+  // so force the light palette regardless of the user's theme choice.
+  const C = lightColors;
   const [step, setStep] = useState<"pin" | "connect">("pin");
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");

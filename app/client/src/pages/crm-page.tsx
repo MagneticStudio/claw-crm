@@ -19,6 +19,8 @@ import {
   Menu,
   Check,
   Clock,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { KanbanBoard } from "@/components/kanban/kanban-board";
 import { Link } from "wouter";
@@ -26,6 +28,7 @@ import { format, isPast, isToday, differenceInCalendarDays } from "date-fns";
 import type { Followup, ActivityLogEntry, Briefing } from "@shared/schema";
 import { fmtDate } from "@/lib/utils";
 import { useConfig, useColors } from "@/App";
+import { useTheme } from "@/hooks/use-theme";
 
 // Pipeline order (funnel flow, top to bottom)
 const STAGES = ["ALL", "LEAD", "MEETING", "PROPOSAL", "NEGOTIATION", "LIVE", "RELATIONSHIP", "PASS"] as const;
@@ -42,6 +45,7 @@ const SORT_BUCKET: Record<string, number> = {
 
 export default function CrmPage() {
   const C = useColors();
+  const { resolved: themeResolved, toggle: toggleTheme } = useTheme();
   const {
     contacts,
     isLoading,
@@ -161,16 +165,16 @@ export default function CrmPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen" style={{ backgroundColor: "#f0f8f8" }}>
+      <div className="flex items-center justify-center min-h-screen" style={{ backgroundColor: C.bg }}>
         <Loader2 className="h-5 w-5 animate-spin" style={{ color: C.accent }} />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "#f0f8f8" }}>
+    <div className="min-h-screen" style={{ backgroundColor: C.bg }}>
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: `1px solid ${C.border}` }}>
+      <header className="sticky top-0 z-50" style={{ backgroundColor: C.card, borderBottom: `1px solid ${C.border}` }}>
         <div className="max-w-[640px] mx-auto px-4 py-3 flex items-center justify-between">
           <h1 className="text-[13px] font-semibold tracking-[0.2em] uppercase" style={{ color: C.text }}>
             {orgName}
@@ -187,6 +191,17 @@ export default function CrmPage() {
               title="Filter by stage"
             >
               <SlidersHorizontal className="h-4 w-4" />
+            </button>
+
+            {/* Theme toggle (light <-> dark) */}
+            <button
+              onClick={toggleTheme}
+              className="p-2 transition-colors"
+              style={{ color: C.muted }}
+              title={themeResolved === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              aria-label="Toggle theme"
+            >
+              {themeResolved === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
 
             {/* Menu button */}
@@ -209,10 +224,10 @@ export default function CrmPage() {
                 <div
                   className="absolute right-8 top-10 z-[60] py-1"
                   style={{
-                    backgroundColor: "#fff",
+                    backgroundColor: C.card,
                     border: `1px solid ${C.border}`,
                     borderRadius: 12,
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.18)",
                     minWidth: 180,
                   }}
                 >
@@ -227,7 +242,7 @@ export default function CrmPage() {
                           setActiveStage(isActive && stage !== "ALL" ? "ALL" : stage);
                           setShowFilter(false);
                         }}
-                        className="w-full flex items-center justify-between px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-50"
+                        className="w-full flex items-center justify-between px-4 py-2.5 text-[13px] transition-colors hover:bg-[hsl(var(--muted))]"
                         style={{
                           color: stage !== "ALL" && count === 0 ? `${C.muted}80` : isActive ? C.accent : C.text,
                           fontWeight: isActive ? 600 : 400,
@@ -256,10 +271,10 @@ export default function CrmPage() {
                 <div
                   className="absolute right-0 top-10 z-[60] py-1"
                   style={{
-                    backgroundColor: "#fff",
+                    backgroundColor: C.card,
                     border: `1px solid ${C.border}`,
                     borderRadius: 12,
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.18)",
                     minWidth: 200,
                   }}
                 >
@@ -269,7 +284,7 @@ export default function CrmPage() {
                       setViewMode("list");
                       setShowMenu(false);
                     }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-50"
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-[hsl(var(--muted))]"
                     style={{ color: viewMode === "list" ? C.accent : C.text }}
                   >
                     <LayoutList className="h-4 w-4" style={{ color: viewMode === "list" ? C.accent : C.muted }} />
@@ -281,7 +296,7 @@ export default function CrmPage() {
                       setViewMode("kanban");
                       setShowMenu(false);
                     }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-50"
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-[hsl(var(--muted))]"
                     style={{ color: viewMode === "kanban" ? C.accent : C.text }}
                   >
                     <Kanban className="h-4 w-4" style={{ color: viewMode === "kanban" ? C.accent : C.muted }} />
@@ -294,7 +309,7 @@ export default function CrmPage() {
                   <Link
                     href="/rules"
                     onClick={() => setShowMenu(false)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-50"
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-[hsl(var(--muted))]"
                     style={{ color: C.text }}
                   >
                     <Zap className="h-4 w-4" style={{ color: C.muted }} />
@@ -303,7 +318,7 @@ export default function CrmPage() {
                   <Link
                     href="/settings"
                     onClick={() => setShowMenu(false)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-50"
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-[hsl(var(--muted))]"
                     style={{ color: C.text }}
                   >
                     <Settings className="h-4 w-4" style={{ color: C.muted }} />
@@ -314,7 +329,7 @@ export default function CrmPage() {
                       setShowActivityDrawer(!showActivityDrawer);
                       setShowMenu(false);
                     }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-50"
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-[hsl(var(--muted))]"
                     style={{ color: C.text }}
                   >
                     <Activity className="h-4 w-4" style={{ color: C.muted }} />
@@ -325,7 +340,7 @@ export default function CrmPage() {
 
                   <button
                     onClick={() => logoutMutation.mutate()}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-50"
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-[hsl(var(--muted))]"
                     style={{ color: C.text }}
                   >
                     <LogOut className="h-4 w-4" style={{ color: C.muted }} />
@@ -342,8 +357,8 @@ export default function CrmPage() {
       {showActivityDrawer && (
         <div className="fixed inset-0 z-[60]" onClick={() => setShowActivityDrawer(false)}>
           <div
-            className="absolute right-0 top-0 h-full w-80 bg-white shadow-lg pt-14"
-            style={{ borderLeft: `1px solid ${C.border}` }}
+            className="absolute right-0 top-0 h-full w-80 shadow-lg pt-14"
+            style={{ backgroundColor: C.card, borderLeft: `1px solid ${C.border}` }}
             onClick={(e) => e.stopPropagation()}
           >
             <div
@@ -411,8 +426,13 @@ export default function CrmPage() {
           {/* Upcoming — all follow-ups and meetings in one list */}
           {allFollowups.length > 0 && (
             <div
-              className="bg-white mb-5"
-              style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}
+              className="mb-5"
+              style={{
+                backgroundColor: C.card,
+                border: `1px solid ${C.border}`,
+                borderRadius: "12px",
+                padding: "1rem 1.25rem",
+              }}
             >
               <div className="mb-2">
                 <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>
@@ -455,8 +475,8 @@ export default function CrmPage() {
                             if (e.key === "Escape") setCompletingUpcomingId(null);
                           }}
                           placeholder="What happened?"
-                          className="w-full text-sm bg-white rounded px-2 py-1 outline-none"
-                          style={{ color: C.text, border: `1px solid ${C.accent}40` }}
+                          className="w-full text-sm rounded px-2 py-1 outline-none"
+                          style={{ backgroundColor: C.card, color: C.text, border: `1px solid ${C.accent}40` }}
                         />
                         <div className="flex items-center gap-2">
                           <button

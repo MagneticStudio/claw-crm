@@ -168,6 +168,15 @@ curl -s http://localhost:3000/api/user  # should return 401 (not authenticated)
 - Click Save → the browser confirm dialog should fire naming the shrink percentage. Click Cancel → nothing persists. Click Save again → the UI only proceeds past confirm.
 - **Screenshot** → `e2e-screenshots/16-journal-destructive-confirm.png`
 
+### 10e. UI: Dark mode
+- On the CRM page, locate the Sun/Moon button in the header (between the filter and menu icons; `aria-label="Toggle theme"`).
+- Click it. Verify the page background flips from light teal-tint to dark, the contact cards switch to a dark surface with light text, and the header bar darkens. The accent (brand teal) stays the same color.
+- Reload the page (`/`). Verify the dark theme persists — choice is stored per device in `localStorage` under `claw-theme`.
+- Navigate to `/settings`. Find the **Theme** card. Verify three options: System, Light, Dark with Sun/Moon/Monitor icons. The currently active option is filled with the accent color.
+- Click **Light** → verify the app flips to light immediately. Click **Dark** → flips back to dark. Click **System** → matches the OS preference (and `localStorage.getItem("claw-theme")` is `"system"`).
+- Log out and navigate to `/auth`. Verify the login page stays on the branded teal gradient with white card and white text — it does **not** turn dark, regardless of the theme choice. Same for `/setup` and the Privacy Screen (Alt-Tab away to trigger it).
+- **Screenshot** → `e2e-screenshots/16b-dark-mode.png` (CRM in dark) and `e2e-screenshots/16c-auth-light-pinned.png` (auth still light under forced-dark).
+
 ### 11. Cleanup
 - Kill the dev server
 - Write `e2e-screenshots/run.json` manifest with branch, timestamp, and per-step results
