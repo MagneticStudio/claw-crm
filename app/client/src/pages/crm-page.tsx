@@ -1,9 +1,11 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useCrm } from "@/hooks/use-crm";
 import { useSSE } from "@/hooks/use-sse";
 import { useAuth } from "@/hooks/use-auth";
+import { useContactSearch } from "@/hooks/use-contact-search";
 import { ContactBlock } from "@/components/contact-block";
+import { SearchBar } from "@/components/search-bar";
 import {
   Loader2,
   LogOut,
@@ -65,7 +67,28 @@ export default function CrmPage() {
   }, [viewMode]);
   const [showFilter, setShowFilter] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  // Search state — lives at the CrmPage level because it overrides
+  // displayedContacts and forces list view while a query is active.
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const { search } = useContactSearch(contacts, searchOpen);
   useSSE();
+
+  // Global Cmd+K (Ctrl+K elsewhere) opens search from anywhere on the page.
+  useEffect(() => {
+    function handler(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearchOpen(true);
+        // focus on next tick so the input has mounted
+        requestAnimationFrame(() => searchInputRef.current?.focus());
+      }
+    }
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   const sortedContacts = useMemo(() => {
     const sorted = [...contacts].sort((a, b) => {
@@ -110,6 +133,38 @@ export default function CrmPage() {
   }, [contacts]);
 
   const kanbanContacts = useMemo(() => contacts.filter((c) => c.status !== "HOLD"), [contacts]);
+
+  // Search results override the normal pipeline view when a query is active.
+  // Per spec ("search overrides everything"): we ignore the stage filter and
+  // force list mode while results are showing.
+  const trimmedQuery = searchQuery.trim();
+  const searchResults = useMemo(() => (trimmedQuery ? search(trimmedQuery) : null), [search, trimmedQuery]);
+  const isSearching = searchResults !== null;
+  const displayedContacts = isSearching ? searchResults : filteredContacts;
+  const effectiveViewMode = isSearching ? "list" : viewMode;
+
+  // Clamp the keyboard highlight whenever the result set shrinks.
+  useEffect(() => {
+    if (highlightedIndex >= displayedContacts.length) {
+      setHighlightedIndex(Math.max(0, displayedContacts.length - 1));
+    }
+  }, [displayedContacts.length, highlightedIndex]);
+
+  // Scroll the highlighted contact into view as the user arrow-keys through
+  // results. Mirrors the kanban onContactTap polling approach.
+  useEffect(() => {
+    if (!isSearching) return;
+    const target = displayedContacts[highlightedIndex];
+    if (!target) return;
+    const el = document.getElementById(`contact-${target.id}`);
+    if (el) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [isSearching, highlightedIndex, displayedContacts]);
+
+  const closeSearch = () => {
+    setSearchOpen(false);
+    setSearchQuery("");
+    setHighlightedIndex(0);
+  };
 
   // Follow-ups due within N days (including overdue), sorted by due date
   const allFollowups = useMemo(() => {
@@ -171,23 +226,43 @@ export default function CrmPage() {
     <div className="min-h-screen" style={{ backgroundColor: "#f0f8f8" }}>
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: `1px solid ${C.border}` }}>
-        <div className="max-w-[640px] mx-auto px-4 py-3 flex items-center justify-between">
-          <h1 className="text-[13px] font-semibold tracking-[0.2em] uppercase" style={{ color: C.text }}>
-            {orgName}
-          </h1>
-          <div className="flex items-center gap-0.5 relative">
-            {/* Filter button */}
-            <button
-              onClick={() => {
-                setShowFilter(!showFilter);
+        <div className="max-w-[640px] mx-auto px-4 py-3 flex items-center justify-between gap-2">
+          {!searchOpen && (
+            <h1 className="text-[13px] font-semibold tracking-[0.2em] uppercase" style={{ color: C.text }}>
+              {orgName}
+            </h1>
+          )}
+          <div className={`flex items-center gap-0.5 relative ${searchOpen ? "flex-1" : ""}`}>
+            <SearchBar
+              ref={searchInputRef}
+              open={searchOpen}
+              query={searchQuery}
+              onQueryChange={setSearchQuery}
+              onOpen={() => {
+                setSearchOpen(true);
+                setShowFilter(false);
                 setShowMenu(false);
+                requestAnimationFrame(() => searchInputRef.current?.focus());
               }}
-              className="p-2 transition-colors"
-              style={{ color: activeStage !== "ALL" ? C.accent : C.muted }}
-              title="Filter by stage"
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-            </button>
+              onClose={closeSearch}
+              onEnter={() => searchInputRef.current?.blur()}
+              onArrowDown={() => setHighlightedIndex((i) => Math.min(displayedContacts.length - 1, i + 1))}
+              onArrowUp={() => setHighlightedIndex((i) => Math.max(0, i - 1))}
+            />
+            {/* Filter button — hidden while searching to give the input room */}
+            {!searchOpen && (
+              <button
+                onClick={() => {
+                  setShowFilter(!showFilter);
+                  setShowMenu(false);
+                }}
+                className="p-2 transition-colors"
+                style={{ color: activeStage !== "ALL" ? C.accent : C.muted }}
+                title="Filter by stage"
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+              </button>
+            )}
 
             {/* Menu button */}
             <button
@@ -386,7 +461,7 @@ export default function CrmPage() {
         </div>
       )}
 
-      {viewMode === "kanban" ? (
+      {effectiveViewMode === "kanban" ? (
         <KanbanBoard
           contacts={kanbanContacts}
           updateContact={updateContact}
@@ -621,27 +696,38 @@ export default function CrmPage() {
           )}
 
           {/* Contact cards */}
-          {filteredContacts.map((contact) => (
-            <ContactBlock
-              key={contact.id}
-              contact={contact}
-              onAddInteraction={(content, date, type) =>
-                addInteraction.mutate({ contactId: contact.id, content, date, type })
-              }
-              onUpdateInteraction={(id, data) => updateInteraction.mutate({ id, ...data })}
-              onDeleteInteraction={(id) => deleteInteraction.mutate(id)}
-              onCreateFollowup={(content, dueDate, opts) =>
-                createFollowup.mutate({ contactId: contact.id, content, dueDate, ...opts })
-              }
-              onUpdateFollowup={(id, data) => updateFollowup.mutate({ id, ...data })}
-              onDeleteFollowup={(id) => deleteFollowup.mutate(id)}
-              onCompleteFollowup={(id, outcome) => completeFollowup.mutate({ id, outcome })}
-              onUpdateContact={(data) => updateContact.mutate({ id: contact.id, ...data })}
-            />
-          ))}
-          {filteredContacts.length === 0 && (
+          {displayedContacts.map((contact, idx) => {
+            const isHighlighted = isSearching && idx === highlightedIndex;
+            return (
+              <div
+                key={contact.id}
+                className="rounded-[10px]"
+                style={{
+                  boxShadow: isHighlighted ? `0 0 0 2px ${C.accent}` : undefined,
+                  transition: "box-shadow 120ms ease-out",
+                }}
+              >
+                <ContactBlock
+                  contact={contact}
+                  onAddInteraction={(content, date, type) =>
+                    addInteraction.mutate({ contactId: contact.id, content, date, type })
+                  }
+                  onUpdateInteraction={(id, data) => updateInteraction.mutate({ id, ...data })}
+                  onDeleteInteraction={(id) => deleteInteraction.mutate(id)}
+                  onCreateFollowup={(content, dueDate, opts) =>
+                    createFollowup.mutate({ contactId: contact.id, content, dueDate, ...opts })
+                  }
+                  onUpdateFollowup={(id, data) => updateFollowup.mutate({ id, ...data })}
+                  onDeleteFollowup={(id) => deleteFollowup.mutate(id)}
+                  onCompleteFollowup={(id, outcome) => completeFollowup.mutate({ id, outcome })}
+                  onUpdateContact={(data) => updateContact.mutate({ id: contact.id, ...data })}
+                />
+              </div>
+            );
+          })}
+          {displayedContacts.length === 0 && (
             <p className="text-center py-16 text-sm" style={{ color: C.muted }}>
-              No contacts in this stage
+              {isSearching ? "No contacts match your search" : "No contacts in this stage"}
             </p>
           )}
         </main>

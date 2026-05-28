@@ -99,6 +99,16 @@ curl -s http://localhost:3000/api/user  # should return 401 (not authenticated)
 - Verify the follow-up disappears and the outcome appears in the timeline
 - **Screenshot** → `e2e-screenshots/06-task-completed.png`
 
+### 5b. UI: Cmd+K full-text search
+- Press **Cmd+K** (or Ctrl+K) anywhere on the CRM page. Verify the org name in the header is replaced by a search input with placeholder "Search contacts, interactions, tasks…" and that the Stage Filter icon is hidden (Menu icon stays).
+- Type a contact's first name (e.g. `sarah`). Verify the contact list filters down to matches with that contact at the top.
+- Clear the input. Type a distinctive word that appears in one contact's interaction or task content (e.g. `kicking` for Sarah Chen in the seed data). Verify only the contact whose body contains that word appears.
+- Press **ArrowDown** twice. Verify the 2nd result gets a teal ring (3px box-shadow) and scrolls into view if off-screen. Press **ArrowUp** — highlight moves back.
+- Press **Enter** — the input blurs but the filtered list and the query persist.
+- Press **Esc** — the search collapses, the query clears, and the full contact list is restored.
+- Apply a stage filter (e.g. PROPOSAL only), then open search and type a query — verify results ignore the stage filter (search overrides stage filter).
+- **Screenshot** → `e2e-screenshots/06b-search-body-match.png`
+
 ### 6. UI: Change stage via command
 - Type `/stage PROPOSAL` in a contact's input
 - Press Enter

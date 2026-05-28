@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-05-28
+
+### Frontend full-text search with Cmd+K
+Added an instantaneous search affordance to the top nav. A magnifying-glass icon sits left of the existing Filter + Menu icons; clicking it (or pressing `⌘K` / `Ctrl+K` from anywhere) expands an inline input that replaces the org name. Typing live-filters the contacts list using [MiniSearch](https://github.com/lucaong/minisearch) (BM25) — one document per contact, with `interactions`, `followups`, and `briefing.content` flattened into a `body` field so a hit on any of them surfaces the parent contact. Name and company are boosted 5× so a named contact ranks above incidental mentions in someone else's notes. `relationshipJournal` is intentionally excluded — it's long enough to dominate ranking.
+
+UX details:
+- **Prefix + fuzzy (0.2)** matching — typing `mis` matches `Misty` mid-word, and `mistr` still finds her.
+- While a query is active, the stage filter is ignored and view mode is forced to list (search overrides everything).
+- `↑`/`↓` move a teal highlight ring through the filtered list, scrolling the active card into view. `Enter` blurs but leaves the filter applied. `Esc` clears + collapses.
+- Index is built lazily on the first search open, then memoized against the contacts array reference — SSE-driven invalidations refresh it automatically.
+
+New: `client/src/hooks/use-contact-search.ts`, `client/src/components/search-bar.tsx`, `tests/search.spec.ts`. All work is client-side — no schema, no endpoint, no boot-migration.
+
 ## 2026-05-27
 
 ### Polish README and MCP tool descriptions
