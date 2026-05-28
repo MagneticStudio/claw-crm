@@ -5,8 +5,8 @@
 ### Polish README and MCP tool descriptions
 Small accuracy and clarity pass: bumped the README's "25+ tools" claim to "27+" to match the current `mcp-remote.ts` registration count, and sharpened two MCP tool descriptions. `get_contact` now mentions that company and briefing are included in the returned bundle. `list_violations` clarifies that it returns unresolved violations only and is paginated.
 
-### Batch grill-me questions in single round
-The `grill-me` skill drip-fed one AskUserQuestion at a time, which is slower and less natural than answering related decisions together. Updated the skill body to present 3–5 grouped questions per round so the user can batch-answer in Claude Code's structured interface.
+### Revert grill-me batch questions
+Reverting #117. The one-question-at-a-time flow was preferred — grouping into batches of 3–5 lost the conversational rhythm the skill was designed for. Skill body restored to the prior wording.
 
 ## 2026-05-15
 
