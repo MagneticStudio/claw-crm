@@ -174,6 +174,12 @@ Exceptions: `has_future_followup`, `stage_in` (exclude specific stages from rule
 | `/status STATUS` | `/status HOLD` |
 | plain text + Enter | `Had coffee with Idan` (logs as note) |
 
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `⌘K` / `Ctrl+K` | Open full-text search (MiniSearch / BM25) over contacts, interactions, follow-ups, meetings, briefings. Prefix + fuzzy matching, name and company boosted. `↑`/`↓` move the highlight, `Esc` closes. |
+
 ## Tech Stack
 
 React, Express, PostgreSQL, Drizzle ORM, Vite, Tailwind CSS, MCP SDK, Playwright E2E, GitHub Actions CI, Railway deploy, PWA (iOS), Pake (Mac desktop).
