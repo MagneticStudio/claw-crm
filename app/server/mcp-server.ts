@@ -30,7 +30,7 @@ const server = new McpServer({
 
 server.tool(
   "get_contact",
-  "Get full details for a contact including interactions, follow-ups, and violations",
+  "Get full details for a contact including company, interactions, follow-ups, briefing, and active violations.",
   { contactId: z.number().describe("Contact ID") },
   async ({ contactId }) => {
     const contact = await storage.getContactWithRelations(contactId);
@@ -50,7 +50,7 @@ server.tool(
 
 server.tool(
   "list_violations",
-  "Get all active rule violations, enriched with contact names",
+  "List active (unresolved) rule violations, enriched with contact names. Paginated.",
   {
     severity: severityEnum.optional().describe(`Filter by severity: ${SEVERITIES.join(", ")}`),
     limit: z.number().optional().describe("Max results (default 25)"),

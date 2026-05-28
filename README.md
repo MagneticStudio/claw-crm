@@ -16,7 +16,7 @@ Most CRMs are built for sales teams. Claw is built for one person managing 10-50
 
 - **Notebook view** — your entire pipeline in one scrollable feed, sorted by urgency
 - **Slash commands** — `/fu 4/15 check on proposal`, `/mtg 4/3 2pm Coffee @ Verve`, `/stage PROPOSAL`
-- **AI agents write, you verify** — Claude connects via MCP and manages your CRM through 25+ tools
+- **AI agents write, you verify** — Claude connects via MCP and manages your CRM through 27+ tools
 - **Relationship journal** — a per-contact markdown document that's the durable home for the narrative of the relationship: Key People, Wins / Case Study Material, and dated Entries. Absolute-dates-only validator, full revision history with diff view, verbatim blockquote escape for preserving emails and transcripts.
 - **Rules engine** — business logic stored as data, not code. "Flag contacts with no interaction for 14 days." Agents can create, modify, and delete rules.
 - **Real-time** — SSE pushes every change to the UI instantly, whether you or an agent made it
