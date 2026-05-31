@@ -329,22 +329,45 @@ export function todayIso(): string {
  * double-dated headings like `### 2026-05-10: 2026-05-10: Foo`. Stripped
  * silently — no existing valid title format starts with one of these
  * date+colon patterns, so this is purely additive cleanup.
+ *
+ * Also strips a leading `to ` / `to:` token in front of the date — this
+ * is the back half of a `from X to Y` date range leaking into the title
+ * (e.g. `to 2026-05-28: Imbik clears noise threshold...`). The leading
+ * `to` is meaningless without its `from` partner, so we drop it along
+ * with the date.
  */
 export function stripDatePrefix(title: string): string {
-  const t = title.trim();
+  // Drop a leading `to` / `to:` token (with optional trailing separator)
+  // that sits in front of an absolute date. Only stripped when followed
+  // by a date — bare titles that happen to start with "to ..." pass
+  // through untouched.
+  const t = title
+    .trim()
+    .replace(
+      /^to\b\s*[:-]?\s*(?=\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{4}|(?:january|february|march|april|may|june|july|august|september|october|november|december)\b|Q[1-4]\s+\d{4}|(?:spring|summer|fall|autumn|winter)\s+\d{4})/i,
+      "",
+    );
   // Patterns mirror the absolute-date allow-list; each anchored to start
-  // and tolerates a trailing colon + whitespace before the actual title.
+  // and tolerates a trailing colon, dash, or em/en dash + whitespace
+  // before the actual title.
+  const sep = `\\s*[:\\-–—]?\\s*`;
   const patterns = [
-    // 2026-05-10 / 2026-05-10:
-    /^\d{4}-\d{2}-\d{2}\s*:?\s*/,
+    // 2026-05-10 / 2026-05-10: / 2026-05-10 —
+    new RegExp(`^\\d{4}-\\d{2}-\\d{2}${sep}`),
     // 5/10/2026 / 05/10/2026:
-    /^\d{1,2}\/\d{1,2}\/\d{4}\s*:?\s*/,
+    new RegExp(`^\\d{1,2}\\/\\d{1,2}\\/\\d{4}${sep}`),
     // May 10, 2026 / May 10 2026:
-    /^(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2},?\s+\d{4}\s*:?\s*/i,
+    new RegExp(
+      `^(?:january|february|march|april|may|june|july|august|september|october|november|december)\\s+\\d{1,2},?\\s+\\d{4}${sep}`,
+      "i",
+    ),
     // August 2025 / Q3 2025 / Spring 2026 — year-only or coarse anchors used as title prefixes
-    /^(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}\s*:?\s*/i,
-    /^Q[1-4]\s+\d{4}\s*:?\s*/i,
-    /^(?:spring|summer|fall|autumn|winter)\s+\d{4}\s*:?\s*/i,
+    new RegExp(
+      `^(?:january|february|march|april|may|june|july|august|september|october|november|december)\\s+\\d{4}${sep}`,
+      "i",
+    ),
+    new RegExp(`^Q[1-4]\\s+\\d{4}${sep}`, "i"),
+    new RegExp(`^(?:spring|summer|fall|autumn|winter)\\s+\\d{4}${sep}`, "i"),
   ];
   for (const re of patterns) {
     if (re.test(t)) return t.replace(re, "").trim();
