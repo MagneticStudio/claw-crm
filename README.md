@@ -91,7 +91,9 @@ Reference prompts for scheduled agents that operate on your behalf live in [`doc
 |------|-------------|
 | `get_crm_guide` | Agent usage guide + live CRM snapshot. Recommended first call. |
 | `get_dashboard` | Contacts by stage, overdue tasks, upcoming meetings, violations. |
-| `get_contact` | Full contact with all related data. |
+| `get_contact` | Full contact with all related data. May exceed 150 KB on LIVE clients — for heavy reads use the paginated tools below. |
+| `list_interactions` | Paginated interactions for one contact (newest first) with `since` / `until` / `type` filters. |
+| `list_followups` | Paginated follow-ups for one contact with `type` / `completed` / `since` / `until` filters. |
 | `create_contact` | Add a new contact. |
 | `update_contact` | Modify contact fields. |
 | `delete_contact` | Permanently delete a contact and all related data. |

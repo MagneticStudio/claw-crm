@@ -2,6 +2,9 @@
 
 ## 2026-05-31
 
+### Paginated list_interactions / list_followups MCP tools
+Adds two read tools to `app/server/mcp-remote.ts` for audit and cleanup workflows over a single contact (#129). `list_interactions(contactId, limit, offset, since, until, type)` returns interactions newest-first with optional date-range and type filters; `list_followups(contactId, limit, offset, type, completed, since, until)` does the same for follow-ups. `get_contact` still returns the full blob for small-payload reads but its description now points heavy callers (dreaming, audit) at the paginated tools — for LIVE clients with 100+ interactions the inline `interactions[]` blob exceeded 150 KB and tripped token limits in consuming agents.
+
 ### Reject duplicate canonical journal sections + auto-sync title on rename
 Two structural-drift fixes for the relationship journal (#128). (1) `edit_journal` (`app/server/mcp-remote.ts`) now scans the resulting doc for duplicate canonical `## Section` headers — Key People, Wins / Case Study Material, Engagement History, Entries — and rejects edits that introduce a new duplicate (pre-existing dupes are tolerated so a writer can use `confirmed_with_user: true` to clean them up). Catches the writer-mistake pattern where a fresh skeleton scaffold gets appended on top of an already-populated journal, producing two `## Entries`, two `## Key People`, etc. New helper `findDuplicateCanonicalSections` in `app/shared/journal.ts`. (2) `storage.updateContact` now keeps the journal's leading `# Title` line in sync when `firstName`/`lastName` changes — previously a contact rename left the heading pointing at the previous person. New helper `syncJournalTitle` in `app/shared/journal.ts`; broadcasts a `journal_updated` SSE event so connected clients refresh.
 

@@ -439,7 +439,7 @@ Tasks and interactions should be SHORT reminders. The journal is where detail li
   // --- Read Tools ---
   server.tool(
     "get_contact",
-    "Get full contact details including interactions, follow-ups, and violations.",
+    "Get full contact details including interactions, follow-ups, and violations. Response can exceed 150 KB for LIVE clients with long histories — for audit or cleanup workflows over a single contact, prefer the paginated list_interactions / list_followups tools instead.",
     {
       contactId: z.number().describe("Contact ID"),
     },
@@ -451,6 +451,90 @@ Tasks and interactions should be SHORT reminders. The journal is where detail li
       } catch (err: unknown) {
         return {
           content: [{ type: "text" as const, text: actionableError(`reading contact ${contactId}`, err) }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "list_interactions",
+    "Paginated interactions for a single contact, newest first. Use this instead of get_contact when the contact has a long history (audit, dreaming, cleanup) to avoid 150KB+ blobs that trip token limits.",
+    {
+      contactId: z.number().describe("Contact ID"),
+      limit: z.number().optional().describe("Max results (default 25)"),
+      offset: z.number().optional().describe("Skip results (default 0)"),
+      since: z.string().optional().describe("ISO date — only interactions on/after this date"),
+      until: z.string().optional().describe("ISO date — only interactions on/before this date"),
+      type: interactionTypeEnum.optional().describe(`Filter by type: ${INTERACTION_TYPES.join(", ")}`),
+    },
+    async ({ contactId, limit, offset, since, until, type }) => {
+      try {
+        const contact = await storage.getContact(contactId);
+        if (!contact) return notFoundError("Contact", contactId, "get_dashboard");
+
+        let items = await storage.getInteractions(contactId);
+        if (type) items = items.filter((i) => i.type === type);
+        if (since) {
+          const s = new Date(since);
+          items = items.filter((i) => i.date >= s);
+        }
+        if (until) {
+          const u = new Date(until);
+          items = items.filter((i) => i.date <= u);
+        }
+        // Newest first for audit / dreaming workflows
+        items.sort((a, b) => b.date.getTime() - a.date.getTime());
+
+        const { items: page, totalCount, hasMore } = paginate(items, limit || 25, offset || 0);
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ results: page, totalCount, hasMore }, null, 2) }],
+        };
+      } catch (err: unknown) {
+        return {
+          content: [{ type: "text" as const, text: actionableError(`listing interactions for ${contactId}`, err) }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "list_followups",
+    "Paginated follow-ups (tasks and meetings) for a single contact. Use this instead of get_contact when a contact has many follow-ups to avoid oversize responses.",
+    {
+      contactId: z.number().describe("Contact ID"),
+      limit: z.number().optional().describe("Max results (default 25)"),
+      offset: z.number().optional().describe("Skip results (default 0)"),
+      type: taskTypeEnum.optional().describe(`Filter by type: ${TASK_TYPES.join(", ")}`),
+      completed: z.boolean().optional().describe("Filter by completion state"),
+      since: z.string().optional().describe("ISO date — only follow-ups due on/after this date"),
+      until: z.string().optional().describe("ISO date — only follow-ups due on/before this date"),
+    },
+    async ({ contactId, limit, offset, type, completed, since, until }) => {
+      try {
+        const contact = await storage.getContact(contactId);
+        if (!contact) return notFoundError("Contact", contactId, "get_dashboard");
+
+        let items = await storage.getFollowups(contactId);
+        if (type) items = items.filter((f) => (f.type || "task") === type);
+        if (typeof completed === "boolean") items = items.filter((f) => f.completed === completed);
+        if (since) {
+          const s = new Date(since);
+          items = items.filter((f) => f.dueDate >= s);
+        }
+        if (until) {
+          const u = new Date(until);
+          items = items.filter((f) => f.dueDate <= u);
+        }
+
+        const { items: page, totalCount, hasMore } = paginate(items, limit || 25, offset || 0);
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ results: page, totalCount, hasMore }, null, 2) }],
+        };
+      } catch (err: unknown) {
+        return {
+          content: [{ type: "text" as const, text: actionableError(`listing followups for ${contactId}`, err) }],
           isError: true,
         };
       }
