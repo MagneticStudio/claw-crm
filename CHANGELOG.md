@@ -2,6 +2,9 @@
 
 ## 2026-05-31
 
+### Fold same-day journal appends as H4 subheadings
+Server-side fix for the same-day sprawl pattern (#127). Writers were producing multiple sibling `### YYYY-MM-DD:` Entries on a single date (Jeff Manson: 5 on 2026-04-29, 3 on 2026-04-23, 3 on 2026-04-19), which made the date repeat visually and tempted re-narration across overlapping entries. `appendJournalEntry` in `app/shared/journal.ts` now peeks the most recent dated Entry — if its date matches the proposed entry's `effectiveDate`, the new content is folded INTO that entry as an `#### <title>` H4 subheading instead of starting a sibling H3. Works the same way in `batch_append_journal`: each iteration sees the cumulative doc, so entries within the batch sharing a date with each other also consolidate. `append_journal` and `batch_append_journal` responses carry `foldedInto` / `folded[]` so callers can see when this happened. Guide rule #1 and the `peek_last_journal_entry` description now spell out the convention.
+
 ### Auto-cleanup stale briefings
 Briefings whose linked meeting has been marked completed AND which are older than `BRIEFING_STALE_DAYS` (7) now get auto-deleted on a daily schedule (#126). New module `app/server/briefing-cleanup.ts` exposes `cleanupStaleBriefings()` plus `startBriefingCleanupScheduler()`; the scheduler is started from `app/server/index.ts` alongside the rules engine and runs immediately at boot, then once per 24h. Each pass logs a `briefing.cleanup` activity entry and broadcasts `briefing_deleted` SSE events so connected clients refresh. Also exposes an MCP admin tool `cleanup_stale_briefings` in `app/server/mcp-remote.ts` for on-demand cleanup during a CRM dreaming pass. Briefings without a `meetingId` or whose linked meeting is still pending are left alone — agents may still want to refresh them rather than delete outright.
 

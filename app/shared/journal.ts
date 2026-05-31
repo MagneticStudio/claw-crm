@@ -453,15 +453,54 @@ export function detectDateSpanDays(body: string): number | null {
  * heading. Strips any leading absolute-date prefix from `title`, and also
  * scrubs any standalone occurrence of the entry date elsewhere in the title,
  * so the heading doesn't end up double-dated.
+ *
+ * Same-day consolidation: when the most recent existing `### YYYY-MM-DD:` Entry
+ * already matches `effectiveDate`, the new content is folded INTO that entry as
+ * an `#### <title>` H4 subheading rather than creating a sibling H3. Prevents
+ * date repetition when multiple events land on one day. `foldedInto` in the
+ * return value carries the existing H3 heading so callers can report it.
  */
 export function appendJournalEntry(
   doc: string,
   title: string,
   body: string,
   dateIso?: string,
-): { updated: string; entryHeading: string } {
+): { updated: string; entryHeading: string; foldedInto?: string } {
   const effectiveDate = dateIso && isReasonableIsoDate(dateIso) ? dateIso : todayIso();
   const cleanTitle = scrubEntryDateFromTitle(stripDatePrefix(title), effectiveDate);
+
+  const last = peekLastEntry(doc);
+  const lastDateMatch = last ? /^###\s+(\d{4}-\d{2}-\d{2}):/.exec(last.heading) : null;
+  if (lastDateMatch && lastDateMatch[1] === effectiveDate) {
+    const subBlock = `#### ${cleanTitle}\n\n${body.trim()}\n`;
+    const lines = doc.split("\n");
+    let lastEntryLine = -1;
+    for (let i = lines.length - 1; i >= 0; i--) {
+      if (/^###\s+\d{4}-\d{2}-\d{2}:/.test(lines[i])) {
+        lastEntryLine = i;
+        break;
+      }
+    }
+    let endLine = lines.length;
+    for (let i = lastEntryLine + 1; i < lines.length; i++) {
+      if (/^###\s+\S/.test(lines[i]) || /^##\s+\S/.test(lines[i])) {
+        endLine = i;
+        break;
+      }
+    }
+    let tail = endLine;
+    while (tail > lastEntryLine + 1 && lines[tail - 1].trim() === "") tail--;
+    const before = lines.slice(0, tail).join("\n");
+    const after = lines.slice(endLine).join("\n");
+    const sep = before.endsWith("\n") ? "" : "\n";
+    const trailer = after.length > 0 ? `\n\n${after}` : "\n";
+    return {
+      updated: `${before}${sep}\n${subBlock}${trailer}`,
+      entryHeading: last!.heading,
+      foldedInto: last!.heading,
+    };
+  }
+
   const heading = `### ${effectiveDate}: ${cleanTitle}`;
   const entry = `${heading}\n\n${body.trim()}\n`;
 
