@@ -2,6 +2,9 @@
 
 ## 2026-05-31
 
+### Auto-cleanup stale briefings
+Briefings whose linked meeting has been marked completed AND which are older than `BRIEFING_STALE_DAYS` (7) now get auto-deleted on a daily schedule (#126). New module `app/server/briefing-cleanup.ts` exposes `cleanupStaleBriefings()` plus `startBriefingCleanupScheduler()`; the scheduler is started from `app/server/index.ts` alongside the rules engine and runs immediately at boot, then once per 24h. Each pass logs a `briefing.cleanup` activity entry and broadcasts `briefing_deleted` SSE events so connected clients refresh. Also exposes an MCP admin tool `cleanup_stale_briefings` in `app/server/mcp-remote.ts` for on-demand cleanup during a CRM dreaming pass. Briefings without a `meetingId` or whose linked meeting is still pending are left alone — agents may still want to refresh them rather than delete outright.
+
 ### Reject same-day note paraphrases of typed interactions
 Server-side guard against the paraphrase dual-write pattern (#125). Writers were logging a typed interaction (meeting/email/call) for an event and then *also* writing a `note` on the same date that restated the same content in fewer words — the note was pure noise. `add_interaction` (both `app/server/mcp-remote.ts` and `app/server/mcp-server.ts`) now scans existing same-day typed interactions for the contact and rejects a `note` write that shares ≥3 proper nouns with any of them. Threshold tuned to require enough overlap that the note is clearly the *same* event; bumping a generic note ("AF processed inbox") never trips it. New helpers `extractProperNouns`, `sharesProperNouns`, `sameUTCDate` in `app/shared/interactions.ts`.
 

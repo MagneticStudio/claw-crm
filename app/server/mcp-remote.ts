@@ -1242,6 +1242,34 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
     },
   );
 
+  server.tool(
+    "cleanup_stale_briefings",
+    `Delete every briefing whose linked meeting has been marked completed AND which is older than ${BRIEFING_STALE_DAYS} days. Same job that runs on the server's daily schedule — call it manually when you want immediate cleanup (e.g. during a CRM dreaming pass). Returns { deleted, contactIds }.`,
+    {},
+    async () => {
+      try {
+        const { cleanupStaleBriefings } = await import("./briefing-cleanup");
+        const result = await cleanupStaleBriefings();
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text:
+                result.deleted === 0
+                  ? "No stale briefings to clean up."
+                  : `Deleted ${result.deleted} stale briefing(s) for contact IDs: ${result.contactIds.join(", ")}.`,
+            },
+          ],
+        };
+      } catch (err: unknown) {
+        return {
+          content: [{ type: "text" as const, text: actionableError("cleaning up stale briefings", err) }],
+          isError: true,
+        };
+      }
+    },
+  );
+
   // --- Relationship journal ---
   // Short, shared contract text. The full "where does this go?" decision tree
   // lives in get_crm_guide; tool descriptions just point there to avoid drift.
