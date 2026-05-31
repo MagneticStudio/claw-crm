@@ -41,6 +41,7 @@ import {
   getBriefingStaleness,
   briefingAgeDays,
 } from "@shared/briefing";
+import { looksLikeForwardAction } from "@shared/interactions";
 import { db } from "./db";
 import { eq, and, isNull, gte, lte, asc, sql } from "drizzle-orm";
 import { sseManager } from "./sse";
@@ -619,6 +620,21 @@ Do NOT log follow-up tasks here — use create_task for those.`,
     },
     async ({ contactId, content, date, type }) => {
       try {
+        // Guard against the tasks-as-interactions dual-write pattern (#124).
+        // Imperative-mood content ("Send proposal to X", "Follow up with Y")
+        // belongs in the tasks layer, not the timeline. Reject before write
+        // so the caller switches to create_task instead of producing both.
+        if ((type ?? "note") === "note" && looksLikeForwardAction(content)) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Rejected: content "${content.slice(0, 80)}${content.length > 80 ? "…" : ""}" reads as a forward-looking action item, not a past-tense interaction. Use create_task for action items. If this really is a past event, rephrase in past tense (e.g. "Sent proposal" instead of "Send proposal").`,
+              },
+            ],
+            isError: true,
+          };
+        }
         const i = await storage.createInteraction({
           contactId,
           content,
