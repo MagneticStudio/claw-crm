@@ -317,7 +317,7 @@ These three are NOT duplicates. The interaction is the fact, the task is the act
 Tasks and interactions should be SHORT reminders. The journal is where detail lives.
 
 **Writing rules (non-negotiable):**
-1. Every Entry begins with an ISO date heading: \`### YYYY-MM-DD: <brief title>\`. The server builds this for you — pass \`date\` to backdate migrated notes.
+1. Every Entry begins with an ISO date heading: \`### YYYY-MM-DD: <brief title>\`. The server builds this for you — pass \`date\` to backdate migrated notes. **One H3 per date.** When you have several things to write for the same day, write them as separate \`append_journal\` calls — the server detects the matching date on the most recent existing Entry and folds each subsequent call in as an \`#### <title>\` H4 subheading under the existing H3, instead of creating sibling H3s that visually repeat the date. Each H4 sub-title should be tight (the day is already implied by its parent). Response carries \`foldedInto\` when consolidation happened.
 2. Absolute dates only in body content. Accepted formats: \`2026-04-18\`, \`04/18/2026\`, \`April 18, 2026\`, \`August 2025\` (year-only), \`Q3 2025\`. **Never** use today, tomorrow, yesterday, this/next/last week|month|year, recently, a few days ago, etc. Day-of-week only triggers rejection when preceded by next/this/last/by/on/until — "Mon/Wed/Fri cadence" or "Monday through Friday" is fine.
 3. When writing about future actions inside the journal, state the specific date. Write \`follow up with Jeff on 2026-05-06\`, not \`follow up with Jeff next week\`. (For actual follow-ups, use create_task instead — the journal just contextualizes.)
 4. When a contact says "let's meet next Tuesday", translate to an absolute date at write time.
@@ -1328,7 +1328,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
 
   server.tool(
     "peek_last_journal_entry",
-    `Return just the most recent dated Entry (heading + body) from a contact's journal plus the full-doc \`hash\` — cheap confirmation of "did my last append land?" and a valid \`expectedHash\` for the next \`edit_journal\` without re-reading the whole doc.`,
+    `Return just the most recent dated Entry (heading + body) from a contact's journal plus the full-doc \`hash\` — cheap confirmation of "did my last append land?" and a valid \`expectedHash\` for the next \`edit_journal\` without re-reading the whole doc. Also use BEFORE an \`append_journal\` to check whether the most recent entry's date matches the date you're about to write — the server auto-folds same-date appends as H4 subheadings, and previewing first lets you write a tighter sub-title that fits under the existing H3.`,
     {
       contactId: z.number(),
     },
@@ -1562,7 +1562,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
 
   server.tool(
     "append_journal",
-    `Append a new dated entry to the Entries section. Server builds the heading as \`### YYYY-MM-DD: <title>\`. By default YYYY-MM-DD is today; supply \`date\` (ISO YYYY-MM-DD) to backdate when migrating historical notes — this is the intended path for bulk-importing old context. If the journal doesn't exist yet, the server seeds the skeleton and then appends. Use \`batch_append_journal\` instead when you have multiple entries to write in one shot — cheaper and transactional. ${JOURNAL_CONTRACT}`,
+    `Append a new dated entry to the Entries section. Server builds the heading as \`### YYYY-MM-DD: <title>\`. By default YYYY-MM-DD is today; supply \`date\` (ISO YYYY-MM-DD) to backdate when migrating historical notes — this is the intended path for bulk-importing old context. If the journal doesn't exist yet, the server seeds the skeleton and then appends. Use \`batch_append_journal\` instead when you have multiple entries to write in one shot — cheaper and transactional. **Same-day consolidation:** when the most recent existing Entry already matches the effective date, the server folds the new content INTO that entry as an \`#### <title>\` H4 subheading rather than creating a sibling H3 — prevents date repetition when several events land on one day. Response carries \`foldedInto\` (the H3 heading reused) when this happens. ${JOURNAL_CONTRACT}`,
     {
       contactId: z.number(),
       title: z
@@ -1624,7 +1624,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
         const baseDoc = seeded
           ? JOURNAL_SKELETON(`${contact.firstName} ${contact.lastName}`)
           : (contact.relationshipJournal as string);
-        const { updated, entryHeading } = appendJournalEntry(baseDoc, title, body, date);
+        const { updated, entryHeading, foldedInto } = appendJournalEntry(baseDoc, title, body, date);
 
         const result = await storage.updateRelationshipJournal(contactId, updated, {
           source: "agent",
@@ -1633,11 +1633,20 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
         if (!result.ok) {
           return { content: [{ type: "text" as const, text: JSON.stringify(result) }], isError: true };
         }
-        storage.logActivity("journal.appended", `Appended journal entry: ${entryHeading}`, {
-          contactId,
-          source: "agent",
-          metadata: { entryHeading, seeded, backdated: date !== undefined && date !== todayIso() },
-        });
+        storage.logActivity(
+          "journal.appended",
+          foldedInto ? `Folded H4 into ${foldedInto}` : `Appended journal entry: ${entryHeading}`,
+          {
+            contactId,
+            source: "agent",
+            metadata: {
+              entryHeading,
+              seeded,
+              backdated: date !== undefined && date !== todayIso(),
+              ...(foldedInto ? { foldedInto } : {}),
+            },
+          },
+        );
         // Soft warning when the body contains absolute dates spanning >7 days —
         // retrospective spans almost certainly belong in `## Engagement History`
         // rather than a single dated `## Entries` entry. Non-blocking.
@@ -1656,6 +1665,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
               text: JSON.stringify({
                 ok: true,
                 entryHeading,
+                ...(foldedInto ? { foldedInto } : {}),
                 newHash: result.newHash,
                 newSize: result.newSize,
                 seeded,
@@ -1672,7 +1682,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
 
   server.tool(
     "batch_append_journal",
-    `Append multiple dated entries to a contact's journal in one transactional call. Use this for migrating historical notes — cheaper than N separate append_journal calls, and all-or-nothing: if ANY entry fails validation, no writes happen and each entry's result is returned. Each entry may carry its own ISO \`date\` for backdating. ${JOURNAL_CONTRACT}`,
+    `Append multiple dated entries to a contact's journal in one transactional call. Use this for migrating historical notes — cheaper than N separate append_journal calls, and all-or-nothing: if ANY entry fails validation, no writes happen and each entry's result is returned. Each entry may carry its own ISO \`date\` for backdating. **Same-day consolidation:** entries sharing a date with the most recent existing Entry (or with each other inside this batch) are folded as \`#### <title>\` H4 subheadings under the first H3 for that date — one dated H3 per day. ${JOURNAL_CONTRACT}`,
     {
       contactId: z.number(),
       entries: z
@@ -1735,10 +1745,13 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
           ? JOURNAL_SKELETON(`${contact.firstName} ${contact.lastName}`)
           : (contact.relationshipJournal as string);
         const headings: string[] = [];
-        for (const e of entries) {
-          const { updated, entryHeading } = appendJournalEntry(doc, e.title, e.body, e.date);
+        const folded: { index: number; into: string }[] = [];
+        for (let i = 0; i < entries.length; i++) {
+          const e = entries[i];
+          const { updated, entryHeading, foldedInto } = appendJournalEntry(doc, e.title, e.body, e.date);
           doc = updated;
           headings.push(entryHeading);
+          if (foldedInto) folded.push({ index: i, into: foldedInto });
         }
 
         const result = await storage.updateRelationshipJournal(contactId, doc, {
@@ -1751,7 +1764,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
         storage.logActivity("journal.batch_appended", `Batch appended ${entries.length} journal entries`, {
           contactId,
           source: "agent",
-          metadata: { count: entries.length, headings, seeded },
+          metadata: { count: entries.length, headings, seeded, foldedCount: folded.length },
         });
         return {
           content: [
@@ -1761,6 +1774,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
                 ok: true,
                 count: entries.length,
                 headings,
+                ...(folded.length > 0 ? { folded } : {}),
                 newHash: result.newHash,
                 newSize: result.newSize,
                 seeded,
