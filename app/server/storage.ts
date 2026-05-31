@@ -25,7 +25,7 @@ import {
   contactJournalRevisions,
   type ContactJournalRevision,
 } from "@shared/schema";
-import { hashJournal, isDestructiveChange, JOURNAL_SIZE_LIMIT } from "@shared/journal";
+import { hashJournal, isDestructiveChange } from "@shared/journal";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { db } from "./db";
@@ -452,7 +452,7 @@ export class Storage {
     | { ok: true; newHash: string; newSize: number }
     | {
         ok: false;
-        reason: "not_found" | "hash_conflict" | "size_limit" | "destructive_edit";
+        reason: "not_found" | "hash_conflict" | "destructive_edit";
         message: string;
         currentHash?: string;
       }
@@ -470,14 +470,6 @@ export class Storage {
         reason: "hash_conflict",
         message: "Journal has changed since your last read. Re-read and retry with the fresh hash.",
         currentHash,
-      };
-    }
-
-    if (newContent.length > JOURNAL_SIZE_LIMIT) {
-      return {
-        ok: false,
-        reason: "size_limit",
-        message: `Journal would exceed ${JOURNAL_SIZE_LIMIT} chars (attempted ${newContent.length}). Compact older Entries or tighten prose. Every word earns its place.`,
       };
     }
 

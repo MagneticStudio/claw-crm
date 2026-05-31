@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-05-30
+
+### Remove journal size limit
+Dropped the 100k-char ceiling on `relationshipJournal`. The guard fired three places — `storage.updateRelationshipJournal`, MCP `append_journal`, MCP `batch_append_journal` — and was the original justification for the "compact older entries" pressure on the agent. Postgres `text` has no practical size limit and the destructive-edit guard still protects against accidental wipes. The `JOURNAL_SIZE_LIMIT` constant and `"size_limit"` failure reason are gone; the in-app "X chars" indicator stays (it's a counter, not a cap).
+
 ## 2026-05-28
 
 ### Frontend full-text search with Cmd+K
