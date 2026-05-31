@@ -61,6 +61,10 @@ app.use((req, res, next) => {
   const { startRulesScheduler } = await import("./rules-engine");
   startRulesScheduler();
 
+  // Daily auto-cleanup of stale briefings (issue #126).
+  const { startBriefingCleanupScheduler } = await import("./briefing-cleanup");
+  startBriefingCleanupScheduler();
+
   const port = process.env.PORT || 3000;
   server.listen({ port, host: "0.0.0.0" }, () => {
     log(`serving on port ${port}`);
