@@ -2,6 +2,9 @@
 
 ## 2026-05-31
 
+### Expose `list_stale_briefings` MCP tool
+Adds a sweep tool to `app/server/mcp-remote.ts` (#131). `list_stale_briefings()` returns every briefing currently considered stale — by `age`, `meeting_completed`, or `wrong_meeting` — with `contactId`, `contactName`, `staleReason`, `ageDays`, and `meetingId`. Detection already existed inside `get_briefing` / `prepare_briefing`, but the only way to actually find stale briefings across the portfolio was a per-contact scan. A periodic skill (CRM dreaming) can now call this once and either refresh each entry (`prepare_briefing` + `save_briefing`) or delete it (`delete_briefing`) — complementing the existing auto-cleanup, which only handles the `meeting_completed`-plus-age case.
+
 ### Reject empty `append_journal` / `batch_append_journal` bodies
 Server-side guard against the heading-without-body pattern (#130). Writers were occasionally appending a dated Entry with a substantive title but an empty/whitespace-only body, producing a heading with no narrative — pure noise. `append_journal` and `batch_append_journal` in `app/server/mcp-remote.ts` now reject entries whose `body` or `title` trims to empty, returning a clear `empty_content` validation error with the offending field so the writer knows to retry with actual content. `edit_journal`'s `newString` is intentionally untouched — emptying a region is legitimate deletion there.
 
