@@ -3,7 +3,6 @@
 
 import { createHash } from "node:crypto";
 
-export const JOURNAL_SIZE_LIMIT = 100_000;
 // Fraction of the doc that can shrink without tripping destructive_edit.
 // Raised from 0.20 to 0.40 — cleanups ("remove one test entry") were hitting the gate.
 export const DESTRUCTIVE_SHRINK_THRESHOLD = 0.4;

@@ -23,7 +23,6 @@ import {
   validateJournalContent,
   appendJournalEntry,
   hashJournal,
-  JOURNAL_SIZE_LIMIT,
   isReasonableIsoDate,
   peekLastEntry,
   readJournalSection,
@@ -1557,22 +1556,6 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
           : (contact.relationshipJournal as string);
         const { updated, entryHeading } = appendJournalEntry(baseDoc, title, body, date);
 
-        if (updated.length > JOURNAL_SIZE_LIMIT) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: JSON.stringify({
-                  ok: false,
-                  reason: "size_limit",
-                  message: `Journal would exceed ${JOURNAL_SIZE_LIMIT} chars. Compact older Entries — capture more context per character.`,
-                }),
-              },
-            ],
-            isError: true,
-          };
-        }
-
         const result = await storage.updateRelationshipJournal(contactId, updated, {
           source: "agent",
           skipDestructiveGuard: true,
@@ -1686,22 +1669,6 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
           const { updated, entryHeading } = appendJournalEntry(doc, e.title, e.body, e.date);
           doc = updated;
           headings.push(entryHeading);
-        }
-
-        if (doc.length > JOURNAL_SIZE_LIMIT) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: JSON.stringify({
-                  ok: false,
-                  reason: "size_limit",
-                  message: `Batch would push journal past ${JOURNAL_SIZE_LIMIT} chars. Trim prose or split into smaller batches.`,
-                }),
-              },
-            ],
-            isError: true,
-          };
         }
 
         const result = await storage.updateRelationshipJournal(contactId, doc, {
