@@ -41,7 +41,7 @@ import {
   getBriefingStaleness,
   briefingAgeDays,
 } from "@shared/briefing";
-import { looksLikeForwardAction } from "@shared/interactions";
+import { looksLikeForwardAction, sameUTCDate, sharesProperNouns } from "@shared/interactions";
 import { db } from "./db";
 import { eq, and, isNull, gte, lte, asc, sql } from "drizzle-orm";
 import { sseManager } from "./sse";
@@ -635,10 +635,36 @@ Do NOT log follow-up tasks here — use create_task for those.`,
             isError: true,
           };
         }
+        const interactionDate = date ? toNoonUTC(date) : toNoonUTC(new Date());
+        // Guard against same-day paraphrase of a typed interaction (#125).
+        // If a note shares ≥3 proper nouns with an existing meeting/email/call
+        // on the same date for this contact, it is almost certainly a
+        // restatement and should not be written.
+        if ((type ?? "note") === "note") {
+          const existing = await storage.getInteractions(contactId);
+          const sameDayTyped = existing.filter((i) => i.type !== "note" && sameUTCDate(i.date, interactionDate));
+          if (
+            sameDayTyped.length > 0 &&
+            sharesProperNouns(
+              content,
+              sameDayTyped.map((i) => i.content),
+            )
+          ) {
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: `Rejected: this note appears to paraphrase a same-day ${sameDayTyped[0].type} interaction already logged for contact ${contactId}. Edit the existing typed interaction instead of adding a duplicate note.`,
+                },
+              ],
+              isError: true,
+            };
+          }
+        }
         const i = await storage.createInteraction({
           contactId,
           content,
-          date: date ? toNoonUTC(date) : toNoonUTC(new Date()),
+          date: interactionDate,
           type: type || "note",
         });
         return { content: [{ type: "text" as const, text: `Logged ${i.type} for contact ${contactId}` }] };

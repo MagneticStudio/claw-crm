@@ -53,3 +53,124 @@ export function looksLikeForwardAction(content: string): boolean {
 }
 
 export const IMPERATIVE_VERB_LIST = IMPERATIVE_VERBS;
+
+// --- Same-day paraphrase detector (issue #125) ---
+//
+// Writers sometimes log a typed interaction (meeting/email/call) for an event
+// and then *also* log a `note` paraphrasing it on the same date. The note is
+// pure noise — lower-signal restatement of the typed event. Detect by
+// comparing proper-noun overlap: capitalized multi-letter tokens that aren't
+// sentence-start function words. ≥3 shared proper nouns on the same
+// (contactId, date) is a strong paraphrase signal.
+
+// Common capitalized sentence-starters and short tokens we don't want to
+// count as proper nouns. Lowercased.
+const STOP_PROPER_NOUNS = new Set([
+  "the",
+  "a",
+  "an",
+  "and",
+  "or",
+  "but",
+  "if",
+  "then",
+  "he",
+  "she",
+  "they",
+  "we",
+  "i",
+  "it",
+  "this",
+  "that",
+  "these",
+  "those",
+  "his",
+  "her",
+  "their",
+  "our",
+  "my",
+  "your",
+  "af",
+  "ceo",
+  "cto",
+  "cfo",
+  "vp",
+  "svp",
+  "evp",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+  "january",
+  "february",
+  "march",
+  "april",
+  "may",
+  "june",
+  "july",
+  "august",
+  "september",
+  "october",
+  "november",
+  "december",
+  "yes",
+  "no",
+  "ok",
+  "okay",
+]);
+
+const PROPER_NOUN_RE = /\b[A-Z][a-zA-Z'-]{2,}\b/g;
+
+/**
+ * Extract candidate proper nouns from text. Returns a lowercased Set of
+ * tokens that look like proper nouns: capitalized, at least 3 chars, not in
+ * the stoplist. Case-insensitive comparison via lowercasing.
+ */
+export function extractProperNouns(text: string): Set<string> {
+  if (!text) return new Set();
+  const out = new Set<string>();
+  const matches = text.match(PROPER_NOUN_RE) ?? [];
+  for (const m of matches) {
+    const lower = m.toLowerCase();
+    if (!STOP_PROPER_NOUNS.has(lower)) out.add(lower);
+  }
+  return out;
+}
+
+/**
+ * Returns true if `noteContent` shares ≥`threshold` proper nouns with any
+ * provided `priorContents`. Used to detect a `note` that paraphrases a
+ * same-day typed interaction (meeting/email/call).
+ */
+export function sharesProperNouns(noteContent: string, priorContents: string[], threshold = 3): boolean {
+  const noteNouns = extractProperNouns(noteContent);
+  if (noteNouns.size < threshold) return false;
+  for (const prior of priorContents) {
+    const priorNouns = extractProperNouns(prior);
+    let overlap = 0;
+    for (const n of noteNouns) {
+      if (priorNouns.has(n)) {
+        overlap++;
+        if (overlap >= threshold) return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Same-day means the two interactions fall on the same calendar date in UTC.
+ * Interactions are stored at noon-UTC, so a simple yyyy-mm-dd compare works.
+ */
+export function sameUTCDate(a: Date | string, b: Date | string): boolean {
+  const da = typeof a === "string" ? new Date(a) : a;
+  const db = typeof b === "string" ? new Date(b) : b;
+  return (
+    da.getUTCFullYear() === db.getUTCFullYear() &&
+    da.getUTCMonth() === db.getUTCMonth() &&
+    da.getUTCDate() === db.getUTCDate()
+  );
+}
