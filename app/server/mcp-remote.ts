@@ -1719,6 +1719,41 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
           };
         }
 
+        if (title.trim().length === 0) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({
+                  ok: false,
+                  reason: "empty_content",
+                  field: "title",
+                  message:
+                    'Rejected title: empty or whitespace-only. Provide a short, verb-forward headline (e.g. "Jeff signaled pivot from vendor to partner").',
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
+        if (body.trim().length === 0) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({
+                  ok: false,
+                  reason: "empty_content",
+                  field: "body",
+                  message:
+                    "Rejected body: empty or whitespace-only. The body carries the substantive narrative — interpretation, context, what happened. A heading without a body is not a useful journal entry. Retry with content, or skip the append.",
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
+
         const tv = validateJournalContent(title, "title");
         if (!tv.ok) {
           return {
@@ -1826,6 +1861,25 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
               field: `entries[${i}].date`,
               offending: e.date,
               message: `"${e.date}" is not a valid ISO date.`,
+            };
+          }
+          if (e.title.trim().length === 0) {
+            return {
+              index: i,
+              ok: false as const,
+              reason: "empty_content" as const,
+              field: `entries[${i}].title`,
+              message: "Rejected title: empty or whitespace-only. Provide a short, verb-forward headline.",
+            };
+          }
+          if (e.body.trim().length === 0) {
+            return {
+              index: i,
+              ok: false as const,
+              reason: "empty_content" as const,
+              field: `entries[${i}].body`,
+              message:
+                "Rejected body: empty or whitespace-only. The body carries the substantive narrative. A heading without a body is not a useful journal entry.",
             };
           }
           const tv = validateJournalContent(e.title, `entries[${i}].title`);
