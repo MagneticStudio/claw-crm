@@ -2,6 +2,9 @@
 
 ## 2026-05-31
 
+### Reject forward-verb content on `add_interaction`
+Server-side guard against the tasks-as-interactions dual-write pattern (#124). Writers were logging imperative-mood content like `Send proposal to X`, `Follow up with Y`, `Check for Sal Velasco reply` as both a `note`-type interaction AND a followup task — the interaction was pure noise since the action belongs only in the tasks layer. `add_interaction` (both the remote MCP endpoint in `app/server/mcp-remote.ts` and the stdio variant in `app/server/mcp-server.ts`) now rejects `note`-type content whose trimmed body starts with a curated imperative verb (`send`, `follow up`, `check`, `reach out`, `schedule`, `prep`, `draft`, `remind`, `confirm`, `circle back`, `loop in`, `introduce`, `set up`, `book`). Typed interactions (`meeting`/`email`/`call`) are untouched — those are explicit past-event records. The rejection message tells the caller to switch to `create_task`, or rephrase in past tense. New helper `looksLikeForwardAction` in `app/shared/interactions.ts`.
+
 ### Strip leading `to <date>` prefix from journal titles
 Extended `stripDatePrefix` in `app/shared/journal.ts` to drop a leading `to ` / `to:` token when it sits in front of an absolute date — the back half of a `from X to Y` date range that occasionally leaked into journal entry titles (e.g. `to 2026-05-28: Imbik clears noise threshold...` → `Imbik clears noise threshold...`). Also broadened the post-date separator to accept em/en dashes alongside colons so titles like `to 2026-05-13 — telemetry...` get fully cleaned. Bare titles that happen to start with `to ...` (no following date) pass through untouched.
 

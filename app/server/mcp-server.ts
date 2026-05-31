@@ -12,6 +12,7 @@ import {
   CONDITION_TYPES,
   EXCEPTION_TYPES,
 } from "@shared/schema";
+import { looksLikeForwardAction } from "@shared/interactions";
 
 // Zod enums from shared constants
 const stageEnum = z.enum(STAGES);
@@ -196,6 +197,18 @@ server.tool(
   },
   async ({ contactId, content, date, type }) => {
     try {
+      // Guard against the tasks-as-interactions dual-write pattern (#124).
+      if ((type ?? "note") === "note" && looksLikeForwardAction(content)) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Rejected: content "${content.slice(0, 80)}${content.length > 80 ? "…" : ""}" reads as a forward-looking action item, not a past-tense interaction. Use create_task for action items. If this really is a past event, rephrase in past tense (e.g. "Sent proposal" instead of "Send proposal").`,
+            },
+          ],
+          isError: true,
+        };
+      }
       const interaction = await storage.createInteraction({
         contactId,
         content,
