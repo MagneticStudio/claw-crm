@@ -25,7 +25,7 @@ import {
   contactJournalRevisions,
   type ContactJournalRevision,
 } from "@shared/schema";
-import { hashJournal, isDestructiveChange } from "@shared/journal";
+import { hashJournal, isDestructiveChange, syncJournalTitle } from "@shared/journal";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { db } from "./db";
@@ -186,12 +186,27 @@ export class Storage {
   }
 
   async updateContact(id: number, data: Partial<InsertContact>): Promise<Contact | undefined> {
+    const renaming = data.firstName !== undefined || data.lastName !== undefined;
+    const before = renaming ? await this.getContact(id) : null;
+
     const [contact] = await db
       .update(contacts)
       .set({ ...data, updatedAt: new Date() })
       .where(eq(contacts.id, id))
       .returning();
     if (contact) {
+      // Keep the journal's `# Title` line in sync when the contact is renamed.
+      // Stale titles confuse readers — see issue #128 where a contact rename
+      // left the journal heading pointing at the previous person.
+      if (renaming && before && contact.relationshipJournal) {
+        const newName = `${contact.firstName} ${contact.lastName}`;
+        const synced = syncJournalTitle(contact.relationshipJournal, newName);
+        if (synced !== contact.relationshipJournal) {
+          await db.update(contacts).set({ relationshipJournal: synced }).where(eq(contacts.id, id));
+          contact.relationshipJournal = synced;
+          sseManager.broadcast({ type: "journal_updated", contactId: id, hash: hashJournal(synced) });
+        }
+      }
       sseManager.broadcast({ type: "contact_updated", contactId: id });
       triggerRulesEvaluation(id);
       const changes = Object.keys(data).join(", ");

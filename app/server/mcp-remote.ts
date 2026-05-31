@@ -31,6 +31,7 @@ import {
   ACCEPTED_DATE_FORMATS,
   detectDateSpanDays,
   todayIso,
+  findDuplicateCanonicalSections,
 } from "@shared/journal";
 import {
   BRIEFING_SECTIONS,
@@ -1373,7 +1374,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
 
   server.tool(
     "edit_journal",
-    `Exact-string replacement on a contact's relationship_journal. Mirrors Claude's local Edit tool: oldString must occur exactly once in the current document (unless replaceAll: true). Supply \`section\` to scope the match within one named section — prevents accidental cross-section replacements and lets "oldString appears twice" resolve when the occurrences are in different sections. Destructive edits require confirmed_with_user: true — triggered when the edit (a) shrinks the doc ≥40% AND ≥500 chars, or (b) mutates/removes an existing \`### YYYY-MM-DD:\` Entry heading. ${JOURNAL_CONTRACT}`,
+    `Exact-string replacement on a contact's relationship_journal. Mirrors Claude's local Edit tool: oldString must occur exactly once in the current document (unless replaceAll: true). Supply \`section\` to scope the match within one named section — prevents accidental cross-section replacements and lets "oldString appears twice" resolve when the occurrences are in different sections. Destructive edits require confirmed_with_user: true — triggered when the edit (a) shrinks the doc ≥40% AND ≥500 chars, (b) mutates/removes an existing \`### YYYY-MM-DD:\` Entry heading, or (c) introduces duplicate canonical \`## Section\` headers (Key People / Wins / Engagement History / Entries). ${JOURNAL_CONTRACT}`,
     {
       contactId: z.number(),
       oldString: z
@@ -1531,6 +1532,35 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
           updated = current.slice(0, sectionStart) + newSection + current.slice(sectionStart + sectionContent.length);
         } else {
           updated = replaceAll ? current.split(oldString).join(newString) : current.replace(oldString, newString);
+        }
+
+        // Reject edits that introduce duplicate canonical `## Section` headers.
+        // This catches the writer-mistake pattern where a fresh scaffold gets
+        // appended on top of an existing journal, producing two "## Key People",
+        // two "## Entries", etc. Pre-existing dupes are tolerated so a writer
+        // can use replaceAll/confirmed_with_user to clean them up.
+        const newDupes = findDuplicateCanonicalSections(updated);
+        const oldDupes = new Set(findDuplicateCanonicalSections(current));
+        const introducedDupes = newDupes.filter((s) => !oldDupes.has(s));
+        if (introducedDupes.length > 0 && !confirmed_with_user) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({
+                  ok: false,
+                  reason: "duplicate_sections",
+                  sections: introducedDupes,
+                  message: `This edit would introduce duplicate ${introducedDupes
+                    .map((s) => `"## ${s}"`)
+                    .join(
+                      ", ",
+                    )} header(s). The journal already has these sections — edit in place rather than appending a new scaffold. If you intentionally want to consolidate or restructure, retry with confirmed_with_user: true.`,
+                }),
+              },
+            ],
+            isError: true,
+          };
         }
 
         const result = await storage.updateRelationshipJournal(contactId, updated, {
