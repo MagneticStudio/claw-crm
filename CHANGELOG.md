@@ -2,6 +2,9 @@
 
 ## 2026-05-31
 
+### Reject empty `append_journal` / `batch_append_journal` bodies
+Server-side guard against the heading-without-body pattern (#130). Writers were occasionally appending a dated Entry with a substantive title but an empty/whitespace-only body, producing a heading with no narrative — pure noise. `append_journal` and `batch_append_journal` in `app/server/mcp-remote.ts` now reject entries whose `body` or `title` trims to empty, returning a clear `empty_content` validation error with the offending field so the writer knows to retry with actual content. `edit_journal`'s `newString` is intentionally untouched — emptying a region is legitimate deletion there.
+
 ### Paginated list_interactions / list_followups MCP tools
 Adds two read tools to `app/server/mcp-remote.ts` for audit and cleanup workflows over a single contact (#129). `list_interactions(contactId, limit, offset, since, until, type)` returns interactions newest-first with optional date-range and type filters; `list_followups(contactId, limit, offset, type, completed, since, until)` does the same for follow-ups. `get_contact` still returns the full blob for small-payload reads but its description now points heavy callers (dreaming, audit) at the paginated tools — for LIVE clients with 100+ interactions the inline `interactions[]` blob exceeded 150 KB and tripped token limits in consuming agents.
 
