@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-05-31
+
+### Scrub embedded entry-date from journal titles
+Server-side defense-in-depth against doubled `### YYYY-MM-DD: YYYY-MM-DD ...` journal headings. `appendJournalEntry` already stripped a leading date prefix; it now also scrubs any standalone occurrence of the effective entry date elsewhere inside the title (e.g. writers passing `"Josh warmly re-engaged 2026-05-22; partner Barry"` on an entry dated `2026-05-22`). Unrelated dates in the title are left alone. New helper `scrubEntryDateFromTitle` in `app/shared/journal.ts`.
+
 ## 2026-05-30
 
 ### Remove journal size limit

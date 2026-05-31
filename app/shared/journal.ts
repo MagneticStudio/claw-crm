@@ -353,6 +353,30 @@ export function stripDatePrefix(title: string): string {
 }
 
 /**
+ * Remove a standalone occurrence of `entryDate` (YYYY-MM-DD) from inside the
+ * title. Writers occasionally embed the date mid-title (e.g. `Josh warmly
+ * re-engaged 2026-05-22; partner ...`); since the server already prepends the
+ * date to the heading, that duplicate is pure noise. We only strip when the
+ * date matches the entry's effective date — leaves unrelated dates alone.
+ * Trims a single adjacent separator (`:`, `;`, `,`, `-`) and collapses any
+ * resulting double spaces.
+ */
+export function scrubEntryDateFromTitle(title: string, entryDate: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(entryDate)) return title;
+  const escaped = entryDate.replace(/-/g, "\\-");
+  // Match the date with optional leading space and an optional trailing
+  // separator (colon/semicolon/comma/dash) + whitespace. Word boundaries
+  // prevent partial matches inside longer numeric strings.
+  const re = new RegExp(`\\s*\\b${escaped}\\b\\s*[:;,\\-]?\\s*`, "g");
+  const out = title
+    .replace(re, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  // Strip any leftover leading separator after the scrub.
+  return out.replace(/^[:;,-]\s*/, "").trim();
+}
+
+/**
  * Detect the date span (max - min, in days) implied by a body of journal
  * prose. Returns null when fewer than two absolute dates are present. Used
  * to softly warn agents that retrospective spans probably belong in
@@ -403,8 +427,9 @@ export function detectDateSpanDays(body: string): number | null {
  * Append a new Entry to the doc. If `## Entries` is missing, appends it at the
  * end. Caller may supply an explicit ISO `dateIso` to backdate migrated notes;
  * otherwise today's date is used. Returns the updated doc and the full entry
- * heading. Strips any leading absolute-date prefix from `title` so the
- * heading doesn't end up double-dated.
+ * heading. Strips any leading absolute-date prefix from `title`, and also
+ * scrubs any standalone occurrence of the entry date elsewhere in the title,
+ * so the heading doesn't end up double-dated.
  */
 export function appendJournalEntry(
   doc: string,
@@ -413,7 +438,7 @@ export function appendJournalEntry(
   dateIso?: string,
 ): { updated: string; entryHeading: string } {
   const effectiveDate = dateIso && isReasonableIsoDate(dateIso) ? dateIso : todayIso();
-  const cleanTitle = stripDatePrefix(title);
+  const cleanTitle = scrubEntryDateFromTitle(stripDatePrefix(title), effectiveDate);
   const heading = `### ${effectiveDate}: ${cleanTitle}`;
   const entry = `${heading}\n\n${body.trim()}\n`;
 
