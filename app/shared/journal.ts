@@ -572,6 +572,54 @@ export function readJournalSection(doc: string, section: string): string | null 
 }
 
 /**
+ * Return the names of canonical sections that appear more than once at the
+ * `## ` heading level. Used to catch structural drift where a writer
+ * accidentally appended a fresh scaffold to a journal that already had one.
+ * Optional sections are not checked — only the canonical four are protected.
+ */
+export function findDuplicateCanonicalSections(doc: string): string[] {
+  const counts = new Map<string, number>();
+  const lines = doc.split("\n");
+  for (const line of lines) {
+    const m = /^##\s+(.+?)\s*$/.exec(line);
+    if (!m) continue;
+    const name = m[1].trim();
+    if ((CANONICAL_SECTIONS as readonly string[]).includes(name)) {
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+  }
+  return Array.from(counts.entries())
+    .filter(([, n]) => n > 1)
+    .map(([name]) => name);
+}
+
+/**
+ * Sync the top-level `# Title` line to `newName`. Used when a contact's
+ * first/last name changes — keeps the journal title from drifting away from
+ * the contact record. No-op when the title already matches or when the doc
+ * has no leading `# ` heading. Returns the (possibly unchanged) doc.
+ */
+export function syncJournalTitle(doc: string, newName: string): string {
+  if (!doc) return doc;
+  const lines = doc.split("\n");
+  // Find the first non-blank line; only rewrite if it's a `# ` heading.
+  let firstContentIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].trim() !== "") {
+      firstContentIdx = i;
+      break;
+    }
+  }
+  if (firstContentIdx === -1) return doc;
+  const m = /^#\s+(.*)$/.exec(lines[firstContentIdx]);
+  if (!m) return doc;
+  const current = m[1].trim();
+  if (current === newName.trim()) return doc;
+  lines[firstContentIdx] = `# ${newName.trim()}`;
+  return lines.join("\n");
+}
+
+/**
  * Return the last `### YYYY-MM-DD: …` Entry block (heading + body up to the
  * next `### ` or `## ` heading). Null if no dated entry exists yet.
  */
