@@ -1355,6 +1355,62 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
     },
   );
 
+  server.tool(
+    "list_stale_briefings",
+    `List every briefing currently marked stale, with the reason (\`age\` / \`meeting_completed\` / \`wrong_meeting\`). Use in a periodic sweep: for each entry, either call prepare_briefing + save_briefing to refresh, or delete_briefing if you can't refresh now. Cheaper than scanning per-contact. Returns { count, briefings: [{ contactId, contactName, staleReason, ageDays, meetingId }] }.`,
+    {},
+    async () => {
+      try {
+        const allBriefings = await db.select().from(briefings);
+        if (allBriefings.length === 0) {
+          return { content: [{ type: "text" as const, text: JSON.stringify({ count: 0, briefings: [] }, null, 2) }] };
+        }
+        const allFollowups = await db.select().from(followups);
+        const meetingsByContact = new Map<
+          number,
+          Array<{ id: number; dueDate: Date; completed: boolean; cancelled: boolean }>
+        >();
+        for (const f of allFollowups) {
+          if (f.type !== "meeting") continue;
+          const list = meetingsByContact.get(f.contactId) ?? [];
+          list.push({ id: f.id, dueDate: f.dueDate, completed: f.completed, cancelled: !!f.cancelledAt });
+          meetingsByContact.set(f.contactId, list);
+        }
+        const contactIds = Array.from(new Set(allBriefings.map((b) => b.contactId)));
+        const contactRows = await db
+          .select({ id: contacts.id, firstName: contacts.firstName, lastName: contacts.lastName })
+          .from(contacts)
+          .where(sql`${contacts.id} in (${sql.join(contactIds, sql`, `)})`);
+        const nameById = new Map(contactRows.map((c) => [c.id, `${c.firstName} ${c.lastName}`.trim()]));
+        const now = new Date();
+        const stale = allBriefings
+          .map((b) => {
+            const meetings = meetingsByContact.get(b.contactId) ?? [];
+            const s = getBriefingStaleness({ meetingId: b.meetingId, updatedAt: b.updatedAt }, meetings, now);
+            return { briefing: b, stale: s };
+          })
+          .filter((r) => r.stale.stale)
+          .map((r) => ({
+            contactId: r.briefing.contactId,
+            contactName: nameById.get(r.briefing.contactId) ?? null,
+            staleReason: r.stale.reason,
+            ageDays: briefingAgeDays(r.briefing.updatedAt, now),
+            meetingId: r.briefing.meetingId,
+          }));
+        return {
+          content: [
+            { type: "text" as const, text: JSON.stringify({ count: stale.length, briefings: stale }, null, 2) },
+          ],
+        };
+      } catch (err: unknown) {
+        return {
+          content: [{ type: "text" as const, text: actionableError("listing stale briefings", err) }],
+          isError: true,
+        };
+      }
+    },
+  );
+
   // --- Relationship journal ---
   // Short, shared contract text. The full "where does this go?" decision tree
   // lives in get_crm_guide; tool descriptions just point there to avoid drift.

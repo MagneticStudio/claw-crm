@@ -107,6 +107,7 @@ Reference prompts for scheduled agents that operate on your behalf live in [`doc
 | `get_upcoming_meetings` / `cancel_meeting` | Meeting management. |
 | `prepare_briefing` | Gather everything an agent needs before writing a briefing: contact record (with `linkedinUrl`), interactions, followups, journal, any previous briefing (with `ageDays` + `stale` flag), canonical 8-section template, and the research protocol. First call in every briefing workflow. |
 | `save_briefing` / `get_briefing` | Upsert / read the briefing. `save_briefing` validates the 8-section structure and rejects missing or out-of-order sections. `get_briefing` returns content + `ageDays` + `stale` (true after 7 days). |
+| `list_stale_briefings` / `cleanup_stale_briefings` / `delete_briefing` | Sweep tools for the stale-briefing lifecycle. `list_stale_briefings` returns every stale briefing with `staleReason` (`age` / `meeting_completed` / `wrong_meeting`) so a periodic skill can refresh or delete each. `cleanup_stale_briefings` bulk-deletes the `meeting_completed`-plus-age subset. `delete_briefing` removes a single one. |
 | `read_journal` / `peek_last_journal_entry` | Read the full `relationship_journal` (optional `section` scope) or just the most recent dated Entry + doc hash. |
 | `edit_journal` / `append_journal` / `batch_append_journal` | Modify the journal. Absolute-dates-only validator, verbatim blockquote escape, destructive edits gated behind `confirmed_with_user`. `batch_append_journal` writes many dated entries transactionally — the bulk-migration path. |
 
