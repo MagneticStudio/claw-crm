@@ -2,6 +2,9 @@
 
 ## 2026-05-31
 
+### Strip leading `to <date>` prefix from journal titles
+Extended `stripDatePrefix` in `app/shared/journal.ts` to drop a leading `to ` / `to:` token when it sits in front of an absolute date — the back half of a `from X to Y` date range that occasionally leaked into journal entry titles (e.g. `to 2026-05-28: Imbik clears noise threshold...` → `Imbik clears noise threshold...`). Also broadened the post-date separator to accept em/en dashes alongside colons so titles like `to 2026-05-13 — telemetry...` get fully cleaned. Bare titles that happen to start with `to ...` (no following date) pass through untouched.
+
 ### Scrub embedded entry-date from journal titles
 Server-side defense-in-depth against doubled `### YYYY-MM-DD: YYYY-MM-DD ...` journal headings. `appendJournalEntry` already stripped a leading date prefix; it now also scrubs any standalone occurrence of the effective entry date elsewhere inside the title (e.g. writers passing `"Josh warmly re-engaged 2026-05-22; partner Barry"` on an entry dated `2026-05-22`). Unrelated dates in the title are left alone. New helper `scrubEntryDateFromTitle` in `app/shared/journal.ts`.
 
