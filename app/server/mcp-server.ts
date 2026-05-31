@@ -12,7 +12,7 @@ import {
   CONDITION_TYPES,
   EXCEPTION_TYPES,
 } from "@shared/schema";
-import { looksLikeForwardAction } from "@shared/interactions";
+import { looksLikeForwardAction, sameUTCDate, sharesProperNouns } from "@shared/interactions";
 
 // Zod enums from shared constants
 const stageEnum = z.enum(STAGES);
@@ -209,10 +209,32 @@ server.tool(
           isError: true,
         };
       }
+      const interactionDate = date ? new Date(date) : new Date();
+      // Guard against same-day paraphrase of a typed interaction (#125).
+      // If a note shares ≥3 proper nouns with an existing meeting/email/call
+      // on the same date for this contact, it is almost certainly a
+      // restatement and should not be written.
+      if ((type ?? "note") === "note") {
+        const existing = await storage.getInteractions(contactId);
+        const sameDayTyped = existing
+          .filter((i) => i.type !== "note" && sameUTCDate(i.date, interactionDate))
+          .map((i) => i.content);
+        if (sameDayTyped.length > 0 && sharesProperNouns(content, sameDayTyped)) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Rejected: this note appears to paraphrase a same-day ${existing.find((i) => i.type !== "note" && sameUTCDate(i.date, interactionDate))?.type ?? "typed"} interaction already logged for contact ${contactId}. Edit the existing typed interaction instead of adding a duplicate note.`,
+              },
+            ],
+            isError: true,
+          };
+        }
+      }
       const interaction = await storage.createInteraction({
         contactId,
         content,
-        date: date ? new Date(date) : new Date(),
+        date: interactionDate,
         type: type || "note",
       });
       return { content: [{ type: "text" as const, text: `Logged ${interaction.type} for contact ${contactId}` }] };

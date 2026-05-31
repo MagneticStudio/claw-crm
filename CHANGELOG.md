@@ -2,6 +2,9 @@
 
 ## 2026-05-31
 
+### Reject same-day note paraphrases of typed interactions
+Server-side guard against the paraphrase dual-write pattern (#125). Writers were logging a typed interaction (meeting/email/call) for an event and then *also* writing a `note` on the same date that restated the same content in fewer words — the note was pure noise. `add_interaction` (both `app/server/mcp-remote.ts` and `app/server/mcp-server.ts`) now scans existing same-day typed interactions for the contact and rejects a `note` write that shares ≥3 proper nouns with any of them. Threshold tuned to require enough overlap that the note is clearly the *same* event; bumping a generic note ("AF processed inbox") never trips it. New helpers `extractProperNouns`, `sharesProperNouns`, `sameUTCDate` in `app/shared/interactions.ts`.
+
 ### Reject forward-verb content on `add_interaction`
 Server-side guard against the tasks-as-interactions dual-write pattern (#124). Writers were logging imperative-mood content like `Send proposal to X`, `Follow up with Y`, `Check for Sal Velasco reply` as both a `note`-type interaction AND a followup task — the interaction was pure noise since the action belongs only in the tasks layer. `add_interaction` (both the remote MCP endpoint in `app/server/mcp-remote.ts` and the stdio variant in `app/server/mcp-server.ts`) now rejects `note`-type content whose trimmed body starts with a curated imperative verb (`send`, `follow up`, `check`, `reach out`, `schedule`, `prep`, `draft`, `remind`, `confirm`, `circle back`, `loop in`, `introduce`, `set up`, `book`). Typed interactions (`meeting`/`email`/`call`) are untouched — those are explicit past-event records. The rejection message tells the caller to switch to `create_task`, or rephrase in past tense. New helper `looksLikeForwardAction` in `app/shared/interactions.ts`.
 
