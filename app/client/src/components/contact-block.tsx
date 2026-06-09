@@ -10,6 +10,20 @@ const HOLD_COLOR = "#6c5ce7";
 
 const STAGE_OPTIONS = ["LEAD", "MEETING", "PROPOSAL", "NEGOTIATION", "LIVE", "PASS", "RELATIONSHIP"] as const;
 
+// Per-stage accent color for the stage pill. Mirrors the palette used by
+// the kanban board so a contact's pill reads the same color as its column.
+const STAGE_ACCENT: Record<string, string> = {
+  LEAD: "#5a7a7a",
+  MEETING: "#2bbcb3",
+  PROPOSAL: "#2563eb",
+  NEGOTIATION: "#d4880f",
+  LIVE: "#2e7d32",
+  RELATIONSHIP: "#1a9e96",
+  PASS: "#c0392b",
+};
+
+const STATUS_OPTIONS = ["ACTIVE", "HOLD"] as const;
+
 const TASK_PREFIX = /^\/(fu|f|follow|followup|todo|task)\s/i;
 const TASK_VALID = /^\/(fu|f|follow|followup|todo|task)\s+\d{1,2}\/\d{1,2}/i;
 const MTG_PREFIX = /^\/(mtg|meeting)\s/i;
@@ -76,6 +90,8 @@ export function ContactBlock({
   const followupDateRef = useRef<HTMLInputElement>(null);
   const [completingFollowupId, setCompletingFollowupId] = useState<number | null>(null);
   const [completingFollowupText, setCompletingFollowupText] = useState("");
+  const [showStageMenu, setShowStageMenu] = useState(false);
+  const [showStatusMenu, setShowStatusMenu] = useState(false);
 
   const companyName = contact.company?.name || "";
   const activeFollowups = contact.followups.filter((f) => !f.completed);
@@ -252,11 +268,110 @@ export function ContactBlock({
           </span>
         )}
 
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-2">
+          {/* Stage pill — tap to open menu, picks set stage. */}
+          <div className="relative flex-shrink-0">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowStageMenu((v) => !v);
+                setShowStatusMenu(false);
+              }}
+              className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full transition-colors hover:opacity-80"
+              style={{
+                backgroundColor: `${STAGE_ACCENT[contact.stage] || C.accent}15`,
+                color: STAGE_ACCENT[contact.stage] || C.accent,
+              }}
+              aria-label={`Stage: ${contact.stage}. Tap to change.`}
+            >
+              {contact.stage}
+            </button>
+            {showStageMenu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowStageMenu(false)} />
+                <div
+                  className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg z-20 py-1 min-w-[130px]"
+                  style={{ border: `1px solid ${C.border}` }}
+                >
+                  {STAGE_OPTIONS.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => {
+                        if (s !== contact.stage) {
+                          onUpdateContact({ stage: s });
+                          showFlash(`Stage → ${s}`);
+                        }
+                        setShowStageMenu(false);
+                      }}
+                      className="block w-full text-left px-3 py-1 text-[11px] transition-colors hover:opacity-70"
+                      style={{
+                        color: s === contact.stage ? C.text : C.muted,
+                        fontWeight: s === contact.stage ? 600 : 400,
+                        backgroundColor: s === contact.stage ? C.accentLight : "transparent",
+                      }}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Status pill — tap to toggle between ACTIVE and HOLD. */}
+          <div className="relative flex-shrink-0">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowStatusMenu((v) => !v);
+                setShowStageMenu(false);
+              }}
+              className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full transition-colors hover:opacity-80"
+              style={{
+                backgroundColor: contact.status === "HOLD" ? "#f0ecf8" : `${C.accent}15`,
+                color: contact.status === "HOLD" ? HOLD_COLOR : C.accent,
+              }}
+              aria-label={`Status: ${contact.status}. Tap to change.`}
+            >
+              {contact.status}
+            </button>
+            {showStatusMenu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowStatusMenu(false)} />
+                <div
+                  className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg z-20 py-1 min-w-[100px]"
+                  style={{ border: `1px solid ${C.border}` }}
+                >
+                  {STATUS_OPTIONS.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => {
+                        if (s !== contact.status) {
+                          onUpdateContact({ status: s });
+                          showFlash(`Status → ${s}`);
+                        }
+                        setShowStatusMenu(false);
+                      }}
+                      className="block w-full text-left px-3 py-1 text-[11px] transition-colors hover:opacity-70"
+                      style={{
+                        color: s === contact.status ? C.text : C.muted,
+                        fontWeight: s === contact.status ? 600 : 400,
+                        backgroundColor:
+                          s === contact.status ? (s === "HOLD" ? "#f0ecf8" : C.accentLight) : "transparent",
+                      }}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
           {hasBriefing && (
             <a
               href={`/briefings/${contact.id}`}
-              className="text-[11px] font-medium leading-none py-1.5 -my-1.5 transition-opacity hover:opacity-70 flex-shrink-0"
+              className="text-[11px] font-medium leading-none py-1.5 -my-1.5 transition-opacity hover:opacity-70 flex-shrink-0 ml-1"
               style={{ color: C.accentDark }}
             >
               Briefing

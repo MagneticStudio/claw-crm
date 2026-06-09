@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-06-09
+
+### Bring back the stage + status pills on contact cards
+PR #77 dropped the stage/status pills from the contact header on the theory that they were rarely-touched values. The slash commands (`/stage`, `/status`) are still the fastest path for keyboard users, but there was no visible click affordance — even the placeholder hint added in PR #111 wasn't enough to find the path on an unfamiliar card.
+
+Restored both pills in the right side of the header, before the Briefing/Journal text links: `<stage-pill> <status-pill> Briefing Journal`. Same styling as pre-#77 — `text-[10px]` rounded pills tinted with the per-stage accent (LEAD slate, MEETING teal, PROPOSAL blue, NEGOTIATION amber, LIVE green, RELATIONSHIP teal-dark, PASS red) and HOLD violet for the status pill. Tap either pill to open a dropdown of valid values; selecting one triggers `update_contact` and a flash confirmation.
+
+The left-edge status bar (teal=ACTIVE, violet=HOLD) stays as the at-a-glance scan affordance. Two cues for status is OK — bar is for skimming, pill is for tapping.
+
 ## 2026-05-31
 
 ### Expose `list_stale_briefings` MCP tool
