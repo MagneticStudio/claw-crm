@@ -35,6 +35,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const needsSetup = !!(user && !user.authenticated && user.needsSetup);
 
   const loginMutation = useMutation<AuthUser, Error, { pin: string }>({
+    // The auth page renders this error inline — skip the global toast.
+    meta: { suppressErrorToast: true },
     mutationFn: async ({ pin }) => {
       const res = await apiRequest("POST", "/api/login", { pin });
       return await res.json();
@@ -45,6 +47,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const setupMutation = useMutation<{ id: number; apiKey: string }, Error, { pin: string }>({
+    // The setup form renders this error inline — skip the global toast.
+    meta: { suppressErrorToast: true },
     mutationFn: async ({ pin }) => {
       const res = await apiRequest("POST", "/api/setup", { pin });
       return await res.json();

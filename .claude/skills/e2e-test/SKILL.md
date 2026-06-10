@@ -162,6 +162,12 @@ curl -s http://localhost:3000/api/user  # should return 401 (not authenticated)
 - Resize to 800px — verify the classic single-column card list returns (no rail, no detail pane). Resize to 390px — single column persists (mobile unchanged).
 - **Screenshot** → `e2e-screenshots/09-master-detail.png`
 
+### 6g. UI: Mutation failure toast
+- Intercept `POST /api/interactions` to return `400 {"message": "Interaction content cannot be empty"}` (Playwright route or devtools override).
+- Add a note via any contact input. Verify a destructive toast appears with title **"Couldn't save"** and the parsed server message as the description (not the raw `400: {...}` string).
+- Remove the interception, add a real note — verify it lands in the timeline with NO error toast.
+- **Screenshot** → `e2e-screenshots/10-error-toast.png`
+
 ### 9. MCP: Add interaction via agent
 - Call `add_interaction` via MCP with a test note
 - Navigate to the CRM page in the browser
