@@ -2,6 +2,17 @@
 
 ## 2026-06-10
 
+### Desktop master-detail layout — break the 640px ceiling (#82)
+At 1280px the app was a single 640px column floating in empty space. Now, in list view at ≥1024px:
+
+- **Left rail (360px)**: the Upcoming strip plus compact one-line contact rows (`contact-row.tsx`) — name, company, stage tag, status edge bar. Selected row tinted teal.
+- **Right pane**: the full contact card (unchanged `ContactBlock`) for the selected contact only. First displayed contact selected by default; selection falls back gracefully when filters/search change the set.
+- Search integrates: ArrowDown highlights rows, Enter opens the highlighted result in the detail pane.
+- Kanban tap now selects the contact in the detail pane (in addition to switching to list view).
+- **Kanban at ≥1024px**: all six stages render as true side-by-side columns (the stacked-pairs layout now covers 768–1023px only; mobile swimlanes unchanged).
+- Below 1024px nothing changes — the classic single-column notebook is untouched, mobile-first stays first.
+- New E2E step 6f covers the two-pane structure, row selection, detail-pane writes, search-Enter selection, wide kanban, kanban tap-to-select, and responsive collapse at 800px/390px.
+
 ### CONTRIBUTING.md + launch essay draft
 Adds `CONTRIBUTING.md` — the taste test (simplicity + agent connectivity as the two pillars every change is measured against), setup, ground rules (single write path, MCP try/catch, schema/boot-migration pairing, E2E-before-PR), and conventions. Also adds `docs/launch-essay-draft.md`, the draft of the "I let Claude run my CRM for 90 days" launch essay distilling the agent-hygiene learnings from the changelog (over-logging, prompt-rule decay → server validation, retrospective timeline distortion, meetings-layer curation, cross-layer dedup, the unattended-sync unlock).
 

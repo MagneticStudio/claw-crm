@@ -64,7 +64,13 @@ test.describe("Cmd+K full-text search", () => {
 
     await page.keyboard.press("Escape");
     await expect(input).toHaveCount(0);
-    // Full list restored — there are 8 seed contacts.
-    await expect(names).toHaveCount(8);
+    // Full list restored — there are 8 seed contacts. At ≥1024px the list view
+    // is master-detail (#82): contacts render as compact rail rows and only the
+    // selected contact has an h2 card. Below 1024px each contact is a full card.
+    if (await page.locator('[data-testid="contact-rail"]').count()) {
+      await expect(page.locator('[data-testid^="contact-row-"]')).toHaveCount(8);
+    } else {
+      await expect(names).toHaveCount(8);
+    }
   });
 });

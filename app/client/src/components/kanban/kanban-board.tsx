@@ -53,6 +53,9 @@ interface KanbanBoardProps {
 export function KanbanBoard({ contacts, updateContact, onContactTap }: KanbanBoardProps) {
   const [activeId, setActiveId] = useState<number | null>(null);
   const isMobile = useIsMobile();
+  // ≥1024px: all six stages side by side (#82). 768–1023px keeps the
+  // stacked-pairs layout; <768px keeps the vertical swimlanes.
+  const isNarrowDesktop = useIsMobile(1024);
   const boardRef = useRef<HTMLDivElement>(null);
   const pointerStart = useRef<{ x: number; y: number; t: number } | null>(null);
   const didDrag = useRef(false);
@@ -160,8 +163,8 @@ export function KanbanBoard({ contacts, updateContact, onContactTap }: KanbanBoa
               </Fragment>
             ))}
           </div>
-        ) : (
-          /* Desktop: 3 columns with stacked stage pairs, compact cards */
+        ) : isNarrowDesktop ? (
+          /* Tablet (768–1023px): 3 columns with stacked stage pairs, compact cards */
           <div className="max-w-[640px] mx-auto px-4 py-4">
             <div className="grid grid-cols-3 gap-2">
               {DESKTOP_PAIRS.map(([top, bottom]) => (
@@ -179,6 +182,21 @@ export function KanbanBoard({ contacts, updateContact, onContactTap }: KanbanBoa
                     compact
                   />
                 </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          /* Wide desktop (≥1024px): every stage gets its own column (#82) */
+          <div className="max-w-[1400px] mx-auto px-4 py-4">
+            <div className="grid grid-cols-6 gap-2 items-start">
+              {COLUMN_ORDER.map((stage) => (
+                <KanbanColumn
+                  key={stage}
+                  stage={stage}
+                  contacts={grouped[stage]}
+                  accentColor={STAGE_ACCENT[stage] || "#5a7a7a"}
+                  compact
+                />
               ))}
             </div>
           </div>
