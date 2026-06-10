@@ -143,6 +143,15 @@ curl -s http://localhost:3000/api/user  # should return 401 (not authenticated)
 - Call `save_briefing` via MCP with a valid 8-section briefing. Verify it succeeds.
 - Call `get_briefing` via MCP on the contact. Verify the response JSON includes `content`, `updatedAt`, `ageDays`, and `stale: false`.
 
+### 6e. UI: Create a contact via the + button
+- On the CRM page (desktop width), verify a **UserPlus icon button** (`aria-label="Add contact"`) appears in the header between the search icon and the stage-filter icon.
+- Resize to mobile width (≤640px): verify the header button is hidden and a **56px round teal FAB** (`aria-label="Add contact"`) appears fixed bottom-right. Resize back to desktop.
+- Click the header Add contact button. Verify a bottom sheet (`data-testid="add-contact-sheet"`) slides up with fields: First name, Last name, Company, Title, Email, LinkedIn URL, and an **Add contact** submit button (disabled until First name has text).
+- Fill First name `E2E`, Last name `Contact`, Company `E2E Test Co`, click **Add contact**.
+- Verify the sheet closes and a new contact card "E2E Contact" appears in the list with company "E2E Test Co" (find-or-create company path: POST /api/contacts with `companyName`).
+- Create a second contact with the same company name `E2E Test Co` — verify via API or DB that both contacts share one company row (no duplicate company created).
+- **Screenshot** → `e2e-screenshots/08-contact-created.png`
+
 ### 9. MCP: Add interaction via agent
 - Call `add_interaction` via MCP with a test note
 - Navigate to the CRM page in the browser

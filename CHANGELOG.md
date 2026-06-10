@@ -2,6 +2,15 @@
 
 ## 2026-06-10
 
+### Add a UI path to create contacts (#86)
+Until now the only ways to create a contact were MCP tools or seeding — a solo user on mobile with no agent was stuck. Two affordances, one new component:
+
+- **Desktop**: a UserPlus icon button in the header (between search and stage filter).
+- **Mobile (<640px)**: a 56px teal FAB fixed bottom-right; the header button hides.
+- Both open `add-contact-sheet.tsx` — a bottom sheet with First/Last name, Company, Title, Email, LinkedIn URL. Submit disabled until First name has text. Errors surface inline.
+- `POST /api/contacts` now accepts a free-form `companyName` and resolves it case-insensitively via the new `storage.findOrCreateCompanyByName` — the same convenience the MCP `create_contact` path has always had (its helper now delegates to the shared storage method).
+- New E2E step 6e covers the button/FAB visibility split, the sheet flow, and company dedup (two contacts entering the same company name share one company row).
+
 ### New skill: `crm-migrate` — bulk import from existing notes
 Adds `skills/crm-migrate/SKILL.md`, the onboarding path. Nobody adopts a CRM from zero — the user's client history lives in Apple Notes, Notion, or a spreadsheet, and the CRM's value depends on that history coming across. The skill reads the whole source first, maps every person (identity, stage guess, dated events → interactions, narrative → journal, open loops → tasks), presents one migration plan for approval, then executes via `create_contact`, `add_interaction`, `batch_append_journal`, `edit_journal`, and `create_task` with per-write verification. Hard rules: never invent data, dates become absolute or stay in narrative, verbatim material goes in blockquotes, passing mentions become Key People (not contacts), layered confidentiality applies (pricing → journal only). Ends by pointing at `crm-management` for ongoing sync. README updated to document all three skills.
 

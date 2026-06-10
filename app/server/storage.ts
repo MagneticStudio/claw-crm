@@ -119,6 +119,13 @@ export class Storage {
     return company;
   }
 
+  async findOrCreateCompanyByName(name: string): Promise<Company> {
+    const all = await this.getCompanies();
+    const match = all.find((c) => c.name.toLowerCase() === name.toLowerCase());
+    if (match) return match;
+    return this.createCompany({ name });
+  }
+
   async updateCompany(id: number, data: Partial<InsertCompany>): Promise<Company | undefined> {
     const [company] = await db.update(companies).set(data).where(eq(companies.id, id)).returning();
     return company;
