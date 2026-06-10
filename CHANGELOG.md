@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-06-10
+
+### Skill v2: pre-write checklist, journal anatomy, strategic-vs-operational meetings
+Major revision of `skills/crm/SKILL.md` (#143), distilling months of real sync-cycle usage into the shared mental model. Six additions/edits, all aimed at the dominant agent failure modes — over-logging, duplicate writes across layers, journal sprawl, retrospective entries distorting the timeline, and briefing-candidate pollution:
+
+1. **Pre-write checklist** — five mandatory questions before any write tool call (which layer, six-month test, tense check, dedup check, thread-vs-message granularity).
+2. **Interaction shape hard rule** — one sentence, past tense, factual; strategic reads go to the journal.
+3. **Journal anatomy** — canonical section order (Key People, Wins / Case Study Material, Engagement History, Entries) with per-section editing semantics. Engagement History is the new home for retrospective span summaries that would distort the Entries timeline.
+4. **Strategic-vs-operational meetings** — the Meetings layer is curated, not comprehensive. Concrete log/skip lists, the two-part test ("prepare differently AND moves the relationship"), edge cases, and delete-on-sight cleanup for operational cadences from prior runs. Keeps the briefing-candidate selector pointed at the right meeting.
+5. **Writing rules expanded into practical patterns** — no date prefixes in titles, one entry per day with H4 facets, don't re-narrate the atom, blockquote escape for verbatim quotes, retrospectives → Engagement History, conditional rules → tasks, no note-paraphrasing-email duplicates, operational chatter stays out.
+6. **Layered confidentiality** — pricing/deal terms are now allowed in the journal only (the interpretive layer), still forbidden in tasks, interactions, briefings, and contact fields where leakage into dashboards and meeting prep is harder to contain. Cross-client specifics and credentials remain forbidden everywhere. README and CLAUDE.md updated to match.
+
 ## 2026-06-09
 
 ### Bring back the stage + status pills on contact cards
