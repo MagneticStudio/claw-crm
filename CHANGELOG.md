@@ -2,6 +2,9 @@
 
 ## 2026-06-10
 
+### New skill: `crm-migrate` — bulk import from existing notes
+Adds `skills/crm-migrate/SKILL.md`, the onboarding path. Nobody adopts a CRM from zero — the user's client history lives in Apple Notes, Notion, or a spreadsheet, and the CRM's value depends on that history coming across. The skill reads the whole source first, maps every person (identity, stage guess, dated events → interactions, narrative → journal, open loops → tasks), presents one migration plan for approval, then executes via `create_contact`, `add_interaction`, `batch_append_journal`, `edit_journal`, and `create_task` with per-write verification. Hard rules: never invent data, dates become absolute or stay in narrative, verbatim material goes in blockquotes, passing mentions become Key People (not contacts), layered confidentiality applies (pricing → journal only). Ends by pointing at `crm-management` for ongoing sync. README updated to document all three skills.
+
 ### Zero-friction install: Docker one-liner + Railway guide
 The target user keeps clients in Apple Notes — they were never going to provision Postgres and push a schema by hand. Adoption now starts with `docker compose up`:
 
