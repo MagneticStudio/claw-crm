@@ -238,7 +238,7 @@ export function ContactBlock({
   return (
     <div
       id={`contact-${contact.id}`}
-      className={`relative bg-white mb-2 overflow-hidden ${isInactive ? "opacity-50 hover:opacity-75" : ""}`}
+      className={`relative bg-white mb-2 overflow-hidden scroll-mt-[72px] ${isInactive ? "opacity-50 hover:opacity-75" : ""}`}
       style={{ border: `1px solid ${C.border}`, borderRadius: "10px", padding: "0.75rem 1rem 0.75rem 1.125rem" }}
     >
       {/* Status bar — left edge, teal for ACTIVE, violet for HOLD */}

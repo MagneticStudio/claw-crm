@@ -73,8 +73,8 @@ export default function CrmPage() {
   const [showFilter, setShowFilter] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showAddContact, setShowAddContact] = useState(false);
-  // Desktop master-detail (#82): ≥1024px shows a compact contact rail + one
-  // full card. Below that, the classic single-column notebook is unchanged.
+  // Desktop rail + feed (#82): ≥1024px shows a sticky index rail beside the
+  // full scrolling card feed. Below that, the single-column notebook is unchanged.
   const [isDesktop, setIsDesktop] = useState(() => typeof window !== "undefined" && window.innerWidth >= 1024);
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px)");
@@ -82,7 +82,9 @@ export default function CrmPage() {
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
   }, []);
-  const [selectedContactId, setSelectedContactId] = useState<number | null>(null);
+  // Rail highlight — follows the card currently in view (scroll-spy) or the
+  // last clicked row. The rail is an index into the feed, not a selector.
+  const [activeContactId, setActiveContactId] = useState<number | null>(null);
   // Search state — lives at the CrmPage level because it overrides
   // displayedContacts and forces list view while a query is active.
   const [searchOpen, setSearchOpen] = useState(false);
@@ -158,9 +160,7 @@ export default function CrmPage() {
   const isSearching = searchResults !== null;
   const displayedContacts = isSearching ? searchResults : filteredContacts;
   const effectiveViewMode = isSearching ? "list" : viewMode;
-  // Desktop detail pane: explicit selection if it's still in the displayed
-  // set, else fall back to the first displayed contact.
-  const selectedContact = displayedContacts.find((c) => c.id === selectedContactId) ?? displayedContacts[0] ?? null;
+  const activeContact = displayedContacts.find((c) => c.id === activeContactId) ?? displayedContacts[0] ?? null;
 
   const renderContactBlock = (contact: ContactWithRelations) => (
     <ContactBlock
@@ -177,6 +177,42 @@ export default function CrmPage() {
       onUpdateContact={(data) => updateContact.mutate({ id: contact.id, ...data })}
     />
   );
+
+  // After a rail click, hold the clicked row's highlight through the smooth
+  // scroll — otherwise the scroll-spy re-highlights an earlier card whenever
+  // the target sits too low in the document to reach the top of the viewport.
+  const spySuppressedUntil = useRef(0);
+  const scrollToContact = (id: number) => {
+    spySuppressedUntil.current = Date.now() + 1200;
+    setActiveContactId(id);
+    document.getElementById(`contact-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  // Scroll-spy: as the desktop feed scrolls, highlight the rail row of the
+  // topmost visible card so the index tracks reading position.
+  useEffect(() => {
+    if (!isDesktop || effectiveViewMode !== "list") return;
+    const cards = displayedContacts
+      .map((c) => document.getElementById(`contact-${c.id}`))
+      .filter((el): el is HTMLElement => !!el);
+    if (!cards.length) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (Date.now() < spySuppressedUntil.current) return;
+        const topmost = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+        if (topmost) {
+          const id = Number((topmost.target as HTMLElement).id.replace("contact-", ""));
+          if (id) setActiveContactId(id);
+        }
+      },
+      // Active band: just below the sticky header to 40% down the viewport.
+      { rootMargin: "-72px 0px -60% 0px" },
+    );
+    cards.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [isDesktop, effectiveViewMode, displayedContacts]);
 
   // Clamp the keyboard highlight whenever the result set shrinks.
   useEffect(() => {
@@ -281,9 +317,9 @@ export default function CrmPage() {
               }}
               onClose={closeSearch}
               onEnter={() => {
-                // On desktop, Enter opens the highlighted result in the detail pane.
+                // On desktop, Enter scrolls the feed to the highlighted result.
                 if (isDesktop && isSearching && displayedContacts[highlightedIndex]) {
-                  setSelectedContactId(displayedContacts[highlightedIndex].id);
+                  scrollToContact(displayedContacts[highlightedIndex].id);
                 }
                 searchInputRef.current?.blur();
               }}
@@ -526,7 +562,7 @@ export default function CrmPage() {
           onContactTap={(id) => {
             setActiveStage("ALL");
             setViewMode("list");
-            setSelectedContactId(id);
+            setActiveContactId(id);
             // Poll for the element to appear in the DOM after React renders the list
             let attempts = 0;
             const tryScroll = () => {
@@ -542,8 +578,15 @@ export default function CrmPage() {
         />
       ) : (
         <main className={`mx-auto px-4 py-5 ${isDesktop ? "max-w-[1200px] flex items-start gap-5" : "max-w-[640px]"}`}>
-          {/* Left rail on desktop (Upcoming + compact rows); the whole page on mobile */}
-          <div className={isDesktop ? "w-[360px] flex-shrink-0" : undefined}>
+          {/* Left rail on desktop (Upcoming + index rows, sticky so the index
+              stays visible while the feed scrolls); the whole page on mobile */}
+          <div
+            className={
+              isDesktop
+                ? "w-[360px] flex-shrink-0 sticky top-[64px] max-h-[calc(100vh-80px)] overflow-y-auto"
+                : undefined
+            }
+          >
             {/* Upcoming — all follow-ups and meetings in one list */}
             {allFollowups.length > 0 && (
               <div
@@ -767,9 +810,9 @@ export default function CrmPage() {
                   <ContactRow
                     key={contact.id}
                     contact={contact}
-                    selected={selectedContact?.id === contact.id}
+                    selected={activeContact?.id === contact.id}
                     highlighted={isSearching && idx === highlightedIndex}
-                    onSelect={() => setSelectedContactId(contact.id)}
+                    onSelect={() => scrollToContact(contact.id)}
                   />
                 ))}
                 {displayedContacts.length === 0 && (
@@ -804,14 +847,28 @@ export default function CrmPage() {
             )}
           </div>
 
-          {/* Desktop detail pane — the selected contact's full card */}
+          {/* Desktop feed — every contact's full card, scannable top to bottom.
+              The rail is an index: clicking a row scrolls here. */}
           {isDesktop && (
-            <div className="flex-1 min-w-0" data-testid="contact-detail">
-              {selectedContact ? (
-                renderContactBlock(selectedContact)
-              ) : (
+            <div className="flex-1 min-w-0" data-testid="contact-feed">
+              {displayedContacts.map((contact, idx) => {
+                const isHighlighted = isSearching && idx === highlightedIndex;
+                return (
+                  <div
+                    key={contact.id}
+                    className="rounded-[10px]"
+                    style={{
+                      boxShadow: isHighlighted ? `0 0 0 2px ${C.accent}` : undefined,
+                      transition: "box-shadow 120ms ease-out",
+                    }}
+                  >
+                    {renderContactBlock(contact)}
+                  </div>
+                );
+              })}
+              {displayedContacts.length === 0 && (
                 <p className="text-center py-16 text-sm" style={{ color: C.muted }}>
-                  Select a contact
+                  {isSearching ? "No contacts match your search" : "No contacts in this stage"}
                 </p>
               )}
             </div>

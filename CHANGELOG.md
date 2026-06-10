@@ -2,6 +2,15 @@
 
 ## 2026-06-10
 
+### Desktop: rail becomes an index, right pane becomes the full feed
+Founder feedback on the #82 master-detail layout: showing one contact at a time forces a click per contact, when the whole point of the notebook is scanning everything top to bottom. Reworked:
+
+- **Right pane** now renders ALL displayed contacts as full cards — the same scannable feed as mobile, just wider, with the rail beside it.
+- **Left rail** is an index, not a selector: clicking a row smooth-scrolls the feed to that contact's card (scroll-margin clears the sticky header). The rail is sticky with its own overflow, so the index stays visible however far you scroll.
+- **Scroll-spy**: the teal row highlight follows the topmost visible card as you scroll. A 1.2s suppression window after a rail click keeps the clicked row highlighted through the smooth scroll (otherwise bottom-of-document cards could never hold the highlight).
+- Search Enter and kanban tap now scroll the feed to the contact instead of swapping a detail pane.
+- `tests/master-detail.spec.ts` rewritten for the rail+feed behavior; `tests/error-toast.spec.ts` strict-mode race fixed (`getByText` matched the toast and its aria-live mirror — now `.first()`). E2E skill step 6f updated. README screenshot regenerated.
+
 ### Hotfix: stop Railway from running drizzle-kit push on boot
 The Dockerfile added for self-hosting (`docker compose up`) runs `drizzle-kit push --force` before boot so a fresh Postgres works out of the box. Railway auto-detected that Dockerfile and switched its builder — so production started running the push on every deploy, violating the design rule that Railway schema changes go through boot-migrations only. Today's deploy logs show drizzle-kit attempting a constraint drop on a primary-key `id` column, which **Postgres rejected** (42P16) — no data was affected, and the app booted normally — but a future auto-generated statement might succeed. `railway.json` now pins `startCommand: "node dist/index.js"`, so Railway skips the push while compose self-hosters keep it. Dockerfile carries a warning comment.
 

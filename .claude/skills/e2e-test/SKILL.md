@@ -152,14 +152,14 @@ curl -s http://localhost:3000/api/user  # should return 401 (not authenticated)
 - Create a second contact with the same company name `E2E Test Co` — verify via API or DB that both contacts share one company row (no duplicate company created).
 - **Screenshot** → `e2e-screenshots/08-contact-created.png`
 
-### 6f. UI: Desktop master-detail layout (≥1024px)
-- At a 1280px viewport in list view, verify the page is two-pane: a left rail (`data-testid="contact-rail"`, ~360px) of compact contact rows (name + company + stage tag + status edge bar) with the Upcoming strip above it, and a right detail pane (`data-testid="contact-detail"`) showing ONE full contact card.
-- Verify the first displayed contact is selected by default (teal-highlighted row, its card in the detail pane).
-- Click a different row — verify the detail pane switches to that contact and the row highlights.
-- In the detail pane, add a note via the input — verify it lands on the selected contact.
-- Open search (Cmd+K), type a contact name, press ArrowDown then Enter — verify the highlighted result becomes the selected contact in the detail pane.
-- Switch to kanban view at 1280px: verify all six stage columns render side by side (no stacked pairs). Click a kanban card — verify it switches to list view with that contact selected in the detail pane.
-- Resize to 800px — verify the classic single-column card list returns (no rail, no detail pane). Resize to 390px — single column persists (mobile unchanged).
+### 6f. UI: Desktop rail-index + feed layout (≥1024px)
+- At a 1280px viewport in list view, verify the page is two-pane: a sticky left rail (`data-testid="contact-rail"`, ~360px) of compact contact rows (name + company + stage tag + status edge bar) with the Upcoming strip above it, and a right feed (`data-testid="contact-feed"`) showing ALL contacts as full cards, scannable top to bottom.
+- Click a rail row for a contact far down the list — verify the feed smooth-scrolls so that contact's card lands near the top of the viewport, and the row tints teal.
+- Scroll the feed manually — verify the teal highlight in the rail follows the topmost visible card (scroll-spy), and the rail itself stays pinned (sticky) while the feed scrolls.
+- Add a note via any card's input in the feed — verify it lands on that contact.
+- Open search (Cmd+K), type a contact name, press ArrowDown then Enter — verify the feed scrolls to the highlighted result.
+- Switch to kanban view at 1280px: verify all six stage columns render side by side (no stacked pairs). Click a kanban card — verify it switches to list view scrolled to that contact.
+- Resize to 800px — verify the classic single-column card list returns (no rail, no feed wrapper). Resize to 390px — single column persists (mobile unchanged).
 - **Screenshot** → `e2e-screenshots/09-master-detail.png`
 
 ### 6g. UI: Mutation failure toast
