@@ -25,8 +25,10 @@ test.describe("Mutation error toast", () => {
     await input.fill("this write will fail");
     await input.press("Enter");
 
-    await expect(page.getByText("Couldn't save")).toBeVisible({ timeout: 3000 });
-    await expect(page.getByText("Interaction content cannot be empty")).toBeVisible();
+    // .first(): Radix mirrors toast text into an aria-live region, so the
+    // string appears twice once the live region populates (strict-mode trap).
+    await expect(page.getByText("Couldn't save").first()).toBeVisible({ timeout: 3000 });
+    await expect(page.getByText("Interaction content cannot be empty").first()).toBeVisible();
   });
 
   test("successful writes show no error toast", async ({ page }) => {
