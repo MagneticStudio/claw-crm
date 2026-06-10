@@ -2,6 +2,9 @@
 
 ## 2026-06-10
 
+### Seeding strategy pivot: community posts + one-click deploy, directories parked
+Founder call: MCP directories are overfilled with low-effort listings — Claw won't differentiate there. `docs/seeding-kit.md` rewritten around the channels where the target user actually is: the Railway one-click template as the prerequisite (every post must end in a 60-second link), then the essay, Show HN, three tailored Reddit drafts (r/consulting pain-led, r/selfhosted deploy-led, r/ClaudeAI agent-led), an X thread skeleton, and the IH/Slack blurb. Directory submissions moved to a "parked" section with the rationale. Important template note: since the #154 startCommand pin, the Railway template MUST set `npx drizzle-kit push --force` as its pre-deploy command or fresh one-click instances get no schema.
+
 ### Desktop: rail becomes an index, right pane becomes the full feed
 Founder feedback on the #82 master-detail layout: showing one contact at a time forces a click per contact, when the whole point of the notebook is scanning everything top to bottom. Reworked:
 
