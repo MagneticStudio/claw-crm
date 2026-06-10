@@ -2,6 +2,9 @@
 
 ## 2026-06-10
 
+### CONTRIBUTING.md + launch essay draft
+Adds `CONTRIBUTING.md` — the taste test (simplicity + agent connectivity as the two pillars every change is measured against), setup, ground rules (single write path, MCP try/catch, schema/boot-migration pairing, E2E-before-PR), and conventions. Also adds `docs/launch-essay-draft.md`, the draft of the "I let Claude run my CRM for 90 days" launch essay distilling the agent-hygiene learnings from the changelog (over-logging, prompt-rule decay → server validation, retrospective timeline distortion, meetings-layer curation, cross-layer dedup, the unattended-sync unlock).
+
 ### Add a UI path to create contacts (#86)
 Until now the only ways to create a contact were MCP tools or seeding — a solo user on mobile with no agent was stuck. Two affordances, one new component:
 
