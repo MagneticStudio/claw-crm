@@ -89,18 +89,19 @@ Uses `mcp-client.ts` which calls the REST API over HTTP:
 
 ### Skills (optional but recommended)
 
-Two skills ship with the repo:
+Three skills ship with the repo:
 
 - **`skills/crm/SKILL.md`** — a lightweight "when to use the CRM" guide that loads proactively. Claude sees the mental model (data-partition rule, five-layer structure, pre-write checklist, strategic-vs-operational meetings) before any tool call. The detailed writing contract, stage enums, and validation rules stay in `get_crm_guide` and load on-demand.
+- **`skills/crm-migrate/SKILL.md`** — one-time bulk import. Paste your existing client notes (Apple Notes, Notion, Google Docs, a spreadsheet — wherever they live today) and the agent maps every person, proposes a migration plan for your approval, then builds contacts, journals, interactions, and tasks in one pass. Nobody starts from zero; this is how your history comes across.
 - **`skills/crm-management/SKILL.md`** — a scheduled sync agent that reconciles the CRM with your inbox and calendar: logs material interactions, curates the Meetings layer, builds briefings for strategic meetings in the next 24h, and ends every run with an action-first summary (`DECIDE:` / `FLAG:` / `AT RISK:`). Pair it with an email + calendar MCP connector and a daily schedule ("run my CRM agent"). It depends on the `crm` skill for the data-model contract.
 
 Install paths:
 
 - **Claude Code**: copy the files into your personal skills directory.
   ```bash
-  mkdir -p ~/.claude/skills/crm ~/.claude/skills/crm-management
-  cp skills/crm/SKILL.md ~/.claude/skills/crm/
-  cp skills/crm-management/SKILL.md ~/.claude/skills/crm-management/
+  for s in crm crm-migrate crm-management; do
+    mkdir -p ~/.claude/skills/$s && cp skills/$s/SKILL.md ~/.claude/skills/$s/
+  done
   ```
   Claude Code auto-loads on session start.
 - **Claude Desktop / Claude.ai personal**: open a Project → Custom Instructions → paste the SKILL.md body. (Native plugin/skill install for claude.ai consumer isn't available yet; manual paste is the current path.)
