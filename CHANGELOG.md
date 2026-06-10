@@ -2,6 +2,11 @@
 
 ## 2026-06-10
 
+### New skill: `crm-management` — scheduled inbox/calendar sync agent
+Adds `skills/crm-management/SKILL.md` (#144), a sibling to the `crm` skill. Where `crm` provides the mental model and writing contract, `crm-management` orchestrates a periodic sync pass on top of it: read inbox (received + sent) for the last 1–2 days, read calendar for the next 48h, and reconcile every material event into the CRM as an interaction, task, meeting, journal entry, stage change, or briefing.
+
+Key disciplines packaged from many real sync cycles: default-to-NOT-logging, no hallucinated contacts (flag instead), thread-level dedup, the six-month signal test for LIVE-client noise, the strategic-vs-operational meeting filter with delete-on-sight cleanup, briefing builds gated on a pending strategic meeting within 24h (including the often-missed wrong-meeting staleness case), end-of-run scans (stage-change, conditional follow-up, backdating sanity, volume), and an action-first summary format (`DECIDE:` / `REVIEW:` / `FLAG:` / `AT RISK:` / `STAGE:` / `CLEANUP:`). Ships with 15 behavioral test scenarios. README updated with install paths for both skills.
+
 ### Skill v2: pre-write checklist, journal anatomy, strategic-vs-operational meetings
 Major revision of `skills/crm/SKILL.md` (#143), distilling months of real sync-cycle usage into the shared mental model. Six additions/edits, all aimed at the dominant agent failure modes — over-logging, duplicate writes across layers, journal sprawl, retrospective entries distorting the timeline, and briefing-candidate pollution:
 
