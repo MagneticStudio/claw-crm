@@ -24,6 +24,29 @@ Most CRMs are built for sales teams. Claw is built for one person managing 10-50
 
 ## Quick Start
 
+### Docker (recommended — one command, ~2 minutes)
+
+```bash
+git clone https://github.com/MagneticStudio/claw-crm.git
+cd claw-crm
+docker compose up
+```
+
+Open [http://localhost:3000](http://localhost:3000) — the first visit walks you through choosing a PIN and hands you your API key + MCP token. No env files, no manual schema push; the schema is applied automatically on first boot. Data persists in a Docker volume across restarts.
+
+To connect your AI agent, grab the MCP URL from **Settings** inside the app (see [AI Agent Integration](#ai-agent-integration) below).
+
+### Railway (hosted, ~5 minutes)
+
+1. [Create a new Railway project](https://railway.com/new) → **Deploy from GitHub repo** → pick your fork of this repo.
+2. In the service settings, set **Root Directory** to `app`.
+3. Add a **PostgreSQL** database to the project, then set on the app service:
+   - `DATABASE_URL` → reference the Postgres `DATABASE_URL` variable
+   - `SESSION_SECRET` → any long random string
+4. Generate a domain for the service. Open it, set your PIN, done. Railway auto-deploys on every push to main.
+
+### Local development
+
 ```bash
 cd app
 cp .env.example .env   # set DATABASE_URL and SESSION_SECRET

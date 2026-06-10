@@ -1,0 +1,32 @@
+# Claw CRM — one-command self-host: `docker compose up`
+# App on http://localhost:3000 — first visit walks you through PIN setup.
+# Set SESSION_SECRET in your environment (or a .env file next to this compose file)
+# before exposing this to a network.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: claw
+      POSTGRES_PASSWORD: claw
+      POSTGRES_DB: claw_crm
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U claw -d claw_crm"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build: ./app
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://claw:claw@db:5432/claw_crm
+      SESSION_SECRET: ${SESSION_SECRET:-dev-only-change-me}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

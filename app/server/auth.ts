@@ -70,7 +70,10 @@ export function setupAuth(app: Express) {
       maxAge: 1000 * 60 * 60 * 24 * 30, // 30 days
       httpOnly: true,
       sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
+      // "auto": Secure over HTTPS (Railway, behind trust-proxy), plain over HTTP
+      // (Docker self-host on localhost). A hard `true` in production silently
+      // breaks login for plain-HTTP self-hosts — the cookie never gets set.
+      secure: process.env.NODE_ENV === "production" ? "auto" : false,
     },
   };
 

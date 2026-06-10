@@ -2,6 +2,14 @@
 
 ## 2026-06-10
 
+### Zero-friction install: Docker one-liner + Railway guide
+The target user keeps clients in Apple Notes — they were never going to provision Postgres and push a schema by hand. Adoption now starts with `docker compose up`:
+
+- **`docker-compose.yml`** (repo root) — Postgres 16 + the app, schema pushed idempotently at container start (`drizzle-kit push` before boot; boot-migrations still run as before). First visit walks through PIN setup. Data persists in a named volume.
+- **`app/Dockerfile` + `.dockerignore`** — single-image build (vite + esbuild), `NODE_ENV=production`.
+- **Session cookie fix** — `secure` was hard-`true` in production, which silently broke login for plain-HTTP self-hosts (the cookie never got set; login returned 200 but the session vanished). Now `"auto"`: Secure over HTTPS (Railway behind trust-proxy), plain over HTTP (Docker on localhost). Verified end-to-end on a cold container: setup → login → authed API → MCP initialize.
+- **README Quick Start rewritten** around three paths: Docker (recommended), Railway hosted (deploy-from-repo steps), local dev.
+
 ### New skill: `crm-management` — scheduled inbox/calendar sync agent
 Adds `skills/crm-management/SKILL.md` (#144), a sibling to the `crm` skill. Where `crm` provides the mental model and writing contract, `crm-management` orchestrates a periodic sync pass on top of it: read inbox (received + sent) for the last 1–2 days, read calendar for the next 48h, and reconcile every material event into the CRM as an interaction, task, meeting, journal entry, stage change, or briefing.
 
