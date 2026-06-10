@@ -67,4 +67,4 @@ Every PR that modifies `app/shared/schema.ts` MUST also update `app/server/boot-
 ## Gotchas
 
 - Dates: use `fmtDate` from `lib/utils.ts`. Using `format()` from date-fns causes off-by-one timezone bugs.
-- Never store pricing, deal terms, or cross-reference clients.
+- Pricing and deal terms live in the relationship journal only — never in tasks, interactions, briefings, or contact fields. Never cross-reference clients anywhere.

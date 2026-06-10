@@ -17,10 +17,10 @@ Most CRMs are built for sales teams. Claw is built for one person managing 10-50
 - **Notebook view** — your entire pipeline in one scrollable feed, sorted by urgency
 - **Slash commands** — `/fu 4/15 check on proposal`, `/mtg 4/3 2pm Coffee @ Verve`, `/stage PROPOSAL`
 - **AI agents write, you verify** — Claude connects via MCP and manages your CRM through 27+ tools
-- **Relationship journal** — a per-contact markdown document that's the durable home for the narrative of the relationship: Key People, Wins / Case Study Material, and dated Entries. Absolute-dates-only validator, full revision history with diff view, verbatim blockquote escape for preserving emails and transcripts.
+- **Relationship journal** — a per-contact markdown document that's the durable home for the narrative of the relationship: Key People, Wins / Case Study Material, Engagement History, and dated Entries. Absolute-dates-only validator, full revision history with diff view, verbatim blockquote escape for preserving emails and transcripts.
 - **Rules engine** — business logic stored as data, not code. "Flag contacts with no interaction for 14 days." Agents can create, modify, and delete rules.
 - **Real-time** — SSE pushes every change to the UI instantly, whether you or an agent made it
-- **Privacy-first** — PIN-locked, teal privacy screen on window blur, no pricing or deal terms stored
+- **Privacy-first** — PIN-locked, teal privacy screen on window blur, pricing and deal terms confined to the journal (never in tasks, interactions, briefings, or contact fields), no cross-client references anywhere
 
 ## Quick Start
 
@@ -163,7 +163,7 @@ Exceptions: `has_future_followup`, `stage_in` (exclude specific stages from rule
 | **Follow-ups** | Action items with due dates. |
 | **Meetings** | Future scheduled events. |
 | **Briefings** | Per-contact prep for the next specific meeting. Canonical 8-section structure (TL;DR, About them, About the company, Shared ground, Our history, What to discuss, Offers / asks, Watch-outs) enforced by the server. Stale after 7 days — old briefings stop surfacing on contact cards but remain readable on the briefing page. |
-| **Journal** | Per-contact markdown narrative — Key People, Wins / Case Study Material, dated Entries. Full revision history. |
+| **Journal** | Per-contact markdown narrative — Key People, Wins / Case Study Material, Engagement History, dated Entries. Full revision history. |
 | **Rules** | Business logic — conditions + actions as JSONB. |
 | **Violations** | Alerts created by rules, auto-cleared when resolved. |
 
