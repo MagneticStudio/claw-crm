@@ -2,6 +2,9 @@
 
 ## 2026-06-10
 
+### Hotfix: stop Railway from running drizzle-kit push on boot
+The Dockerfile added for self-hosting (`docker compose up`) runs `drizzle-kit push --force` before boot so a fresh Postgres works out of the box. Railway auto-detected that Dockerfile and switched its builder — so production started running the push on every deploy, violating the design rule that Railway schema changes go through boot-migrations only. Today's deploy logs show drizzle-kit attempting a constraint drop on a primary-key `id` column, which **Postgres rejected** (42P16) — no data was affected, and the app booted normally — but a future auto-generated statement might succeed. `railway.json` now pins `startCommand: "node dist/index.js"`, so Railway skips the push while compose self-hosters keep it. Dockerfile carries a warning comment.
+
 ### Global mutation-failure toast (#85, error half)
 Failed writes were invisible: optimistic updates rolled back silently, and the only error rendering anywhere was the briefing page's bespoke parser — everything else showed nothing (or a raw `400: {...}` string). Fatal for trust in an app where agents and humans share the write path. A `MutationCache.onError` in `lib/queryClient.ts` now parses the API error body and shows a destructive toast ("Couldn't save" + the server's `message`). Login and setup mutations opt out via `meta.suppressErrorToast` — their forms already render errors inline, and a double surface confused the auth flow. New `tests/error-toast.spec.ts` (route-interception forced 400) and E2E skill step 6g. The success-side half of #85 (replacing the per-card `flash` infra with toasts) is deliberately left open — the flashes are a taste decision worth a separate look.
 
