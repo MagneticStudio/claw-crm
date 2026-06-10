@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useContactSearch } from "@/hooks/use-contact-search";
 import { ContactBlock } from "@/components/contact-block";
 import { SearchBar } from "@/components/search-bar";
+import { AddContactSheet } from "@/components/add-contact-sheet";
 import {
   Loader2,
   LogOut,
@@ -21,6 +22,8 @@ import {
   Menu,
   Check,
   Clock,
+  Plus,
+  UserPlus,
 } from "lucide-react";
 import { KanbanBoard } from "@/components/kanban/kanban-board";
 import { Link } from "wouter";
@@ -55,6 +58,7 @@ export default function CrmPage() {
     deleteFollowup,
     completeFollowup,
     updateContact,
+    createContact,
   } = useCrm();
   const { logoutMutation } = useAuth();
   const [activeStage, setActiveStage] = useState<string>("ALL");
@@ -67,6 +71,7 @@ export default function CrmPage() {
   }, [viewMode]);
   const [showFilter, setShowFilter] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [showAddContact, setShowAddContact] = useState(false);
   // Search state — lives at the CrmPage level because it overrides
   // displayedContacts and forces list view while a query is active.
   const [searchOpen, setSearchOpen] = useState(false);
@@ -249,6 +254,23 @@ export default function CrmPage() {
               onArrowDown={() => setHighlightedIndex((i) => Math.min(displayedContacts.length - 1, i + 1))}
               onArrowUp={() => setHighlightedIndex((i) => Math.max(0, i - 1))}
             />
+            {/* Add contact — hidden on mobile (FAB covers it) and while searching */}
+            {!searchOpen && (
+              <button
+                onClick={() => {
+                  setShowAddContact(true);
+                  setShowFilter(false);
+                  setShowMenu(false);
+                }}
+                className="p-2 transition-colors hidden sm:block"
+                style={{ color: C.muted }}
+                title="Add contact"
+                aria-label="Add contact"
+              >
+                <UserPlus className="h-4 w-4" />
+              </button>
+            )}
+
             {/* Filter button — hidden while searching to give the input room */}
             {!searchOpen && (
               <button
@@ -732,6 +754,22 @@ export default function CrmPage() {
           )}
         </main>
       )}
+
+      {/* Mobile FAB — the header button is hidden below sm */}
+      <button
+        onClick={() => setShowAddContact(true)}
+        className="sm:hidden fixed bottom-5 right-5 z-[60] h-14 w-14 flex items-center justify-center rounded-full text-white"
+        style={{ backgroundColor: C.accent, boxShadow: "0 4px 16px rgba(0,0,0,0.2)" }}
+        aria-label="Add contact"
+      >
+        <Plus className="h-6 w-6" />
+      </button>
+
+      <AddContactSheet
+        open={showAddContact}
+        onClose={() => setShowAddContact(false)}
+        onCreate={(data) => createContact.mutateAsync(data)}
+      />
     </div>
   );
 }

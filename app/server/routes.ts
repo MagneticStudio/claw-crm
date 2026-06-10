@@ -126,7 +126,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/contacts", requireAuth, async (req, res) => {
-    const parsed = insertContactSchema.safeParse(req.body);
+    // Accept a free-form companyName (same convenience the MCP path offers)
+    // and resolve it to companyId before schema validation.
+    const { companyName, ...body } = req.body ?? {};
+    if (typeof companyName === "string" && companyName.trim()) {
+      const company = await storage.findOrCreateCompanyByName(companyName.trim());
+      body.companyId = company.id;
+    }
+    const parsed = insertContactSchema.safeParse(body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const contact = await storage.createContact(parsed.data);
     res.status(201).json(contact);

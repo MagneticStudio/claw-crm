@@ -52,11 +52,8 @@ import { randomUUID } from "crypto";
 // --- Helpers ---
 
 async function findOrCreateCompany(name: string): Promise<number> {
-  const allCompanies = await storage.getCompanies();
-  const match = allCompanies.find((c) => c.name.toLowerCase() === name.toLowerCase());
-  if (match) return match.id;
-  const created = await storage.createCompany({ name });
-  return created.id;
+  const company = await storage.findOrCreateCompanyByName(name);
+  return company.id;
 }
 
 /** Resolve contactId → "FirstName LastName" for enriching list responses */
