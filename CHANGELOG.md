@@ -2,6 +2,9 @@
 
 ## 2026-06-10
 
+### Global mutation-failure toast (#85, error half)
+Failed writes were invisible: optimistic updates rolled back silently, and the only error rendering anywhere was the briefing page's bespoke parser — everything else showed nothing (or a raw `400: {...}` string). Fatal for trust in an app where agents and humans share the write path. A `MutationCache.onError` in `lib/queryClient.ts` now parses the API error body and shows a destructive toast ("Couldn't save" + the server's `message`). Login and setup mutations opt out via `meta.suppressErrorToast` — their forms already render errors inline, and a double surface confused the auth flow. New `tests/error-toast.spec.ts` (route-interception forced 400) and E2E skill step 6g. The success-side half of #85 (replacing the per-card `flash` infra with toasts) is deliberately left open — the flashes are a taste decision worth a separate look.
+
 ### Seeding kit + README screenshot refresh
 Adds `docs/seeding-kit.md` — ready-to-paste submissions for every distribution channel (awesome-mcp-servers PR line, PulseMCP form text, Show HN title+body, MCP registry publish steps, Railway template composer walkthrough, label CLI commands, community-post guidance) with a status table. Converts the launch checklist into ~30 minutes of founder copy-paste. Also regenerates `app/client/public/screenshot.png` to show the current desktop master-detail layout (#82) — the old single-column screenshot was the first thing every repo visitor saw.
 
