@@ -5,6 +5,7 @@ import { useSSE } from "@/hooks/use-sse";
 import { useAuth } from "@/hooks/use-auth";
 import { useContactSearch } from "@/hooks/use-contact-search";
 import { ContactBlock } from "@/components/contact-block";
+import { ContactRow } from "@/components/contact-row";
 import { SearchBar } from "@/components/search-bar";
 import { AddContactSheet } from "@/components/add-contact-sheet";
 import {
@@ -28,7 +29,7 @@ import {
 import { KanbanBoard } from "@/components/kanban/kanban-board";
 import { Link } from "wouter";
 import { format, isPast, isToday, differenceInCalendarDays } from "date-fns";
-import type { Followup, ActivityLogEntry, Briefing } from "@shared/schema";
+import type { Followup, ActivityLogEntry, Briefing, ContactWithRelations } from "@shared/schema";
 import { fmtDate } from "@/lib/utils";
 import { useConfig, useColors } from "@/App";
 
@@ -72,6 +73,16 @@ export default function CrmPage() {
   const [showFilter, setShowFilter] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showAddContact, setShowAddContact] = useState(false);
+  // Desktop master-detail (#82): ≥1024px shows a compact contact rail + one
+  // full card. Below that, the classic single-column notebook is unchanged.
+  const [isDesktop, setIsDesktop] = useState(() => typeof window !== "undefined" && window.innerWidth >= 1024);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  const [selectedContactId, setSelectedContactId] = useState<number | null>(null);
   // Search state — lives at the CrmPage level because it overrides
   // displayedContacts and forces list view while a query is active.
   const [searchOpen, setSearchOpen] = useState(false);
@@ -147,6 +158,25 @@ export default function CrmPage() {
   const isSearching = searchResults !== null;
   const displayedContacts = isSearching ? searchResults : filteredContacts;
   const effectiveViewMode = isSearching ? "list" : viewMode;
+  // Desktop detail pane: explicit selection if it's still in the displayed
+  // set, else fall back to the first displayed contact.
+  const selectedContact = displayedContacts.find((c) => c.id === selectedContactId) ?? displayedContacts[0] ?? null;
+
+  const renderContactBlock = (contact: ContactWithRelations) => (
+    <ContactBlock
+      contact={contact}
+      onAddInteraction={(content, date, type) => addInteraction.mutate({ contactId: contact.id, content, date, type })}
+      onUpdateInteraction={(id, data) => updateInteraction.mutate({ id, ...data })}
+      onDeleteInteraction={(id) => deleteInteraction.mutate(id)}
+      onCreateFollowup={(content, dueDate, opts) =>
+        createFollowup.mutate({ contactId: contact.id, content, dueDate, ...opts })
+      }
+      onUpdateFollowup={(id, data) => updateFollowup.mutate({ id, ...data })}
+      onDeleteFollowup={(id) => deleteFollowup.mutate(id)}
+      onCompleteFollowup={(id, outcome) => completeFollowup.mutate({ id, outcome })}
+      onUpdateContact={(data) => updateContact.mutate({ id: contact.id, ...data })}
+    />
+  );
 
   // Clamp the keyboard highlight whenever the result set shrinks.
   useEffect(() => {
@@ -231,7 +261,7 @@ export default function CrmPage() {
     <div className="min-h-screen" style={{ backgroundColor: "#f0f8f8" }}>
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: `1px solid ${C.border}` }}>
-        <div className="max-w-[640px] mx-auto px-4 py-3 flex items-center justify-between gap-2">
+        <div className="max-w-[640px] lg:max-w-[1200px] mx-auto px-4 py-3 flex items-center justify-between gap-2">
           {!searchOpen && (
             <h1 className="text-[13px] font-semibold tracking-[0.2em] uppercase" style={{ color: C.text }}>
               {orgName}
@@ -250,7 +280,13 @@ export default function CrmPage() {
                 requestAnimationFrame(() => searchInputRef.current?.focus());
               }}
               onClose={closeSearch}
-              onEnter={() => searchInputRef.current?.blur()}
+              onEnter={() => {
+                // On desktop, Enter opens the highlighted result in the detail pane.
+                if (isDesktop && isSearching && displayedContacts[highlightedIndex]) {
+                  setSelectedContactId(displayedContacts[highlightedIndex].id);
+                }
+                searchInputRef.current?.blur();
+              }}
               onArrowDown={() => setHighlightedIndex((i) => Math.min(displayedContacts.length - 1, i + 1))}
               onArrowUp={() => setHighlightedIndex((i) => Math.max(0, i - 1))}
             />
@@ -490,6 +526,7 @@ export default function CrmPage() {
           onContactTap={(id) => {
             setActiveStage("ALL");
             setViewMode("list");
+            setSelectedContactId(id);
             // Poll for the element to appear in the DOM after React renders the list
             let attempts = 0;
             const tryScroll = () => {
@@ -504,253 +541,280 @@ export default function CrmPage() {
           }}
         />
       ) : (
-        <main className="max-w-[640px] mx-auto px-4 py-5">
-          {/* Upcoming — all follow-ups and meetings in one list */}
-          {allFollowups.length > 0 && (
-            <div
-              className="bg-white mb-5"
-              style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}
-            >
-              <div className="mb-2">
-                <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>
-                  Upcoming
-                </span>
-              </div>
-              <div className="space-y-1.5">
-                {allFollowups.map(({ followup: fu, contactName, briefing }) => {
-                  const due = new Date(fu.dueDate);
-                  // Meetings are scheduled events, not action items — a past meeting has
-                  // happened, it's not "overdue". Overdue only applies to tasks.
-                  const isOverdue = fu.type !== "meeting" && isPast(due) && !isToday(due);
-                  const isTodayDue = isToday(due);
-                  // Calendar-day difference — counts midnight crossings, so an item due tomorrow
-                  // reads as "1d" regardless of what hour it is today. differenceInDays measures
-                  // 24h periods, which is wrong for human-facing "days until".
-                  const daysUntil = differenceInCalendarDays(due, new Date());
-                  const dateColor = isOverdue ? C.red : isTodayDue ? C.stale : C.accentDark;
-                  const isCompleting = completingUpcomingId === fu.id;
+        <main className={`mx-auto px-4 py-5 ${isDesktop ? "max-w-[1200px] flex items-start gap-5" : "max-w-[640px]"}`}>
+          {/* Left rail on desktop (Upcoming + compact rows); the whole page on mobile */}
+          <div className={isDesktop ? "w-[360px] flex-shrink-0" : undefined}>
+            {/* Upcoming — all follow-ups and meetings in one list */}
+            {allFollowups.length > 0 && (
+              <div
+                className="bg-white mb-5"
+                style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}
+              >
+                <div className="mb-2">
+                  <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>
+                    Upcoming
+                  </span>
+                </div>
+                <div className="space-y-1.5">
+                  {allFollowups.map(({ followup: fu, contactName, briefing }) => {
+                    const due = new Date(fu.dueDate);
+                    // Meetings are scheduled events, not action items — a past meeting has
+                    // happened, it's not "overdue". Overdue only applies to tasks.
+                    const isOverdue = fu.type !== "meeting" && isPast(due) && !isToday(due);
+                    const isTodayDue = isToday(due);
+                    // Calendar-day difference — counts midnight crossings, so an item due tomorrow
+                    // reads as "1d" regardless of what hour it is today. differenceInDays measures
+                    // 24h periods, which is wrong for human-facing "days until".
+                    const daysUntil = differenceInCalendarDays(due, new Date());
+                    const dateColor = isOverdue ? C.red : isTodayDue ? C.stale : C.accentDark;
+                    const isCompleting = completingUpcomingId === fu.id;
 
-                  if (isCompleting) {
-                    return (
-                      <div
-                        key={fu.id}
-                        className="rounded-lg px-3 py-2 space-y-2"
-                        style={{ backgroundColor: C.accentLight, border: `1px solid ${C.accent}40` }}
-                      >
-                        <div className="text-xs font-medium" style={{ color: C.accentDark }}>
-                          Completing: {fmtDate(due)} {fu.content} — {contactName}
-                        </div>
-                        <input
-                          autoFocus
-                          value={completingUpcomingText}
-                          onChange={(e) => setCompletingUpcomingText(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && completingUpcomingText.trim()) {
-                              completeFollowup.mutate({ id: fu.id, outcome: completingUpcomingText.trim() });
-                              setCompletingUpcomingId(null);
-                            }
-                            if (e.key === "Escape") setCompletingUpcomingId(null);
-                          }}
-                          placeholder="What happened?"
-                          className="w-full text-sm bg-white rounded px-2 py-1 outline-none"
-                          style={{ color: C.text, border: `1px solid ${C.accent}40` }}
-                        />
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => {
-                              if (completingUpcomingText.trim()) {
+                    if (isCompleting) {
+                      return (
+                        <div
+                          key={fu.id}
+                          className="rounded-lg px-3 py-2 space-y-2"
+                          style={{ backgroundColor: C.accentLight, border: `1px solid ${C.accent}40` }}
+                        >
+                          <div className="text-xs font-medium" style={{ color: C.accentDark }}>
+                            Completing: {fmtDate(due)} {fu.content} — {contactName}
+                          </div>
+                          <input
+                            autoFocus
+                            value={completingUpcomingText}
+                            onChange={(e) => setCompletingUpcomingText(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && completingUpcomingText.trim()) {
                                 completeFollowup.mutate({ id: fu.id, outcome: completingUpcomingText.trim() });
                                 setCompletingUpcomingId(null);
                               }
+                              if (e.key === "Escape") setCompletingUpcomingId(null);
                             }}
-                            className="text-xs font-medium text-white px-2.5 py-1 rounded"
-                            style={{ backgroundColor: C.accentDark }}
-                          >
-                            Done
-                          </button>
-                          <button
-                            onClick={() => {
-                              completeFollowup.mutate({ id: fu.id });
-                              setCompletingUpcomingId(null);
-                            }}
-                            className="text-xs"
-                            style={{ color: C.muted }}
-                          >
-                            Skip note
-                          </button>
-                          <button
-                            onClick={() => setCompletingUpcomingId(null)}
-                            className="text-xs"
-                            style={{ color: C.muted }}
-                          >
-                            Cancel
-                          </button>
+                            placeholder="What happened?"
+                            className="w-full text-sm bg-white rounded px-2 py-1 outline-none"
+                            style={{ color: C.text, border: `1px solid ${C.accent}40` }}
+                          />
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                if (completingUpcomingText.trim()) {
+                                  completeFollowup.mutate({ id: fu.id, outcome: completingUpcomingText.trim() });
+                                  setCompletingUpcomingId(null);
+                                }
+                              }}
+                              className="text-xs font-medium text-white px-2.5 py-1 rounded"
+                              style={{ backgroundColor: C.accentDark }}
+                            >
+                              Done
+                            </button>
+                            <button
+                              onClick={() => {
+                                completeFollowup.mutate({ id: fu.id });
+                                setCompletingUpcomingId(null);
+                              }}
+                              className="text-xs"
+                              style={{ color: C.muted }}
+                            >
+                              Skip note
+                            </button>
+                            <button
+                              onClick={() => setCompletingUpcomingId(null)}
+                              className="text-xs"
+                              style={{ color: C.muted }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
                         </div>
+                      );
+                    }
+
+                    const isMeeting = fu.type === "meeting";
+                    const meetingType = (fu.metadata as Record<string, unknown> | null)?.meetingType as
+                      | string
+                      | undefined;
+                    const meetingIcons: Record<string, string> = {
+                      call: "📞",
+                      video: "📹",
+                      "in-person": "🤝",
+                      coffee: "☕",
+                    };
+                    const meetingIcon = isMeeting ? (meetingType && meetingIcons[meetingType]) || "📅" : null;
+                    const isTodayMeeting = isMeeting && isTodayDue;
+                    const isExp = isTodayMeeting && expandedMeetingIds.has(fu.id);
+
+                    const handleUpcomingSnooze = (days: number) => {
+                      const newDate = new Date(due);
+                      newDate.setDate(newDate.getDate() + days);
+                      updateFollowup.mutate({ id: fu.id, dueDate: newDate.toISOString() });
+                    };
+
+                    return (
+                      <div key={fu.id} className="group/upcoming py-0.5">
+                        <div className="flex items-start gap-2">
+                          {isMeeting ? (
+                            <span
+                              className={`flex-shrink-0 leading-none mt-0.5 ${isTodayMeeting ? "cursor-pointer" : ""}`}
+                              onClick={isTodayMeeting ? () => toggleMeetingExpand(fu.id) : undefined}
+                            >
+                              {meetingIcon}
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setCompletingUpcomingId(fu.id);
+                                setCompletingUpcomingText(fu.content);
+                              }}
+                              className="flex-shrink-0 hover:opacity-70 transition-colors mt-1"
+                              title="Complete"
+                            >
+                              <Square className="h-3.5 w-3.5" style={{ color: dateColor }} />
+                            </button>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            {/* Meta line — date, time, contact, relative pill, hover snooze */}
+                            <div className="flex items-center gap-1.5 text-[11px] leading-tight flex-wrap">
+                              <span
+                                className="font-semibold whitespace-nowrap"
+                                style={{ color: isMeeting ? "#2563eb" : dateColor }}
+                              >
+                                {fmtDate(due)}
+                                {fu.time ? ` ${fu.time}` : ""}
+                              </span>
+                              {isOverdue && (
+                                <span className="font-semibold uppercase tracking-wide" style={{ color: C.red }}>
+                                  · Overdue
+                                </span>
+                              )}
+                              {isTodayDue && (
+                                <span className="font-semibold uppercase tracking-wide" style={{ color: C.stale }}>
+                                  · Today
+                                </span>
+                              )}
+                              {!isOverdue && !isTodayDue && daysUntil <= 7 && (
+                                <span style={{ color: C.muted }}>· {daysUntil}d</span>
+                              )}
+                              <span style={{ color: C.muted }}>·</span>
+                              <span className="truncate" style={{ color: C.muted }}>
+                                {contactName}
+                              </span>
+                              <span className="hidden group-hover/upcoming:inline-flex items-center gap-1 ml-auto">
+                                <Clock className="h-3 w-3" style={{ color: C.muted }} />
+                                {[1, 7, 14].map((d) => (
+                                  <button
+                                    key={d}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleUpcomingSnooze(d);
+                                    }}
+                                    className="text-[10px] px-1.5 py-0.5 rounded-full transition-colors hover:opacity-80"
+                                    style={{ backgroundColor: C.accentLight, color: C.accentDark }}
+                                    title={`Snooze ${d} day${d > 1 ? "s" : ""}`}
+                                  >
+                                    +{d}d
+                                  </button>
+                                ))}
+                              </span>
+                            </div>
+                            {/* Content line — full width, primary readable */}
+                            <div className="text-sm leading-snug mt-0.5" style={{ color: C.text }}>
+                              {fu.content}
+                              {fu.location ? <span style={{ color: C.muted }}> — {fu.location}</span> : null}
+                            </div>
+                          </div>
+                          {isTodayMeeting && (
+                            <ChevronDown
+                              className={`h-3.5 w-3.5 flex-shrink-0 mt-1 transition-transform cursor-pointer ${isExp ? "rotate-180" : ""}`}
+                              style={{ color: C.muted }}
+                              onClick={() => toggleMeetingExpand(fu.id)}
+                            />
+                          )}
+                        </div>
+                        {isExp && briefing && (
+                          <div
+                            className="mt-1.5 ml-6 text-xs rounded-lg px-3 py-2 whitespace-pre-wrap"
+                            style={{ backgroundColor: C.accentLight, color: C.text }}
+                          >
+                            <div
+                              className="text-[10px] font-semibold uppercase tracking-wider mb-1"
+                              style={{ color: C.accentDark }}
+                            >
+                              Briefing
+                            </div>
+                            {briefing.content}
+                          </div>
+                        )}
+                        {isExp && !briefing && (
+                          <div className="mt-1.5 ml-6 text-[10px] italic" style={{ color: C.muted }}>
+                            No briefing yet
+                          </div>
+                        )}
                       </div>
                     );
-                  }
+                  })}
+                </div>
+              </div>
+            )}
 
-                  const isMeeting = fu.type === "meeting";
-                  const meetingType = (fu.metadata as Record<string, unknown> | null)?.meetingType as
-                    | string
-                    | undefined;
-                  const meetingIcons: Record<string, string> = {
-                    call: "📞",
-                    video: "📹",
-                    "in-person": "🤝",
-                    coffee: "☕",
-                  };
-                  const meetingIcon = isMeeting ? (meetingType && meetingIcons[meetingType]) || "📅" : null;
-                  const isTodayMeeting = isMeeting && isTodayDue;
-                  const isExp = isTodayMeeting && expandedMeetingIds.has(fu.id);
-
-                  const handleUpcomingSnooze = (days: number) => {
-                    const newDate = new Date(due);
-                    newDate.setDate(newDate.getDate() + days);
-                    updateFollowup.mutate({ id: fu.id, dueDate: newDate.toISOString() });
-                  };
-
+            {/* Contacts: compact rows on desktop, full cards on mobile */}
+            {isDesktop ? (
+              <div
+                className="bg-white overflow-hidden"
+                style={{ border: `1px solid ${C.border}`, borderRadius: 12 }}
+                data-testid="contact-rail"
+              >
+                {displayedContacts.map((contact, idx) => (
+                  <ContactRow
+                    key={contact.id}
+                    contact={contact}
+                    selected={selectedContact?.id === contact.id}
+                    highlighted={isSearching && idx === highlightedIndex}
+                    onSelect={() => setSelectedContactId(contact.id)}
+                  />
+                ))}
+                {displayedContacts.length === 0 && (
+                  <p className="text-center py-10 text-sm" style={{ color: C.muted }}>
+                    {isSearching ? "No contacts match your search" : "No contacts in this stage"}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <>
+                {displayedContacts.map((contact, idx) => {
+                  const isHighlighted = isSearching && idx === highlightedIndex;
                   return (
-                    <div key={fu.id} className="group/upcoming py-0.5">
-                      <div className="flex items-start gap-2">
-                        {isMeeting ? (
-                          <span
-                            className={`flex-shrink-0 leading-none mt-0.5 ${isTodayMeeting ? "cursor-pointer" : ""}`}
-                            onClick={isTodayMeeting ? () => toggleMeetingExpand(fu.id) : undefined}
-                          >
-                            {meetingIcon}
-                          </span>
-                        ) : (
-                          <button
-                            onClick={() => {
-                              setCompletingUpcomingId(fu.id);
-                              setCompletingUpcomingText(fu.content);
-                            }}
-                            className="flex-shrink-0 hover:opacity-70 transition-colors mt-1"
-                            title="Complete"
-                          >
-                            <Square className="h-3.5 w-3.5" style={{ color: dateColor }} />
-                          </button>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          {/* Meta line — date, time, contact, relative pill, hover snooze */}
-                          <div className="flex items-center gap-1.5 text-[11px] leading-tight flex-wrap">
-                            <span
-                              className="font-semibold whitespace-nowrap"
-                              style={{ color: isMeeting ? "#2563eb" : dateColor }}
-                            >
-                              {fmtDate(due)}
-                              {fu.time ? ` ${fu.time}` : ""}
-                            </span>
-                            {isOverdue && (
-                              <span className="font-semibold uppercase tracking-wide" style={{ color: C.red }}>
-                                · Overdue
-                              </span>
-                            )}
-                            {isTodayDue && (
-                              <span className="font-semibold uppercase tracking-wide" style={{ color: C.stale }}>
-                                · Today
-                              </span>
-                            )}
-                            {!isOverdue && !isTodayDue && daysUntil <= 7 && (
-                              <span style={{ color: C.muted }}>· {daysUntil}d</span>
-                            )}
-                            <span style={{ color: C.muted }}>·</span>
-                            <span className="truncate" style={{ color: C.muted }}>
-                              {contactName}
-                            </span>
-                            <span className="hidden group-hover/upcoming:inline-flex items-center gap-1 ml-auto">
-                              <Clock className="h-3 w-3" style={{ color: C.muted }} />
-                              {[1, 7, 14].map((d) => (
-                                <button
-                                  key={d}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleUpcomingSnooze(d);
-                                  }}
-                                  className="text-[10px] px-1.5 py-0.5 rounded-full transition-colors hover:opacity-80"
-                                  style={{ backgroundColor: C.accentLight, color: C.accentDark }}
-                                  title={`Snooze ${d} day${d > 1 ? "s" : ""}`}
-                                >
-                                  +{d}d
-                                </button>
-                              ))}
-                            </span>
-                          </div>
-                          {/* Content line — full width, primary readable */}
-                          <div className="text-sm leading-snug mt-0.5" style={{ color: C.text }}>
-                            {fu.content}
-                            {fu.location ? <span style={{ color: C.muted }}> — {fu.location}</span> : null}
-                          </div>
-                        </div>
-                        {isTodayMeeting && (
-                          <ChevronDown
-                            className={`h-3.5 w-3.5 flex-shrink-0 mt-1 transition-transform cursor-pointer ${isExp ? "rotate-180" : ""}`}
-                            style={{ color: C.muted }}
-                            onClick={() => toggleMeetingExpand(fu.id)}
-                          />
-                        )}
-                      </div>
-                      {isExp && briefing && (
-                        <div
-                          className="mt-1.5 ml-6 text-xs rounded-lg px-3 py-2 whitespace-pre-wrap"
-                          style={{ backgroundColor: C.accentLight, color: C.text }}
-                        >
-                          <div
-                            className="text-[10px] font-semibold uppercase tracking-wider mb-1"
-                            style={{ color: C.accentDark }}
-                          >
-                            Briefing
-                          </div>
-                          {briefing.content}
-                        </div>
-                      )}
-                      {isExp && !briefing && (
-                        <div className="mt-1.5 ml-6 text-[10px] italic" style={{ color: C.muted }}>
-                          No briefing yet
-                        </div>
-                      )}
+                    <div
+                      key={contact.id}
+                      className="rounded-[10px]"
+                      style={{
+                        boxShadow: isHighlighted ? `0 0 0 2px ${C.accent}` : undefined,
+                        transition: "box-shadow 120ms ease-out",
+                      }}
+                    >
+                      {renderContactBlock(contact)}
                     </div>
                   );
                 })}
-              </div>
-            </div>
-          )}
+                {displayedContacts.length === 0 && (
+                  <p className="text-center py-16 text-sm" style={{ color: C.muted }}>
+                    {isSearching ? "No contacts match your search" : "No contacts in this stage"}
+                  </p>
+                )}
+              </>
+            )}
+          </div>
 
-          {/* Contact cards */}
-          {displayedContacts.map((contact, idx) => {
-            const isHighlighted = isSearching && idx === highlightedIndex;
-            return (
-              <div
-                key={contact.id}
-                className="rounded-[10px]"
-                style={{
-                  boxShadow: isHighlighted ? `0 0 0 2px ${C.accent}` : undefined,
-                  transition: "box-shadow 120ms ease-out",
-                }}
-              >
-                <ContactBlock
-                  contact={contact}
-                  onAddInteraction={(content, date, type) =>
-                    addInteraction.mutate({ contactId: contact.id, content, date, type })
-                  }
-                  onUpdateInteraction={(id, data) => updateInteraction.mutate({ id, ...data })}
-                  onDeleteInteraction={(id) => deleteInteraction.mutate(id)}
-                  onCreateFollowup={(content, dueDate, opts) =>
-                    createFollowup.mutate({ contactId: contact.id, content, dueDate, ...opts })
-                  }
-                  onUpdateFollowup={(id, data) => updateFollowup.mutate({ id, ...data })}
-                  onDeleteFollowup={(id) => deleteFollowup.mutate(id)}
-                  onCompleteFollowup={(id, outcome) => completeFollowup.mutate({ id, outcome })}
-                  onUpdateContact={(data) => updateContact.mutate({ id: contact.id, ...data })}
-                />
-              </div>
-            );
-          })}
-          {displayedContacts.length === 0 && (
-            <p className="text-center py-16 text-sm" style={{ color: C.muted }}>
-              {isSearching ? "No contacts match your search" : "No contacts in this stage"}
-            </p>
+          {/* Desktop detail pane — the selected contact's full card */}
+          {isDesktop && (
+            <div className="flex-1 min-w-0" data-testid="contact-detail">
+              {selectedContact ? (
+                renderContactBlock(selectedContact)
+              ) : (
+                <p className="text-center py-16 text-sm" style={{ color: C.muted }}>
+                  Select a contact
+                </p>
+              )}
+            </div>
           )}
         </main>
       )}
