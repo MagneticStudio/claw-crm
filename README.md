@@ -64,15 +64,20 @@ Uses `mcp-client.ts` which calls the REST API over HTTP:
 }
 ```
 
-### Skill (optional but recommended)
+### Skills (optional but recommended)
 
-`skills/crm/SKILL.md` is a lightweight "when to use the CRM" guide that loads proactively — Claude sees the mental model (data-partition rule, five-layer structure) before any tool call. The detailed writing contract, stage enums, and validation rules stay in `get_crm_guide` and load on-demand.
+Two skills ship with the repo:
+
+- **`skills/crm/SKILL.md`** — a lightweight "when to use the CRM" guide that loads proactively. Claude sees the mental model (data-partition rule, five-layer structure, pre-write checklist, strategic-vs-operational meetings) before any tool call. The detailed writing contract, stage enums, and validation rules stay in `get_crm_guide` and load on-demand.
+- **`skills/crm-management/SKILL.md`** — a scheduled sync agent that reconciles the CRM with your inbox and calendar: logs material interactions, curates the Meetings layer, builds briefings for strategic meetings in the next 24h, and ends every run with an action-first summary (`DECIDE:` / `FLAG:` / `AT RISK:`). Pair it with an email + calendar MCP connector and a daily schedule ("run my CRM agent"). It depends on the `crm` skill for the data-model contract.
 
 Install paths:
 
-- **Claude Code**: copy the file into your personal skills directory.
+- **Claude Code**: copy the files into your personal skills directory.
   ```bash
-  mkdir -p ~/.claude/skills/crm && cp skills/crm/SKILL.md ~/.claude/skills/crm/
+  mkdir -p ~/.claude/skills/crm ~/.claude/skills/crm-management
+  cp skills/crm/SKILL.md ~/.claude/skills/crm/
+  cp skills/crm-management/SKILL.md ~/.claude/skills/crm-management/
   ```
   Claude Code auto-loads on session start.
 - **Claude Desktop / Claude.ai personal**: open a Project → Custom Instructions → paste the SKILL.md body. (Native plugin/skill install for claude.ai consumer isn't available yet; manual paste is the current path.)
