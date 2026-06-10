@@ -79,7 +79,7 @@ curl -s http://localhost:3000/api/user  # should return 401 (not authenticated)
 - Type: `/mtg 12/25 2pm E2E test meeting @ Test Location`
 - Verify the command hint appears in blue ("meeting ready")
 - Press Enter
-- Verify a meeting item appears with 📅 icon, `12/25 2:00 PM`, content, and location
+- Verify a meeting item appears with 📅 icon, `12/25 2pm` (time renders as typed — the parser stores the raw token), content, and location
 - **Screenshot** → `e2e-screenshots/04-meeting-created.png`
 
 ### 4c. UI: Edit a follow-up date
@@ -123,7 +123,7 @@ curl -s http://localhost:3000/api/user  # should return 401 (not authenticated)
   - A `Briefing` text link on the right of the header row **only when a briefing exists AND it's <7 days old** for that contact
 - Click the `Journal` link for a contact — verify it navigates to `/journal/<id>`
 - Navigate back; click the `Briefing` link for a contact that has one — verify it navigates to `/briefings/<id>`
-- Verify **no** stage pill, status pill, or emoji badges appear on the header row
+- Verify the stage pill and status pill appear on the header row before the Briefing/Journal links (restored in PR #142) — tinted rounded pills; no emoji badges
 - **Screenshot** → `e2e-screenshots/07b-header-links.png`
 
 ### 6c. UI: Briefing template + validation + staleness
@@ -156,7 +156,7 @@ curl -s http://localhost:3000/api/user  # should return 401 (not authenticated)
 ### 10b. MCP: Read, append, and edit relationship journal
 - Call `read_journal` with a known `contactId`. Verify the response JSON includes `content`, `hash`, `initialized`, and `sizeBytes`. For a fresh contact, `initialized` should be false and `content` should be the seeded skeleton.
 - Call `append_journal` with that contactId, `title: "E2E seed entry"`, `body: "Logged from E2E on 2026-04-18. Confirmed live server accepts append."`. Verify `ok: true`, `seeded: true`, and `entryHeading` matches `### YYYY-MM-DD: E2E seed entry`.
-- Call `append_journal` again with `body: "follow up next week"` (intentionally relative). Verify `ok: false` and `reason: "relative_date"` naming the phrase `next week`.
+- Call `append_journal` again with `body: "follow up next week"` (intentionally relative). Verify `ok: false` and `reason: "relative_phrase"` with `offending: "next week"`.
 - Same-day fold: call `append_journal` again with `title: "E2E same-day follow"`, `body: "Second event on 2026-04-18. Should fold under the existing H3."`, `date: "2026-04-18"` (matching the seed entry's date). Verify `ok: true`, `foldedInto` is present and equals the seed entry's `### 2026-04-18: …` heading, and `entryHeading` is that same H3 (not a new sibling). Then call `read_journal` and verify the doc contains exactly ONE `### 2026-04-18:` heading followed by an `#### E2E same-day follow` subheading.
 - Call `edit_journal` with a stale `expectedHash` (e.g. `"0"`). Verify `ok: false`, `reason: "hash_conflict"`.
 - Call `edit_journal` to mutate an existing `### YYYY-MM-DD:` heading without `confirmed_with_user`. Verify `ok: false`, `reason: "destructive_edit"`. Retry with `confirmed_with_user: true` — verify it succeeds.
