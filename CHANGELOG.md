@@ -2,6 +2,9 @@
 
 ## 2026-06-10
 
+### Seeding kit + README screenshot refresh
+Adds `docs/seeding-kit.md` — ready-to-paste submissions for every distribution channel (awesome-mcp-servers PR line, PulseMCP form text, Show HN title+body, MCP registry publish steps, Railway template composer walkthrough, label CLI commands, community-post guidance) with a status table. Converts the launch checklist into ~30 minutes of founder copy-paste. Also regenerates `app/client/public/screenshot.png` to show the current desktop master-detail layout (#82) — the old single-column screenshot was the first thing every repo visitor saw.
+
 ### Desktop master-detail layout — break the 640px ceiling (#82)
 At 1280px the app was a single 640px column floating in empty space. Now, in list view at ≥1024px:
 
