@@ -2,6 +2,15 @@
 
 ## 2026-06-10
 
+### App-styled date picker (closes #103)
+The native `<input type="date">` in the followup edit row was the only date input in the app, and it stuck out — Safari rendered it in its own grey chrome, Chrome/Firefox in another, none of them matched the Montserrat-teal vocabulary. It also bit us with an onChange-on-blur quirk last month (the [#80](https://github.com/MagneticStudio/claw-crm/pull/80) followup-save fix needed a DOM ref to read the picker's committed value).
+
+New `<DatePicker>` component built on `@radix-ui/react-popover` (already in deps). Trigger button shows the formatted date (`Jun 13, 2026`) in the same teal-tinted pill that the native input used to occupy. Click opens a 280px-wide month-grid calendar — Montserrat throughout, teal selected day, subtle teal ring on today, muted out-of-month days, prev/next chevrons, weekday header. Bottom row has a `Today` shortcut and (when a date is set) a `Clear` link.
+
+Keyboard nav: arrow keys move by day across month boundaries, `Enter` selects, `Esc` closes. When the popover opens it auto-focuses the selected day (or today if no value), not the first chevron.
+
+Dropped the `followupDateRef` workaround and the `onMouseDown`-vs-`onClick` Save-button comment in `contact-block.tsx` — the controlled component dispatches state synchronously, no DOM-snooping needed.
+
 ### New MCP tool — `search_contacts`
 Agents could only fetch contacts by ID. There was no way to find a contact by name, company, email, or any substring from interactions/journal/briefing without already knowing the ID — get_dashboard returned counts but not search, and the browser's ⌘K search ran in the client only.
 
