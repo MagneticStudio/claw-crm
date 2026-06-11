@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { isPast, isToday, differenceInCalendarDays } from "date-fns";
 import { Square, AlertTriangle, Trash2, Clock } from "lucide-react";
 import type { ContactWithRelations } from "@shared/schema";
 import { fmtDate, fmtDateInput } from "@/lib/utils";
 import { useColors } from "@/App";
 import { getBriefingStaleness } from "@shared/briefing";
+import { DatePicker } from "@/components/date-picker";
 
 const HOLD_COLOR = "#6c5ce7";
 
@@ -84,10 +85,6 @@ export function ContactBlock({
   const [editingFollowupId, setEditingFollowupId] = useState<number | null>(null);
   const [editingFollowupText, setEditingFollowupText] = useState("");
   const [editingFollowupDate, setEditingFollowupDate] = useState("");
-  // Live reference to the date <input> so save can read the committed value
-  // directly. Bypasses any React batching / browser quirk where onChange
-  // doesn't fire until blur (Safari's <input type="date"> behavior).
-  const followupDateRef = useRef<HTMLInputElement>(null);
   const [completingFollowupId, setCompletingFollowupId] = useState<number | null>(null);
   const [completingFollowupText, setCompletingFollowupText] = useState("");
   const [showStageMenu, setShowStageMenu] = useState(false);
@@ -205,10 +202,8 @@ export function ContactBlock({
   const handleFollowupSave = (id: number, origDate: string) => {
     const updates: { content?: string; dueDate?: string } = {};
     if (editingFollowupText.trim()) updates.content = editingFollowupText;
-    // Prefer the live DOM value over React state — `<input type="date">` on
-    // Safari only fires onChange on blur, so state can lag behind the picker.
-    const liveDate = followupDateRef.current?.value || editingFollowupDate;
-    if (liveDate && liveDate !== origDate) updates.dueDate = new Date(liveDate + "T12:00:00").toISOString();
+    if (editingFollowupDate && editingFollowupDate !== origDate)
+      updates.dueDate = new Date(editingFollowupDate + "T12:00:00").toISOString();
     if (Object.keys(updates).length > 0) {
       onUpdateFollowup(id, updates);
       showFlash("Updated");
@@ -663,19 +658,7 @@ export function ContactBlock({
               if (isEditingFu) {
                 return (
                   <div key={fu.id} className="flex items-center gap-1.5 text-xs">
-                    <input
-                      ref={followupDateRef}
-                      type="date"
-                      value={editingFollowupDate}
-                      onChange={(e) => setEditingFollowupDate(e.target.value)}
-                      className="text-xs px-1.5 py-1 outline-none w-[120px] flex-shrink-0 font-[Montserrat]"
-                      style={{
-                        border: `1px solid ${C.accent}40`,
-                        borderRadius: 8,
-                        color: C.accentDark,
-                        backgroundColor: C.accentLight,
-                      }}
-                    />
+                    <DatePicker value={editingFollowupDate} onChange={setEditingFollowupDate} ariaLabel="Due date" />
                     <input
                       autoFocus
                       value={editingFollowupText}
@@ -688,11 +671,6 @@ export function ContactBlock({
                       style={{ border: `1px solid ${C.border}`, color: C.text }}
                     />
                     <button
-                      // onClick (not onMouseDown+preventDefault): the date inputs here
-                      // have no onBlur handler, so the focus-trap pattern used in the
-                      // interaction edit flow is unnecessary — and it actively breaks
-                      // the native date picker, which can leave its value uncommitted
-                      // when the user hits Save without first clicking elsewhere.
                       onClick={() => handleFollowupSave(fu.id, fmtDateInput(due))}
                       className="text-[10px] font-medium"
                       style={{ color: C.accentDark }}
