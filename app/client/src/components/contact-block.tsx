@@ -6,6 +6,7 @@ import { fmtDate, fmtDateInput } from "@/lib/utils";
 import { useColors } from "@/App";
 import { getBriefingStaleness } from "@shared/briefing";
 import { DatePicker } from "@/components/date-picker";
+import { toast } from "@/hooks/use-toast";
 
 const HOLD_COLOR = "#6c5ce7";
 
@@ -77,7 +78,6 @@ export function ContactBlock({
   const [showAllInteractions, setShowAllInteractions] = useState(false);
   const [expandedInteractions, setExpandedInteractions] = useState<Set<number>>(new Set());
   const [newNote, setNewNote] = useState("");
-  const [flash, setFlash] = useState<string | null>(null);
   const [editingInteractionId, setEditingInteractionId] = useState<number | null>(null);
   const [editingInteractionText, setEditingInteractionText] = useState("");
   const [editingBackground, setEditingBackground] = useState(false);
@@ -108,9 +108,11 @@ export function ContactBlock({
     setBackgroundText(derivedBackground);
   }, [derivedBackground]);
 
+  // Per-card "Note added" / "Stage → PROPOSAL" confirmations route through the
+  // global toast system. Wrapped behind showFlash so call sites stay terse and
+  // the 2s auto-dismiss + visual treatment are decided in one place.
   const showFlash = useCallback((msg: string) => {
-    setFlash(msg);
-    setTimeout(() => setFlash(null), 2000);
+    toast({ description: msg, duration: 2000 });
   }, []);
 
   const handleNoteSubmit = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -245,14 +247,6 @@ export function ContactBlock({
       />
       {/* Header */}
       <div className="flex items-center gap-1.5">
-        {flash && (
-          <span
-            className="text-[10px] font-medium px-2 py-0.5 rounded animate-pulse order-last ml-auto"
-            style={{ color: C.accentDark, backgroundColor: C.accentLight }}
-          >
-            {flash}
-          </span>
-        )}
         <h2 className="text-sm font-bold leading-tight whitespace-nowrap" style={{ color: C.text }}>
           {contact.firstName} {contact.lastName}
         </h2>
