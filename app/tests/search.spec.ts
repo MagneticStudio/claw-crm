@@ -64,6 +64,12 @@ test.describe("Cmd+K full-text search", () => {
 
     await page.keyboard.press("Escape");
     await expect(input).toHaveCount(0);
+
+    // Inactive contacts (HOLD) are tucked behind a toggle outside of search
+    // mode — expand to expose all 8 so the count assertion can include them.
+    const inactiveToggle = page.locator('[data-testid="inactive-toggle"]').first();
+    if (await inactiveToggle.count()) await inactiveToggle.click();
+
     // Full list restored — there are 8 seed contacts. At ≥1024px the list view
     // is master-detail (#82): contacts render as compact rail rows and only the
     // selected contact has an h2 card. Below 1024px each contact is a full card.

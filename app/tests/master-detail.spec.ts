@@ -21,6 +21,11 @@ test.describe("Desktop rail + feed layout", () => {
     await expect(rail).toBeVisible();
     await expect(feed).toBeVisible();
 
+    // Inactive contacts (HOLD) are tucked behind a toggle by default — expand
+    // to expose all 8 so the rail/feed counts can be asserted.
+    const inactiveToggle = page.locator('[data-testid="inactive-toggle"]').first();
+    if (await inactiveToggle.count()) await inactiveToggle.click();
+
     // All 8 seed contacts appear BOTH as index rows and as full cards.
     await expect(rail.locator('[data-testid^="contact-row-"]')).toHaveCount(8);
     await expect(feed.locator('input[placeholder*="note"]')).toHaveCount(8);
@@ -55,6 +60,12 @@ test.describe("Desktop rail + feed layout", () => {
 
     await expect(page.locator('[data-testid="contact-rail"]')).toHaveCount(0);
     await expect(page.locator('[data-testid="contact-feed"]')).toHaveCount(0);
+
+    // Inactive contacts (HOLD) are tucked behind a toggle by default — expand
+    // to expose all 8 in the single column.
+    const inactiveToggle = page.locator('[data-testid="inactive-toggle"]').first();
+    if (await inactiveToggle.count()) await inactiveToggle.click();
+
     // All 8 seed contacts render as full cards in one column.
     await expect(page.locator('input[placeholder*="note"]')).toHaveCount(8);
   });
