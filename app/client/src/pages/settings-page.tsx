@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ArrowLeft, Copy, RefreshCw, Check } from "lucide-react";
+import { ArrowLeft, Copy, RefreshCw, Check, Eye, EyeOff } from "lucide-react";
 import { Link } from "wouter";
 import { useColors, useConfig } from "@/App";
 
@@ -19,6 +19,11 @@ export default function SettingsPage() {
   const [newPin, setNewPin] = useState("");
   const [pinMessage, setPinMessage] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
+  // Secrets render as bullets by default. Tap the eye to reveal — guards
+  // against shoulder-surfing during screen-shares and demos. Copy still grabs
+  // the real value regardless of reveal state.
+  const [showMcp, setShowMcp] = useState(false);
+  const [showApi, setShowApi] = useState(false);
   const { upcomingDays } = useConfig();
 
   const saveDays = useMutation({
@@ -241,18 +246,36 @@ export default function SettingsPage() {
               className="flex-1 text-[11px] font-mono bg-stone-50 rounded px-2 py-1.5 break-all"
               style={{ color: C.text }}
             >
-              {mcpUrl || "Loading..."}
+              {!mcpUrl ? "Loading..." : showMcp ? mcpUrl : "•".repeat(Math.min(mcpUrl.length, 48))}
             </code>
+            <button
+              onClick={() => setShowMcp((v) => !v)}
+              className="flex-shrink-0 p-1.5 rounded hover:opacity-70"
+              style={{ color: C.muted }}
+              aria-label={showMcp ? "Hide MCP URL" : "Show MCP URL"}
+              title={showMcp ? "Hide" : "Show"}
+            >
+              {showMcp ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            </button>
             <button
               onClick={() => copyToClipboard(mcpUrl, "mcp")}
               className="flex-shrink-0 p-1.5 rounded hover:opacity-70"
               style={{ color: C.accentDark }}
+              aria-label="Copy MCP URL"
             >
               {copied === "mcp" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
             </button>
           </div>
           <button
-            onClick={() => regenMcpToken.mutate()}
+            onClick={() => {
+              if (
+                window.confirm(
+                  "Regenerate the MCP token? Every Claude connector currently using this URL will break until you paste in the new one.",
+                )
+              ) {
+                regenMcpToken.mutate();
+              }
+            }}
             className="text-[11px] flex items-center gap-1 hover:opacity-70"
             style={{ color: C.muted }}
           >
@@ -276,18 +299,40 @@ export default function SettingsPage() {
               className="flex-1 text-[11px] font-mono bg-stone-50 rounded px-2 py-1.5 break-all"
               style={{ color: C.text }}
             >
-              {settings?.apiKey || "Loading..."}
+              {!settings?.apiKey
+                ? "Loading..."
+                : showApi
+                  ? settings.apiKey
+                  : "•".repeat(Math.min(settings.apiKey.length, 48))}
             </code>
+            <button
+              onClick={() => setShowApi((v) => !v)}
+              className="flex-shrink-0 p-1.5 rounded hover:opacity-70"
+              style={{ color: C.muted }}
+              aria-label={showApi ? "Hide API key" : "Show API key"}
+              title={showApi ? "Hide" : "Show"}
+            >
+              {showApi ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            </button>
             <button
               onClick={() => copyToClipboard(settings?.apiKey || "", "api")}
               className="flex-shrink-0 p-1.5 rounded hover:opacity-70"
               style={{ color: C.accentDark }}
+              aria-label="Copy API key"
             >
               {copied === "api" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
             </button>
           </div>
           <button
-            onClick={() => regenApiKey.mutate()}
+            onClick={() => {
+              if (
+                window.confirm(
+                  "Regenerate the API key? Every script or integration using the current key will start returning 401 until updated.",
+                )
+              ) {
+                regenApiKey.mutate();
+              }
+            }}
             className="text-[11px] flex items-center gap-1 hover:opacity-70"
             style={{ color: C.muted }}
           >
