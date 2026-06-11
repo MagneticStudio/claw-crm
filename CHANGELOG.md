@@ -2,6 +2,15 @@
 
 ## 2026-06-10
 
+### New MCP tool — `search_contacts`
+Agents could only fetch contacts by ID. There was no way to find a contact by name, company, email, or any substring from interactions/journal/briefing without already knowing the ID — get_dashboard returned counts but not search, and the browser's ⌘K search ran in the client only.
+
+New `search_contacts(query, limit?)` MCP tool. Case-insensitive substring match across name, company, title, email, phone, location, LinkedIn URL, source, additionalContacts, background, every interaction, every followup, the briefing, and the relationship journal. Returns up to 20 (cap 50) results with `id`, `firstName`, `lastName`, `stage`, `status`, `companyName`, `matchedIn` (which field hit), and `matchedSnippet` (~40 chars of context around the match). Short canonical fields (name, company, title, email) are scanned first so a literal name match outranks a passing mention deep in a journal.
+
+Also retargeted `get_contact`'s not-found hint from `get_dashboard` → `search_contacts`.
+
+## 2026-06-10
+
 ### Seeding strategy pivot: community posts + one-click deploy, directories parked
 Founder call: MCP directories are overfilled with low-effort listings — Claw won't differentiate there. `docs/seeding-kit.md` rewritten around the channels where the target user actually is: the Railway one-click template as the prerequisite (every post must end in a 60-second link), then the essay, Show HN, three tailored Reddit drafts (r/consulting pain-led, r/selfhosted deploy-led, r/ClaudeAI agent-led), an X thread skeleton, and the IH/Slack blurb. Directory submissions moved to a "parked" section with the rationale. Important template note: since the #154 startCommand pin, the Railway template MUST set `npx drizzle-kit push --force` as its pre-deploy command or fresh one-click instances get no schema.
 
