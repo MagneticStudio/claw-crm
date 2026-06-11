@@ -436,18 +436,115 @@ Tasks and interactions should be SHORT reminders. The journal is where detail li
   // --- Read Tools ---
   server.tool(
     "get_contact",
-    "Get full contact details including interactions, follow-ups, and violations. Response can exceed 150 KB for LIVE clients with long histories — for audit or cleanup workflows over a single contact, prefer the paginated list_interactions / list_followups tools instead.",
+    "Get full contact details including interactions, follow-ups, and violations. Response can exceed 150 KB for LIVE clients with long histories — for audit or cleanup workflows over a single contact, prefer the paginated list_interactions / list_followups tools instead. If you don't already have the contact ID, call search_contacts first.",
     {
       contactId: z.number().describe("Contact ID"),
     },
     async ({ contactId }) => {
       try {
         const contact = await storage.getContactWithRelations(contactId);
-        if (!contact) return notFoundError("Contact", contactId, "get_dashboard");
+        if (!contact) return notFoundError("Contact", contactId, "search_contacts");
         return { content: [{ type: "text" as const, text: JSON.stringify(contact, null, 2) }] };
       } catch (err: unknown) {
         return {
           content: [{ type: "text" as const, text: actionableError(`reading contact ${contactId}`, err) }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "search_contacts",
+    `Find contacts by case-insensitive substring across every searchable field: name, company, title, email, phone, location, source, background, additional contacts, interactions, followups, briefing, and relationship journal. Returns up to \`limit\` matches (default 20, max 50). Each result includes the contact id + name + stage + status + company plus \`matchedIn\` (which field the hit was found in) and \`matchedSnippet\` (~40 chars of context around the match), so the agent can disambiguate (e.g. "Marcus" → which Marcus?) without calling get_contact on every result. Short canonical fields (name, company, title, email) are searched first so a literal name match outranks a passing mention deep in a journal. Use this whenever you need a contact ID and don't already have it.`,
+    {
+      query: z
+        .string()
+        .min(1)
+        .describe("Search term — any substring of name, company, email, or interaction/journal/briefing content."),
+      limit: z.number().int().min(1).max(50).optional().describe("Max matches to return. Default 20."),
+    },
+    async ({ query, limit }) => {
+      try {
+        const q = query.trim().toLowerCase();
+        if (!q) {
+          return { content: [{ type: "text" as const, text: JSON.stringify({ query, count: 0, results: [] }) }] };
+        }
+        const cap = limit ?? 20;
+        const allContacts = await storage.getContactsWithRelations();
+
+        // Build the candidate list in priority order. First match per contact wins —
+        // short canonical fields (name, company, title) come first so a literal name
+        // hit isn't masked by a coincidental substring deep in a journal.
+        const snippet = (haystack: string, idx: number): string => {
+          const window = 40;
+          const start = Math.max(0, idx - window);
+          const end = Math.min(haystack.length, idx + q.length + window);
+          const prefix = start > 0 ? "…" : "";
+          const suffix = end < haystack.length ? "…" : "";
+          return `${prefix}${haystack.slice(start, end).replace(/\s+/g, " ").trim()}${suffix}`;
+        };
+
+        type Match = {
+          id: number;
+          firstName: string;
+          lastName: string;
+          stage: string;
+          status: string;
+          companyName: string | null;
+          matchedIn: string;
+          matchedSnippet: string;
+        };
+        const results: Match[] = [];
+
+        for (const c of allContacts) {
+          const candidates: Array<{ field: string; haystack: string }> = [
+            { field: "name", haystack: `${c.firstName} ${c.lastName}` },
+            { field: "company", haystack: c.company?.name ?? "" },
+            { field: "title", haystack: c.title ?? "" },
+            { field: "email", haystack: c.email ?? "" },
+            { field: "phone", haystack: c.phone ?? "" },
+            { field: "location", haystack: c.location ?? "" },
+            { field: "linkedinUrl", haystack: c.linkedinUrl ?? "" },
+            { field: "source", haystack: c.source ?? "" },
+            { field: "additionalContacts", haystack: c.additionalContacts ?? "" },
+            { field: "background", haystack: c.background ?? "" },
+            ...c.interactions.map((i) => ({ field: "interaction", haystack: i.content })),
+            ...c.followups.map((f) => ({ field: "followup", haystack: f.content })),
+            { field: "briefing", haystack: c.briefing?.content ?? "" },
+            { field: "journal", haystack: c.relationshipJournal ?? "" },
+          ];
+
+          for (const { field, haystack } of candidates) {
+            if (!haystack) continue;
+            const idx = haystack.toLowerCase().indexOf(q);
+            if (idx === -1) continue;
+            results.push({
+              id: c.id,
+              firstName: c.firstName,
+              lastName: c.lastName,
+              stage: c.stage,
+              status: c.status,
+              companyName: c.company?.name ?? null,
+              matchedIn: field,
+              matchedSnippet: snippet(haystack, idx),
+            });
+            break;
+          }
+          if (results.length >= cap) break;
+        }
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({ query, count: results.length, capped: results.length >= cap, results }, null, 2),
+            },
+          ],
+        };
+      } catch (err: unknown) {
+        return {
+          content: [{ type: "text" as const, text: actionableError("searching contacts", err) }],
           isError: true,
         };
       }
