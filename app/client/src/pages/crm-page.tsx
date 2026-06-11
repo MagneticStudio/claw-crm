@@ -25,13 +25,16 @@ import {
   Clock,
   Plus,
   UserPlus,
+  Sun,
+  Moon,
+  Monitor,
 } from "lucide-react";
 import { KanbanBoard } from "@/components/kanban/kanban-board";
 import { Link } from "wouter";
 import { format, isPast, isToday, differenceInCalendarDays } from "date-fns";
 import type { Followup, ActivityLogEntry, Briefing, ContactWithRelations } from "@shared/schema";
 import { fmtDate } from "@/lib/utils";
-import { useConfig, useColors } from "@/App";
+import { useConfig, useColors, useTheme } from "@/App";
 
 // Pipeline order (funnel flow, top to bottom)
 const STAGES = ["ALL", "LEAD", "MEETING", "PROPOSAL", "NEGOTIATION", "LIVE", "RELATIONSHIP", "PASS"] as const;
@@ -64,6 +67,13 @@ export default function CrmPage() {
   const { logoutMutation } = useAuth();
   const [activeStage, setActiveStage] = useState<string>("ALL");
   const { orgName, upcomingDays: days } = useConfig();
+  const { theme, setTheme } = useTheme();
+  const cycleTheme = () => {
+    // System → Light → Dark → System
+    setTheme(theme === "system" ? "light" : theme === "light" ? "dark" : "system");
+  };
+  const themeLabel = theme === "system" ? "System" : theme === "light" ? "Light" : "Dark";
+  const ThemeIcon = theme === "system" ? Monitor : theme === "light" ? Sun : Moon;
   const [viewMode, setViewMode] = useState<"list" | "kanban">(
     () => (localStorage.getItem("crm-view-mode") as "list" | "kanban") || "list",
   );
@@ -287,14 +297,14 @@ export default function CrmPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen" style={{ backgroundColor: "#f0f8f8" }}>
+      <div className="flex items-center justify-center min-h-screen" style={{ backgroundColor: C.pageBg }}>
         <Loader2 className="h-5 w-5 animate-spin" style={{ color: C.accent }} />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "#f0f8f8" }}>
+    <div className="min-h-screen" style={{ backgroundColor: C.pageBg }}>
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: `1px solid ${C.border}` }}>
         <div className="max-w-[640px] lg:max-w-[1200px] mx-auto px-4 py-3 flex items-center justify-between gap-2">
@@ -478,6 +488,18 @@ export default function CrmPage() {
                     <Settings className="h-4 w-4" style={{ color: C.muted }} />
                     <span>Settings</span>
                   </Link>
+                  <button
+                    onClick={() => {
+                      cycleTheme();
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-50"
+                    style={{ color: C.text }}
+                  >
+                    <ThemeIcon className="h-4 w-4" style={{ color: C.muted }} />
+                    <span>
+                      Theme: <span style={{ color: C.accentDark, fontWeight: 600 }}>{themeLabel}</span>
+                    </span>
+                  </button>
                   <button
                     onClick={() => {
                       setShowActivityDrawer(!showActivityDrawer);

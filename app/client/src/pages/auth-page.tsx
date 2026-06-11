@@ -57,7 +57,7 @@ export default function AuthPage() {
         className="flex flex-col items-center justify-center min-h-screen p-4"
         style={{ background: "linear-gradient(135deg, #2bbcb3, #30bfb7, #3cc8c0)" }}
       >
-        <div className="w-full max-w-sm bg-white rounded-xl shadow-lg p-8 text-center">
+        <div className="w-full max-w-sm rounded-xl shadow-lg p-8 text-center" style={{ backgroundColor: "white" }}>
           <h1 className="text-lg font-semibold" style={{ color: "#1a2f2f" }}>
             Setup Complete
           </h1>
