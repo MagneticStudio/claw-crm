@@ -2,6 +2,11 @@
 
 ## 2026-06-11
 
+### Wire contact-card success feedback through the global toast (closes #85)
+Error-side toasts already shipped via `MutationCache` in `queryClient.ts`. The remaining gap was the 17 per-card `showFlash("Note added")` / `showFlash("Stage → PROPOSAL")` calls in `contact-block.tsx`, which rendered as a local pulsing pill in the header — duplicate infra that no other surface used.
+
+Repointed `showFlash` to `toast({ description, duration: 2000 })`. Kept the function name so the 17 call sites stay terse. Dropped the `flash` state, the `setTimeout` cleanup, and the in-card `<span>` render. Every success confirmation now appears in the same global Radix viewport that errors use.
+
 ### Settings: blur secrets, confirm before regenerate (closes #90)
 The MCP URL and API key rendered in plaintext on every visit to /settings — fine when you're alone, awkward during a screen-share or demo. The Regenerate links beneath each were single-tap with no confirmation; one accidental press and every connected Claude session or script returned 401.
 
