@@ -2,6 +2,13 @@
 
 ## 2026-06-11
 
+### Rail + feed: collapse HOLD contacts behind a "Show N on hold" toggle
+The desktop rail (and the mobile single-column feed) used to show every contact, with HOLD parked alongside active prospects. Active vs inactive blurred into one stream.
+
+Now the rail and feed render active contacts (status = ACTIVE) by default and tuck HOLD contacts behind a small "Show N on hold" toggle row with a chevron. Click to expand inline beneath the divider; click again to collapse. State persists to localStorage (`crm-show-inactive`).
+
+Search overrides everything as before — when a query is active, every match shows regardless of status, and the toggle disappears.
+
 ### Dark mode (closes #101)
 Follows OS by default with a three-way override (System / Light / Dark) persisted to localStorage per device. Accent (teal) carries across both modes; the neutral palette (text, muted, border, page bg, card bg) flips between two static palettes inside `useColors()`. Token-driven — most components didn't need to change because they already read `style={{ color: C.text }}` from `useColors()`.
 
