@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-06-11
+
+### Settings: blur secrets, confirm before regenerate (closes #90)
+The MCP URL and API key rendered in plaintext on every visit to /settings — fine when you're alone, awkward during a screen-share or demo. The Regenerate links beneath each were single-tap with no confirmation; one accidental press and every connected Claude session or script returned 401.
+
+- Each secret now renders as 48 bullets (`•` × min(value.length, 48)) by default. Eye / EyeOff icon toggles to reveal. Copy still grabs the real value regardless of reveal state.
+- Regenerate token / Regenerate key now wrap in `window.confirm()` with a specific consequence message ("Every Claude connector currently using this URL will break…" / "Every script using the current key will start returning 401…"). Cancel → nothing happens.
+
 ## 2026-06-10
 
 ### App-styled date picker (closes #103)
