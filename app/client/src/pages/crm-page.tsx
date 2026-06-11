@@ -170,7 +170,45 @@ export default function CrmPage() {
   const isSearching = searchResults !== null;
   const displayedContacts = isSearching ? searchResults : filteredContacts;
   const effectiveViewMode = isSearching ? "list" : viewMode;
-  const activeContact = displayedContacts.find((c) => c.id === activeContactId) ?? displayedContacts[0] ?? null;
+  // Use railContacts for the selection lookup so the detail pane follows what's
+  // actually visible in the rail. If a HOLD contact was selected and the user
+  // collapses inactive, selection falls back to the first visible contact.
+  // (Wait until railContacts derivation below before evaluating.)
+
+  // Split active vs inactive (HOLD status) so the rail and feed can hide
+  // parked contacts behind a single chevron by default. Search overrides:
+  // when a query is active, all matches show regardless of status.
+  const [showInactive, setShowInactive] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("crm-show-inactive") === "1";
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (showInactive) window.localStorage.setItem("crm-show-inactive", "1");
+    else window.localStorage.removeItem("crm-show-inactive");
+  }, [showInactive]);
+  const activeDisplayed = useMemo(
+    () => (isSearching ? displayedContacts : displayedContacts.filter((c) => c.status === "ACTIVE")),
+    [isSearching, displayedContacts],
+  );
+  const inactiveDisplayed = useMemo(
+    () => (isSearching ? [] : displayedContacts.filter((c) => c.status !== "ACTIVE")),
+    [isSearching, displayedContacts],
+  );
+  // What the rail + feed actually render: active always, inactive only when
+  // expanded. When searching, the split is moot.
+  const railContacts = useMemo(
+    () => (showInactive || isSearching ? [...activeDisplayed, ...inactiveDisplayed] : activeDisplayed),
+    [showInactive, isSearching, activeDisplayed, inactiveDisplayed],
+  );
+  // Where to insert the "X on hold" delineator. -1 means don't show.
+  const inactiveDividerIndex = useMemo(() => {
+    if (isSearching) return -1;
+    if (inactiveDisplayed.length === 0) return -1;
+    return activeDisplayed.length;
+  }, [isSearching, activeDisplayed, inactiveDisplayed]);
+
+  const activeContact = railContacts.find((c) => c.id === activeContactId) ?? railContacts[0] ?? null;
 
   const renderContactBlock = (contact: ContactWithRelations) => (
     <ContactBlock
@@ -226,10 +264,10 @@ export default function CrmPage() {
 
   // Clamp the keyboard highlight whenever the result set shrinks.
   useEffect(() => {
-    if (highlightedIndex >= displayedContacts.length) {
-      setHighlightedIndex(Math.max(0, displayedContacts.length - 1));
+    if (highlightedIndex >= railContacts.length) {
+      setHighlightedIndex(Math.max(0, railContacts.length - 1));
     }
-  }, [displayedContacts.length, highlightedIndex]);
+  }, [railContacts.length, highlightedIndex]);
 
   // Scroll the highlighted contact into view as the user arrow-keys through
   // results. Mirrors the kanban onContactTap polling approach.
@@ -333,7 +371,7 @@ export default function CrmPage() {
                 }
                 searchInputRef.current?.blur();
               }}
-              onArrowDown={() => setHighlightedIndex((i) => Math.min(displayedContacts.length - 1, i + 1))}
+              onArrowDown={() => setHighlightedIndex((i) => Math.min(railContacts.length - 1, i + 1))}
               onArrowUp={() => setHighlightedIndex((i) => Math.max(0, i - 1))}
             />
             {/* Add contact — hidden on mobile (FAB covers it) and while searching */}
@@ -828,7 +866,7 @@ export default function CrmPage() {
                 style={{ border: `1px solid ${C.border}`, borderRadius: 12 }}
                 data-testid="contact-rail"
               >
-                {displayedContacts.map((contact, idx) => (
+                {activeDisplayed.map((contact, idx) => (
                   <ContactRow
                     key={contact.id}
                     contact={contact}
@@ -837,6 +875,33 @@ export default function CrmPage() {
                     onSelect={() => scrollToContact(contact.id)}
                   />
                 ))}
+                {inactiveDividerIndex > -1 && (
+                  <button
+                    onClick={() => setShowInactive((v) => !v)}
+                    data-testid="inactive-toggle"
+                    className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-semibold uppercase tracking-wider transition-colors hover:opacity-70"
+                    style={{
+                      color: C.muted,
+                      borderTop: `1px solid ${C.border}`,
+                      ...(showInactive ? { borderBottom: `1px solid ${C.border}` } : {}),
+                    }}
+                  >
+                    <span>
+                      {showInactive ? "Hide" : "Show"} {inactiveDisplayed.length} on hold
+                    </span>
+                    <ChevronDown className={`h-3 w-3 transition-transform ${showInactive ? "rotate-180" : ""}`} />
+                  </button>
+                )}
+                {showInactive &&
+                  inactiveDisplayed.map((contact, idx) => (
+                    <ContactRow
+                      key={contact.id}
+                      contact={contact}
+                      selected={activeContact?.id === contact.id}
+                      highlighted={isSearching && activeDisplayed.length + idx === highlightedIndex}
+                      onSelect={() => scrollToContact(contact.id)}
+                    />
+                  ))}
                 {displayedContacts.length === 0 && (
                   <p className="text-center py-10 text-sm" style={{ color: C.muted }}>
                     {isSearching ? "No contacts match your search" : "No contacts in this stage"}
@@ -845,7 +910,7 @@ export default function CrmPage() {
               </div>
             ) : (
               <>
-                {displayedContacts.map((contact, idx) => {
+                {activeDisplayed.map((contact, idx) => {
                   const isHighlighted = isSearching && idx === highlightedIndex;
                   return (
                     <div
@@ -860,6 +925,39 @@ export default function CrmPage() {
                     </div>
                   );
                 })}
+                {inactiveDividerIndex > -1 && (
+                  <button
+                    onClick={() => setShowInactive((v) => !v)}
+                    data-testid="inactive-toggle"
+                    className="w-full flex items-center justify-between px-3 py-3 my-2 text-[11px] font-semibold uppercase tracking-wider transition-colors hover:opacity-70 rounded-[10px]"
+                    style={{
+                      color: C.muted,
+                      backgroundColor: C.cardBg,
+                      border: `1px dashed ${C.border}`,
+                    }}
+                  >
+                    <span>
+                      {showInactive ? "Hide" : "Show"} {inactiveDisplayed.length} on hold
+                    </span>
+                    <ChevronDown className={`h-3 w-3 transition-transform ${showInactive ? "rotate-180" : ""}`} />
+                  </button>
+                )}
+                {showInactive &&
+                  inactiveDisplayed.map((contact, idx) => {
+                    const isHighlighted = isSearching && activeDisplayed.length + idx === highlightedIndex;
+                    return (
+                      <div
+                        key={contact.id}
+                        className="rounded-[10px]"
+                        style={{
+                          boxShadow: isHighlighted ? `0 0 0 2px ${C.accent}` : undefined,
+                          transition: "box-shadow 120ms ease-out",
+                        }}
+                      >
+                        {renderContactBlock(contact)}
+                      </div>
+                    );
+                  })}
                 {displayedContacts.length === 0 && (
                   <p className="text-center py-16 text-sm" style={{ color: C.muted }}>
                     {isSearching ? "No contacts match your search" : "No contacts in this stage"}
@@ -873,7 +971,7 @@ export default function CrmPage() {
               The rail is an index: clicking a row scrolls here. */}
           {isDesktop && (
             <div className="flex-1 min-w-0" data-testid="contact-feed">
-              {displayedContacts.map((contact, idx) => {
+              {activeDisplayed.map((contact, idx) => {
                 const isHighlighted = isSearching && idx === highlightedIndex;
                 return (
                   <div
@@ -888,6 +986,40 @@ export default function CrmPage() {
                   </div>
                 );
               })}
+              {inactiveDividerIndex > -1 && (
+                <div
+                  className="flex items-center gap-2 my-3 text-[11px] font-semibold uppercase tracking-wider"
+                  style={{ color: C.muted }}
+                >
+                  <div className="flex-1 h-px" style={{ backgroundColor: C.border }} />
+                  <button
+                    onClick={() => setShowInactive((v) => !v)}
+                    className="flex items-center gap-1.5 transition-colors hover:opacity-70"
+                  >
+                    <span>
+                      {showInactive ? "Hide" : "Show"} {inactiveDisplayed.length} on hold
+                    </span>
+                    <ChevronDown className={`h-3 w-3 transition-transform ${showInactive ? "rotate-180" : ""}`} />
+                  </button>
+                  <div className="flex-1 h-px" style={{ backgroundColor: C.border }} />
+                </div>
+              )}
+              {showInactive &&
+                inactiveDisplayed.map((contact, idx) => {
+                  const isHighlighted = isSearching && activeDisplayed.length + idx === highlightedIndex;
+                  return (
+                    <div
+                      key={contact.id}
+                      className="rounded-[10px]"
+                      style={{
+                        boxShadow: isHighlighted ? `0 0 0 2px ${C.accent}` : undefined,
+                        transition: "box-shadow 120ms ease-out",
+                      }}
+                    >
+                      {renderContactBlock(contact)}
+                    </div>
+                  );
+                })}
               {displayedContacts.length === 0 && (
                 <p className="text-center py-16 text-sm" style={{ color: C.muted }}>
                   {isSearching ? "No contacts match your search" : "No contacts in this stage"}
