@@ -65,7 +65,7 @@ export default function SetupPage() {
         className="min-h-screen flex items-center justify-center p-4"
         style={{ background: "linear-gradient(135deg, #2bbcb3, #30bfb7, #3cc8c0)" }}
       >
-        <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8">
+        <div className="w-full max-w-md rounded-xl shadow-lg p-8" style={{ backgroundColor: "white" }}>
           <h1 className="text-lg font-semibold mb-1" style={{ color: C.text }}>
             Connect Your AI Agent
           </h1>

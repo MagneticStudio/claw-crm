@@ -2,6 +2,21 @@
 
 ## 2026-06-11
 
+### Dark mode (closes #101)
+Follows OS by default with a three-way override (System / Light / Dark) persisted to localStorage per device. Accent (teal) carries across both modes; the neutral palette (text, muted, border, page bg, card bg) flips between two static palettes inside `useColors()`. Token-driven — most components didn't need to change because they already read `style={{ color: C.text }}` from `useColors()`.
+
+Surfaces touched:
+- New `LIGHT_STATIC` + `DARK_STATIC` palettes inside `App.tsx`; `useColors()` returns the right one for the resolved mode.
+- Inline `style={{ backgroundColor: "#f0f8f8" }}` page bgs across 5 pages → `C.pageBg`.
+- `bg-white` class literals auto-flip via a `.dark .bg-white` rule in `index.css`. Auth + Setup card surfaces opt out by using inline `style={{ backgroundColor: "white" }}` instead (they sit on the teal gradient and stay branded-light).
+- `bg-stone-50` literals (secret blocks in Settings, etc.) get the same `.dark` override.
+- Body bg + text + border defaults flip in `index.css` `.dark body { … }`.
+- Date-picker popover bg → `C.cardBg`.
+- Theme toggle: Sun/Moon/Monitor icon in the header menu cycles System → Light → Dark. Three-way picker in Settings page.
+- Auth + Setup pages stay pinned light (brand surfaces on teal gradient).
+
+`ThemeContext` lives in a standalone `lib/theme.ts` module — keeping it next to the Provider in `App.tsx` caused Vite's react-refresh to instantiate two Context objects, producing a silent Provider/Consumer mismatch (Provider state correct, `useTheme()` reading defaults). Confirmed in dev with a window-attached identity check; standalone module resolves it.
+
 ### Wire contact-card success feedback through the global toast (closes #85)
 Error-side toasts already shipped via `MutationCache` in `queryClient.ts`. The remaining gap was the 17 per-card `showFlash("Note added")` / `showFlash("Stage → PROPOSAL")` calls in `contact-block.tsx`, which rendered as a local pulsing pill in the header — duplicate infra that no other surface used.
 

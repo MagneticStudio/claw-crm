@@ -134,7 +134,7 @@ export function DatePicker({ value, onChange, ariaLabel, placeholder = "Pick a d
           sideOffset={6}
           className="z-50 rounded-xl shadow-lg"
           style={{
-            backgroundColor: "white",
+            backgroundColor: C.cardBg,
             border: `1px solid ${C.border}`,
             padding: "0.75rem",
             fontFamily: "Montserrat, sans-serif",

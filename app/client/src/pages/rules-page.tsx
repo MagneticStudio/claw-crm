@@ -56,7 +56,7 @@ export default function RulesPage() {
   }
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "#f0f8f8" }}>
+    <div className="min-h-screen" style={{ backgroundColor: C.pageBg }}>
       <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: `1px solid ${C.border}` }}>
         <div className="max-w-[640px] mx-auto px-4 py-3 flex items-center gap-3">
           <Link href="/" className="transition-colors hover:opacity-70" style={{ color: C.muted }}>

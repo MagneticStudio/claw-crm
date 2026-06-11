@@ -6,6 +6,9 @@
   * {
     @apply border-[#d4e8e8];
   }
+  .dark * {
+    border-color: #22312f;
+  }
 
   body {
     font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -13,8 +16,24 @@
     background-color: #f0f8f8;
     color: #1a2f2f;
   }
+  .dark body {
+    background-color: #0c1414;
+    color: #e6f0ef;
+  }
 
   .font-mono {
     font-family: 'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  /* Dark-mode overrides for class literals that still use raw white/stone tints.
+     Keeps the existing markup unchanged — every `className="bg-white"` already in
+     the codebase auto-flips to the card surface in dark mode. Anywhere we want
+     a literal white (e.g. auth-page card on the teal gradient), use an inline
+     `style={{ backgroundColor: 'white' }}` to bypass these overrides. */
+  .dark .bg-white {
+    background-color: #152020;
+  }
+  .dark .bg-stone-50 {
+    background-color: #1c2828;
   }
 }

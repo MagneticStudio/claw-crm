@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ArrowLeft, Copy, RefreshCw, Check, Eye, EyeOff } from "lucide-react";
 import { Link } from "wouter";
-import { useColors, useConfig } from "@/App";
+import { useColors, useConfig, useTheme } from "@/App";
 
 export default function SettingsPage() {
   const C = useColors();
@@ -25,6 +25,7 @@ export default function SettingsPage() {
   const [showMcp, setShowMcp] = useState(false);
   const [showApi, setShowApi] = useState(false);
   const { upcomingDays } = useConfig();
+  const { theme, setTheme } = useTheme();
 
   const saveDays = useMutation({
     mutationFn: async (d: number) => {
@@ -110,7 +111,7 @@ export default function SettingsPage() {
   const mcpUrl = settings?.mcpToken ? `${window.location.origin}/mcp/${settings.mcpToken}` : "";
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "#f0f8f8" }}>
+    <div className="min-h-screen" style={{ backgroundColor: C.pageBg }}>
       <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: `1px solid ${C.border}` }}>
         <div className="max-w-[640px] mx-auto px-4 py-3 flex items-center gap-3">
           <Link href="/" className="transition-colors hover:opacity-70" style={{ color: C.muted }}>
@@ -198,6 +199,41 @@ export default function SettingsPage() {
             >
               Save
             </button>
+          </div>
+        </div>
+
+        {/* Theme */}
+        <div
+          className="bg-white"
+          style={{ border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}
+        >
+          <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>
+            Theme
+          </label>
+          <p className="text-[11px] mt-0.5 mb-2" style={{ color: C.muted }}>
+            System follows your OS preference. Override is persisted per device.
+          </p>
+          <div className="flex gap-1">
+            {(
+              [
+                { val: "system", label: "System" },
+                { val: "light", label: "Light" },
+                { val: "dark", label: "Dark" },
+              ] as const
+            ).map(({ val, label }) => (
+              <button
+                key={val}
+                onClick={() => setTheme(val)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                style={{
+                  backgroundColor: theme === val ? C.accent : "transparent",
+                  color: theme === val ? "white" : C.muted,
+                  border: theme === val ? "none" : `1px solid ${C.border}`,
+                }}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </div>
 
