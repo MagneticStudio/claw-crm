@@ -285,10 +285,19 @@ export default function CrmPage() {
     setHighlightedIndex(0);
   };
 
-  // Follow-ups due within N days (including overdue), sorted by due date
+  // Follow-ups due within N days, sorted by due date.
+  // - Tasks: include past-due (overdue tasks need to shout) up through the
+  //   cutoff window.
+  // - Meetings: exclude once their date is past. A meeting is a scheduled
+  //   event — once it's behind us, it has happened, it's no longer
+  //   "upcoming". (Mirrors PR #112: meetings are never "overdue".) The
+  //   no_followup_after_meeting rule handles the "you should log this" nudge
+  //   elsewhere.
   const allFollowups = useMemo(() => {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() + days);
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
     const fus: Array<{
       followup: Followup;
       contactName: string;
@@ -298,15 +307,17 @@ export default function CrmPage() {
     }> = [];
     for (const c of contacts) {
       for (const fu of c.followups) {
-        if (!fu.completed && new Date(fu.dueDate) <= cutoff) {
-          fus.push({
-            followup: fu,
-            contactName: `${c.firstName} ${c.lastName}`,
-            companyName: c.company?.name || "",
-            contactId: c.id,
-            briefing: c.briefing,
-          });
-        }
+        if (fu.completed) continue;
+        const due = new Date(fu.dueDate);
+        if (due > cutoff) continue;
+        if (fu.type === "meeting" && due < startOfToday) continue;
+        fus.push({
+          followup: fu,
+          contactName: `${c.firstName} ${c.lastName}`,
+          companyName: c.company?.name || "",
+          contactId: c.id,
+          briefing: c.briefing,
+        });
       }
     }
     fus.sort((a, b) => new Date(a.followup.dueDate).getTime() - new Date(b.followup.dueDate).getTime());
