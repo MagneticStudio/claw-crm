@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-06-26
+
+### Fix: Upcoming panel drops past meetings
+The Upcoming filter only had an upper bound (`due <= today + N days`) and no lower bound — so any uncompleted past-dated meeting kept showing up as e.g. `-9d` long after it had happened. A past meeting has happened or didn't; either way it's no longer "upcoming."
+
+Now: meetings whose date is before the start of today get filtered out of the Upcoming panel. Past-due **tasks** still bubble to the top (overdue tasks need to shout — that was the intended behavior all along). Today's meetings stay until midnight. The `no_followup_after_meeting` rule continues to handle the "you should log this past meeting" nudge per PR #112's logic.
+
 ## 2026-06-11
 
 ### Rail + feed: collapse HOLD contacts behind a "Show N on hold" toggle
