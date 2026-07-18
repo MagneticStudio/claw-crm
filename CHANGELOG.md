@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-07-17
+
+### Codex + Railway onboarding and safe first-boot schema initialization
+
+Fresh Railway forks previously inherited a production-safe start command that skipped `drizzle-kit push`, but the boot migrations assumed the base tables already existed. The demo deployment was healthy because its database had already been initialized; a brand-new Postgres service could fail before the setup screen appeared.
+
+Production startup now checks the database before launching the app. A truly empty database receives the base schema once, established databases skip schema push and continue through idempotent boot migrations, and an inconsistent `users`/`contacts` sentinel state fails closed for deliberate repair. Railway and Docker now share this startup path.
+
+The README now distinguishes Railway's infrastructure MCP from Claw's data MCP and provides a complete Codex-assisted path: connect Codex to Railway, create the isolated app and Postgres services, verify deployment health, finish first-time setup, connect Codex to Claw, and verify `get_crm_guide`. A copy-ready bounded deployment prompt lives in `docs/codex-railway-deploy.md`.
+
+### Generalized CRM agent skills
+
+The shipped `crm-management` skill now incorporates the production lessons from ongoing use: inbox + sent-mail + calendar + optional transcript reconciliation, cross-source event deduplication, a three-destination router (structured atom, journal, or drop), richer advice/impact/forward-plan capture, strategic meeting curation, source-coverage checks, and an action-first review queue. Behavior tests moved into a maintainer-only reference file. Named examples and operator/client-specific language were removed from the reusable skills, scheduler prompt, and live MCP guide.
+
+The README and a new `docs/agent-prompts/README.md` now define the ownership boundary explicitly: skills own reusable procedure and guardrails; agent prompts own run timing, source scope, and parameters. The daily sync prompt was renamed accordingly and no longer carries skill-style frontmatter.
+
+Skills are now documented as a portable bundle for the operator's own agent environment. Installation is part of onboarding: after cloning, the operator asks Codex or Claude to install the complete skill directories into its own personal or project-local setup, compare before replacing existing copies, and confirm discovery in a new session. `skills/README.md` covers per-device installation, Claude Projects, updates, customization, and read-only verification.
+
+`crm-management` and `crm-migrate` are now explicitly standalone and call `get_crm_guide` directly. The core `crm` skill is optional: its remaining purpose is proactive intent routing for ad-hoc relationship updates, not supplying a second copy of the MCP server's authoritative writing contract. Default onboarding installs only `crm-management` and presents the other two as opt-in workflows.
+
 ## 2026-06-26
 
 ### Fix: Upcoming panel drops past meetings

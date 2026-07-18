@@ -9,7 +9,7 @@ Sequence: **1 → 2 → stagger the rest.** The one-click deploy comes first bec
 1. railway.com → New → Template (composer).
 2. Services: app from `MagneticStudio/claw-crm`, **root directory `app`**, plus a PostgreSQL service.
 3. Variables on app: `DATABASE_URL` → `${{Postgres.DATABASE_URL}}`, `SESSION_SECRET` → generated.
-4. **Pre-deploy command (required): `npx drizzle-kit push --force`.** Since the #154 hotfix, `railway.json` pins the start command to `node dist/index.js` (no schema push at boot — that's what protects YOUR production). Template users start from an empty Postgres, so without the pre-deploy push their instance has no tables. For their fresh instances the push is safe and is their schema lifecycle, same as compose self-hosters.
+4. No pre-deploy command. `npm start` now checks for a truly empty database and applies the base schema once; established databases skip schema push and use idempotent boot migrations. The same startup path works for Railway and Docker.
 5. Publish, then add the button near the top of README.md:
    `[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/<TEMPLATE_CODE>)`
 
