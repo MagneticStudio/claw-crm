@@ -1,6 +1,6 @@
 ---
 name: crm-migrate
-description: One-time bulk import that turns existing client notes into a populated CRM — a pasted notes doc, an Apple Notes / Notion / Google Docs export, a spreadsheet of contacts, or a folder of per-client files. Use when the user wants to (1) set up their CRM from existing notes, (2) import or migrate contacts in bulk, (3) backfill history for clients they already work with. Trigger on "import my notes", "migrate my contacts", "set up my CRM from this", "here are my client notes", or any paste of multi-person historical notes into a fresh CRM. Do not invoke for logging new single events; use the `crm` skill for those.
+description: One-time bulk import that turns existing client notes into a populated CRM — a pasted notes doc, an Apple Notes / Notion / Google Docs export, a spreadsheet of contacts, or a folder of per-client files. Use when the user wants to (1) set up their CRM from existing notes, (2) import or migrate contacts in bulk, (3) backfill history for clients they already work with. Trigger on "import my notes", "migrate my contacts", "set up my CRM from this", "here are my client notes", or any paste of multi-person historical notes into a fresh CRM. Do not invoke for logging a new single event; handle that directly through the CRM connector.
 ---
 
 # CRM Migration Agent
@@ -19,7 +19,7 @@ Nobody starts from zero. The user has months or years of client history in a not
 
 - The CRM MCP connector (stop with one line if missing).
 - The source material: pasted text, attached files, or a path the user names.
-- The `crm` skill's mental model applies throughout — data-partition rule, five-layer model, pre-write checklist, layered confidentiality.
+- `get_crm_guide`, called before planning any writes, supplies the authoritative data model, writing contract, enums, and confidentiality rules.
 
 ## Phase 1 — Read and map
 
@@ -39,11 +39,11 @@ Present one compact plan for approval:
 
 ```
 MIGRATION PLAN — 12 contacts from <source>
-- Jane Doe (Acme, CEO) → LIVE. 6 interactions (2025-09 → 2026-04), journal w/ Engagement History, 1 task.
-- John Roe (Bolt) → PASS. 2 interactions, short journal.
+- <contact A> (<company>, <role>) → LIVE. 6 interactions (2025-09 → 2026-04), journal with Engagement History, 1 task.
+- <contact B> (<company>) → PASS. 2 interactions, short journal.
 - …
 SKIPPED: 3 names mentioned in passing (→ Key People on their primary contact).
-UNRESOLVED: "Mike" appears in two clients' notes — same person? (only blocking question)
+UNRESOLVED: One ambiguous name appears in two client notes—same person? (only blocking question)
 ```
 
 Wait for confirmation. Apply requested corrections to the plan, not mid-write.
@@ -58,7 +58,7 @@ Per contact, in this order:
 4. `create_task` for open loops with real due dates. An open loop with no inferable date gets listed in the final report instead of a guessed deadline.
 5. Verify each write before moving on. On validation failure (relative date, duplicate section), fix and retry once; if still failing, note it in the report and continue.
 
-Confidentiality (layered, same as the `crm` skill): pricing and deal terms from the source go in the journal only — never into interactions, tasks, or contact fields. Cross-client specifics never cross records. Credentials never migrate at all.
+Confidentiality is layered: pricing and deal terms from the source go in the journal only—never into interactions, tasks, or contact fields. Cross-client specifics never cross records. Credentials never migrate at all.
 
 ## Phase 4 — Report
 

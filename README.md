@@ -15,8 +15,8 @@ Most CRMs are built for sales teams. Claw is built for one person managing 10-50
 ![Claw CRM — notebook view](app/client/public/screenshot.png)
 
 - **Notebook view** — your entire pipeline in one scrollable feed, sorted by urgency
-- **Slash commands** — `/fu 4/15 check on proposal`, `/mtg 4/3 2pm Coffee @ Verve`, `/stage PROPOSAL`
-- **AI agents write, you verify** — Claude connects via MCP and manages your CRM through 27+ tools
+- **Slash commands** — `/fu 4/15 check on proposal`, `/mtg 4/3 2pm Coffee`, `/stage PROPOSAL`
+- **AI agents write, you verify** — Codex, Claude, or another MCP-capable agent manages the CRM through 27+ tools
 - **Relationship journal** — a per-contact markdown document that's the durable home for the narrative of the relationship: Key People, Wins / Case Study Material, Engagement History, and dated Entries. Absolute-dates-only validator, full revision history with diff view, verbatim blockquote escape for preserving emails and transcripts.
 - **Rules engine** — business logic stored as data, not code. "Flag contacts with no interaction for 14 days." Agents can create, modify, and delete rules.
 - **Real-time** — SSE pushes every change to the UI instantly, whether you or an agent made it
@@ -34,16 +34,55 @@ docker compose up
 
 Open [http://localhost:3000](http://localhost:3000) — the first visit walks you through choosing a PIN and hands you your API key + MCP token. No env files, no manual schema push; the schema is applied automatically on first boot. Data persists in a Docker volume across restarts.
 
-To connect your AI agent, grab the MCP URL from **Settings** inside the app (see [AI Agent Integration](#ai-agent-integration) below).
+To connect your AI agent, grab the MCP URL from **Settings**, then follow [AI Agent Integration](#ai-agent-integration) to register the connector and add the shipped skills to the agent's local setup.
 
-### Railway (hosted, ~5 minutes)
+### Railway with Codex (recommended hosted path, ~10 minutes)
 
-1. [Create a new Railway project](https://railway.com/new) → **Deploy from GitHub repo** → pick your fork of this repo.
-2. In the service settings, set **Root Directory** to `app`.
-3. Add a **PostgreSQL** database to the project, then set on the app service:
-   - `DATABASE_URL` → reference the Postgres `DATABASE_URL` variable
-   - `SESSION_SECRET` → any long random string
-4. Generate a domain for the service. Open it, set your PIN, done. Railway auto-deploys on every push to main.
+Use two separate MCP connections:
+
+| Connection | What it lets Codex do |
+|---|---|
+| **Railway MCP** | Create and operate the Railway project, app service, Postgres service, variables, domain, deploys, and logs. |
+| **Claw CRM MCP** | Read and write contacts, interactions, tasks, meetings, rules, journals, and briefings after Claw is deployed. |
+
+1. Fork this repository, clone your fork, and open the folder in Codex.
+2. Install and authenticate the [Railway CLI](https://docs.railway.com/cli) with `railway login`.
+3. Connect Codex to Railway. On a current Railway CLI:
+
+   ```bash
+   railway mcp install --agent codex
+   ```
+
+   If your CLI does not yet have the `mcp install` subcommand, use the equivalent local MCP configuration:
+
+   ```bash
+   codex mcp add railway -- railway mcp
+   ```
+
+4. Start a new Codex task so the Railway tools load, then paste the deployment prompt from [docs/codex-railway-deploy.md](docs/codex-railway-deploy.md). Review the proposed project and service names before approving writes.
+5. When Codex reports that `/api/config` returns `200`, open the generated Railway domain. Set a 4-6 digit PIN and copy the MCP URL shown by the setup flow.
+6. Connect Codex to the new CRM:
+
+   ```bash
+   codex mcp add claw-crm --url "https://your-domain.up.railway.app/mcp/<TOKEN>"
+   ```
+
+7. While the cloned repository is still open in Codex, ask it to [install `crm-management`](#skills-install-into-your-agent) into its personal setup on this device.
+8. Start another Codex task and ask: `Call get_crm_guide and summarize the live CRM state.` A successful response confirms both connector and skill discovery.
+
+The first startup detects an empty database and applies the base schema once. Established databases skip schema push and use the app's idempotent boot migrations. Do not run `npm run db:seed` on a real instance.
+
+Railway documents both [local and hosted MCP options](https://docs.railway.com/ai/mcp-server). Local MCP is the simplest choice when Codex and the authenticated Railway CLI run on the same machine; the hosted `https://mcp.railway.com` option uses browser OAuth.
+
+### Railway without an agent
+
+1. [Create a new Railway project](https://railway.com/new) → **Deploy from GitHub repo** → choose your fork.
+2. Set the app service's **Root Directory** to `app`.
+3. Add a **PostgreSQL** service.
+4. Set these variables on the app service:
+   - `DATABASE_URL` → `${{Postgres.DATABASE_URL}}`
+   - `SESSION_SECRET` → a long random value
+5. Generate a public domain, wait for the health check to pass, open the domain, and choose your PIN. Pushes to your fork's configured branch will auto-deploy.
 
 ### Local development
 
@@ -60,17 +99,31 @@ npm run dev            # http://localhost:3000
 
 ![Settings — MCP connection and API key](app/client/public/screenshot-settings.png)
 
-Claw exposes a full [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server so Claude (or any MCP-compatible agent) can manage your CRM autonomously.
+Claw exposes a remote [Model Context Protocol](https://modelcontextprotocol.io) server so Codex, Claude, or another Streamable HTTP MCP client can manage the CRM.
 
-### Remote MCP (Claude Web, Desktop, Mobile)
+The URL has this shape:
 
-**URL**: `https://your-domain.com/mcp/<TOKEN>`
+```text
+https://your-domain.com/mcp/<TOKEN>
+```
+
+Treat the complete URL as a password. Do not commit it, place it in a shared prompt, paste it into an issue, or expose it in a screenshot. Regenerating the token in **Settings** immediately invalidates the old URL.
+
+### Codex
+
+```bash
+codex mcp add claw-crm --url "https://your-domain.com/mcp/<TOKEN>"
+```
+
+Start a new task after adding the connector, then ask Codex to call `get_crm_guide`. To remove or rotate access, regenerate the MCP token in Claw Settings and update the Codex connector.
+
+### Claude Web, Desktop, and Mobile
 
 Set up in Claude: **Settings** > **Custom Connectors** > **Add** > paste the MCP URL > leave OAuth blank > **Add**.
 
-### Local MCP (Claude Desktop, Claude Code)
+### Local REST bridge (optional)
 
-Uses `mcp-client.ts` which calls the REST API over HTTP:
+For a client that cannot use the remote endpoint directly, `mcp-client.ts` exposes a local stdio MCP process backed by Claw's REST API:
 
 ```json
 {
@@ -87,32 +140,38 @@ Uses `mcp-client.ts` which calls the REST API over HTTP:
 }
 ```
 
-### Skills (optional but recommended)
+### Skills versus agent prompts
 
-Three skills ship with the repo:
+They solve different layers of the agent stack:
 
-- **`skills/crm/SKILL.md`** — a lightweight "when to use the CRM" guide that loads proactively. Claude sees the mental model (data-partition rule, five-layer structure, pre-write checklist, strategic-vs-operational meetings) before any tool call. The detailed writing contract, stage enums, and validation rules stay in `get_crm_guide` and load on-demand.
-- **`skills/crm-migrate/SKILL.md`** — one-time bulk import. Paste your existing client notes (Apple Notes, Notion, Google Docs, a spreadsheet — wherever they live today) and the agent maps every person, proposes a migration plan for your approval, then builds contacts, journals, interactions, and tasks in one pass. Nobody starts from zero; this is how your history comes across.
-- **`skills/crm-management/SKILL.md`** — a scheduled sync agent that reconciles the CRM with your inbox and calendar: logs material interactions, curates the Meetings layer, builds briefings for strategic meetings in the next 24h, and ends every run with an action-first summary (`DECIDE:` / `FLAG:` / `AT RISK:`). Pair it with an email + calendar MCP connector and a daily schedule ("run my CRM agent"). It depends on the `crm` skill for the data-model contract.
+| Artifact | Purpose | Lifetime | Contains |
+|---|---|---|---|
+| **Skill** | Teaches the agent how to perform a reusable workflow and when to select it. | Installed once; reused across tasks and schedules. | Trigger conditions, reasoning model, tool procedure, guardrails, validation, and output contract. |
+| **Agent prompt** | Assigns one concrete run to an already-capable agent. | One task or recurring schedule. | Invocation, schedule, source scope, time window, and run-specific parameters. |
 
-Install paths:
+Rule of thumb: **the skill owns how; the prompt owns when and what to run.** If the same operating instructions appear in both, move them into the skill and leave the prompt as a thin invocation. See the [agent-prompts guide](docs/agent-prompts/README.md) for examples.
 
-- **Claude Code**: copy the files into your personal skills directory.
-  ```bash
-  for s in crm crm-migrate crm-management; do
-    mkdir -p ~/.claude/skills/$s && cp skills/$s/SKILL.md ~/.claude/skills/$s/
-  done
-  ```
-  Claude Code auto-loads on session start.
-- **Claude Desktop / Claude.ai personal**: open a Project → Custom Instructions → paste the SKILL.md body. (Native plugin/skill install for claude.ai consumer isn't available yet; manual paste is the current path.)
+### Skills (install into your agent)
 
-The skill assumes the MCP connector has already been registered. If tools are missing it tells Claude to prompt you to add the connector; it doesn't install anything itself.
+Three portable skills ship with the repo, but most operators only need one:
 
-### Agent prompts
+- **Install `skills/crm-management/SKILL.md`** — the primary scheduled sync across received and sent email, calendar, and optional meeting transcripts. It calls `get_crm_guide` directly and does not depend on another skill.
+- **Optional: `skills/crm-migrate/SKILL.md`** — a standalone one-time bulk import for existing notes or contact data.
+- **Optional: `skills/crm/SKILL.md`** — proactive intent routing for ad-hoc conversation. It helps the agent recognize “I met someone today” or “follow up Friday” as CRM work without an explicit CRM instruction. The MCP guide already owns the detailed writing contract.
 
-Reference prompts for scheduled agents that operate on your behalf live in [`docs/agent-prompts/`](docs/agent-prompts/). Paste the prompt body into the agent's instructions (e.g. a Claude Cowork or OpenClaw scheduled agent) and point it at the relevant data source plus the CRM MCP connector.
+After cloning the repository, open it in Codex or Claude Code and ask:
 
-- [**CRM Inbox Agent**](docs/agent-prompts/crm-inbox-agent.md) — daily scan of your inbox (received + sent) to keep the CRM aligned. Logs new interactions, updates stages, completes stale follow-ups, builds briefings when a meeting is imminent, flags anything that needs your decision.
+```text
+Install the crm-management directory from this repository's skills folder into your personal skill setup on this device. Copy the complete directory, including references. If it already exists, show me the diff and ask before replacing it. Confirm where you installed it and whether I need to start a new task or session. Briefly explain the optional crm-migrate and crm skills, but do not install them unless I ask.
+```
+
+See the [skills installation guide](skills/README.md) for project-local installation, Claude Desktop/Claude.ai, updates, verification, and multi-device use. Register the Claw MCP connector separately; never embed its token in a skill.
+
+### Agent prompts (schedule or paste these)
+
+Reference prompts for scheduled or one-off runs live in [`docs/agent-prompts/`](docs/agent-prompts/). They assume the corresponding skill is installed. Point the agent at the communication connectors plus Claw's MCP connector; keep tokens out of the prompt itself.
+
+- [**Daily CRM Sync**](docs/agent-prompts/daily-crm-sync.md) — a thin scheduler assignment that invokes the canonical `crm-management` skill without restating its operating procedure.
 
 ### MCP Tools
 
@@ -201,10 +260,10 @@ Exceptions: `has_future_followup`, `stage_in` (exclude specific stages from rule
 | Command | Example |
 |---------|---------|
 | `/fu M/D text` | `/fu 4/15 check on proposal` |
-| `/mtg M/D time text @ location` | `/mtg 4/3 2pm Coffee @ Verve` |
+| `/mtg M/D time text @ location` | `/mtg 4/3 2pm Coffee @ downtown` |
 | `/stage STAGE` | `/stage PROPOSAL` |
 | `/status STATUS` | `/status HOLD` |
-| plain text + Enter | `Had coffee with Idan` (logs as note) |
+| plain text + Enter | `Had coffee with the new partner` (logs as note) |
 
 ## Keyboard Shortcuts
 

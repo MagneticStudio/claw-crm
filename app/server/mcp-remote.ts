@@ -186,7 +186,7 @@ Help the user set up their CRM through conversation:
 5. Ask about upcoming tasks → create_task() for each
 6. The default rules (stale detection, overdue follow-ups) are already active
 
-Be conversational. The user says "I have a prospect named Sarah at Acme, we had a call last week" → you create the contact, log the interaction, suggest a follow-up.
+Be conversational. If the user says "I have a new prospect and we had a call last week," create the contact from the details they provide, log the interaction, and suggest a follow-up.
 `
         : "";
 
@@ -234,11 +234,11 @@ Note: PASS is a STAGE (declined/not a fit), not a status.
 ## Data Formatting
 - email: direct email address
 - phone: direct phone number
-- website: domain only, no https:// (e.g. "acme.com")
+- website: domain only, no https:// (e.g. "example.com")
 - location: city or short form (e.g. "LA", "NYC", "Monterrey, Mexico")
-- source: how we connected (e.g. "Ryan Chan (referral)", "Direct", "Met at YPO event")
+- source: how we connected (e.g. "Colleague referral", "Direct", "Met at industry event")
 - additionalContacts: "Name (Role): email" separated by newlines
-- interaction content: past tense, factual, concise (e.g. "AF had intro call. 30 min, discussed AI strategy.")
+- interaction content: past tense, factual, concise (e.g. "Had a 30-minute introduction call about strategy.")
 - followup content: action-oriented (e.g. "Check for reply on proposal")
 - dates: use YYYY-MM-DD or M/D format. The CRM stores dates only, not datetimes. No timezone conversion.
 - times: for meetings, store as a display string in the user's local timezone (e.g. "2:30 PM"). Don't convert timezones.
@@ -297,10 +297,10 @@ Every piece of info has exactly ONE home. The DATE belongs to the atom; the MEAN
 | Retrospective phase summary, scope evolution, role/comp change | **journal → Engagement History** | edit_journal | edit in place, no \`### date:\` heading |
 | Interpretation, strategic read, "what this means", narrative context | **journal → Entries** | append_journal | long-form prose, dated |
 
-**Worked example — single call with Jeff on 2026-04-18:**
-- Interaction: \`2026-04-18: 30min call with Jeff. Discussed WPS restructuring.\` ← fact, short
-- Task: \`Send investment memo to Jeff\` due \`2026-04-22\` ← next action
-- Journal Entry: \`### 2026-04-18: Jeff signaled pivot from vendor to partner. He said "I want to think bigger than a deck." Read: restructuring opens strategic lane. Next prep should lead with our BD stance, not the deck refresh.\` ← meaning
+**Worked example — single call with a contact on 2026-04-18:**
+- Interaction: \`2026-04-18: 30-minute call. Discussed restructuring.\` ← fact, short
+- Task: \`Send the requested memo\` due \`2026-04-22\` ← next action
+- Journal Entry: \`### 2026-04-18: Contact signaled a shift from vendor to partner. Their restructuring may open a strategic lane; the next conversation should lead with the partnership model.\` ← meaning
 
 These three are NOT duplicates. The interaction is the fact, the task is the action, the journal is the interpretation. The journal cross-references the atom via its date.
 
@@ -317,7 +317,7 @@ Tasks and interactions should be SHORT reminders. The journal is where detail li
 **Writing rules (non-negotiable):**
 1. Every Entry begins with an ISO date heading: \`### YYYY-MM-DD: <brief title>\`. The server builds this for you — pass \`date\` to backdate migrated notes. **One H3 per date.** When you have several things to write for the same day, write them as separate \`append_journal\` calls — the server detects the matching date on the most recent existing Entry and folds each subsequent call in as an \`#### <title>\` H4 subheading under the existing H3, instead of creating sibling H3s that visually repeat the date. Each H4 sub-title should be tight (the day is already implied by its parent). Response carries \`foldedInto\` when consolidation happened.
 2. Absolute dates only in body content. Accepted formats: \`2026-04-18\`, \`04/18/2026\`, \`April 18, 2026\`, \`August 2025\` (year-only), \`Q3 2025\`. **Never** use today, tomorrow, yesterday, this/next/last week|month|year, recently, a few days ago, etc. Day-of-week only triggers rejection when preceded by next/this/last/by/on/until — "Mon/Wed/Fri cadence" or "Monday through Friday" is fine.
-3. When writing about future actions inside the journal, state the specific date. Write \`follow up with Jeff on 2026-05-06\`, not \`follow up with Jeff next week\`. (For actual follow-ups, use create_task instead — the journal just contextualizes.)
+3. When writing about future actions inside the journal, state the specific date. Write \`follow up with the contact on 2026-05-06\`, not \`follow up next week\`. (For actual follow-ups, use create_task instead—the journal only contextualizes.)
 4. When a contact says "let's meet next Tuesday", translate to an absolute date at write time.
 5. Never silently edit or delete existing dated Entries. Prefer appending a correction: \`### 2026-04-18: Correction to 2026-03-09 entry — …\`. A rewrite is a destructive edit.
 6. When updating Key People or Wins in place, annotate the change inline: \`[updated 2026-04-18: …]\`.
@@ -683,12 +683,12 @@ IMPORTANT formatting rules:
 - title: Their job title, e.g. "Managing Director of Operations" or "CEO & Founder"
 - email: Their direct email address. Always populate if known.
 - phone: Their direct phone number. Always populate if known.
-- website: Company website domain only (no https://), e.g. "standardcommunities.com"
+- website: Company website domain only (no https://), e.g. "example.com"
 - linkedinUrl: Full URL to the contact's personal LinkedIn profile, e.g. "https://www.linkedin.com/in/jane-doe". Populate whenever known — briefing research leans on it.
-- location: City or short location, e.g. "LA" or "Torrance, CA" or "Monterrey, Mexico"
+- location: City or short location, e.g. "Los Angeles" or "Remote"
 - background: 1-2 sentences about the company and why they're relevant. Keep it SHORT — this is a quick-scan tearsheet, not a full bio. Do NOT dump all context here.
-- source: How we met or who referred them, e.g. "Ryan Chan (referral)" or "Direct" or "Met at YPO event"
-- additionalContacts: Other key people at the company. Format: "Name (Role): email | phone" separated by newlines. e.g. "Lisa Bouyer (VP Enterprise Planning)\\nChris (Full-stack engineer)"
+- source: How we met or who referred them, e.g. "Colleague referral", "Direct", or "Met at industry event"
+- additionalContacts: Other key people at the company. Format: "Name (Role): email | phone" separated by newlines.
 - stage: Pipeline position. LEAD (new), MEETING (met), PROPOSAL (sent), NEGOTIATION (terms), LIVE (signed), PASS (declined), RELATIONSHIP (warm, non-sales). HOLD is NOT a stage — use status: HOLD instead.
 - status: ACTIVE (default) or HOLD (paused). PASS is a stage, not a status.
 
@@ -696,14 +696,11 @@ After creating the contact, use add_interaction to log the key events (meetings,
     {
       firstName: z.string().describe("First name of the primary contact"),
       lastName: z.string().describe("Last name of the primary contact"),
-      companyName: z
-        .string()
-        .optional()
-        .describe("Company name, e.g. 'Meridian Capital'. Auto-creates if new, reuses if existing."),
+      companyName: z.string().optional().describe("Company name. Auto-creates if new, reuses if existing."),
       title: z.string().optional().describe("Job title, e.g. 'CEO & Founder'"),
       email: z.string().optional().describe("Direct email address — always include if known"),
       phone: z.string().optional().describe("Direct phone number"),
-      website: z.string().optional().describe("Company website domain (no https://), e.g. 'acme.com'"),
+      website: z.string().optional().describe("Company website domain (no https://), e.g. 'example.com'"),
       linkedinUrl: z
         .string()
         .optional()
@@ -713,7 +710,7 @@ After creating the contact, use add_interaction to log the key events (meetings,
         .string()
         .optional()
         .describe("1-2 sentences about the company. Keep SHORT — do not dump full history here"),
-      source: z.string().optional().describe("How we connected, e.g. 'Ryan Chan (referral)' or 'Direct'"),
+      source: z.string().optional().describe("How we connected, e.g. 'Colleague referral' or 'Direct'"),
       additionalContacts: z
         .string()
         .optional()
@@ -967,7 +964,7 @@ For meetings (type "meeting"): scheduled events with optional time/location.
     "complete_followup",
     `Mark a follow-up or meeting as done. Always provide an outcome describing what actually happened — this gets logged to the timeline as a permanent record.
 
-The outcome should be past tense: "Checked in with Idan — confirmed coffee next Tuesday" not "Check in with Idan"`,
+The outcome should be past tense: "Checked in—confirmed the meeting for next Tuesday" not "Check in next Tuesday"`,
     {
       followupId: z.number().describe("Follow-up/task ID"),
       outcome: z.string().optional().describe("What happened — logged as a timeline entry. Always provide this."),
@@ -1832,7 +1829,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
       title: z
         .string()
         .describe(
-          'Short headline (≤80 chars recommended). Verb-forward, information-dense. Example: "Jeff signaled pivot from vendor to partner". When writing multiple entries on the same date, make titles distinct enough to tell apart.',
+          'Short headline (≤80 chars recommended). Verb-forward, information-dense. Example: "Contact signaled shift from vendor to partner". When writing multiple entries on the same date, make titles distinct enough to tell apart.',
         ),
       body: z
         .string()
@@ -1879,7 +1876,7 @@ The outcome should be past tense: "Checked in with Idan — confirmed coffee nex
                   reason: "empty_content",
                   field: "title",
                   message:
-                    'Rejected title: empty or whitespace-only. Provide a short, verb-forward headline (e.g. "Jeff signaled pivot from vendor to partner").',
+                    'Rejected title: empty or whitespace-only. Provide a short, verb-forward headline (e.g. "Contact signaled shift from vendor to partner").',
                 }),
               },
             ],

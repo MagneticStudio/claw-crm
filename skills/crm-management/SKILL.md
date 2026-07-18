@@ -1,209 +1,206 @@
 ---
 name: crm-management
-description: Reconcile the user's personal CRM with their inbox and calendar so every material email and meeting is reflected as an interaction, task, meeting, journal entry, stage change, or briefing. Use when the user wants to (1) run the scheduled CRM sync agent, (2) catch up the CRM after a busy day, (3) prep tomorrow's calendared contacts with briefings. Trigger on "run my CRM agent", "sync my CRM", "catch up my CRM", "process inbox into CRM", or any scheduled invocation. Do not invoke for ad-hoc single-thread logging; use the `crm` skill directly for that.
+description: Reconcile an operator's personal CRM with email, calendar, and meeting notes or transcripts so material relationship activity is reflected as an interaction, task, meeting, journal entry, stage change, or briefing. Use for scheduled CRM syncs, catching up after a busy day, processing inbox activity into the CRM, or preparing briefings for upcoming strategic meetings. Do not use for a single named email thread or meeting; handle that focused event directly through the CRM connector.
 ---
 
 # CRM Management Agent
 
-Scheduled sync that keeps the CRM aligned with inbox and calendar. The CRM is the source of truth for relationships and deals — it only stays true if every material event is reflected.
+Run a scheduled or on-demand sync that keeps the CRM aligned with the operator's communication systems. The CRM is the source of truth for relationships and opportunities only when material events are captured without burying the signal in routine activity.
+
+This workflow is client-agnostic. It works with Codex, Claude, or another MCP-capable agent and with any compatible email, calendar, and meeting-notes connectors.
 
 ## Non-negotiables
 
-- **Default to NOT logging.** Over-logging drowns signal. Skip when in doubt. Re-runs catch missed signal cheaply; pruning noise is expensive.
-- **No hallucinated contacts.** Never create one. Flag candidates in the summary.
-- **Verify every write.** Not "processed" until the CRM confirms.
-- **Dedup before writing.** Check existing interactions, tasks, meetings, same-day journal before any write.
-- **In-chat summary is the review surface.** Runs unattended; the summary is where the user reviews.
+- **Default to not logging structured atoms.** Over-logging interactions, tasks, and meetings drowns signal. Skip them when in doubt. The journal is the exception: preserve advice, impact, and forward plans richly when they will matter later.
+- **Never hallucinate contacts.** Do not create a contact during a sync. Flag candidates for the operator.
+- **Verify every write.** An item is not processed until the CRM confirms the write.
+- **Deduplicate before writing.** Check existing interactions, tasks, meetings, and the same-day journal before every write.
+- **Treat the final summary as the review surface.** Scheduled runs may be unattended; the summary is where the operator reviews decisions and exceptions.
+- **Do not claim coverage you did not have.** If a configured source is unavailable, stop before writing and report the missing source. Never describe a partial run as a full sync.
 
 ## Required inputs
 
-Verify before running. If any missing, stop with a one-line message.
+- The CRM MCP connector.
+- An email connector with inbox and sent-mail access.
+- A calendar connector with access to today and tomorrow.
+- If the operator relies on meeting notes or transcripts, a connector for that system (for example, Granola or an equivalent source).
 
-- `crm` sibling skill (data model + writing contract)
-- CRM MCP connector
-- Email connector (Gmail or Outlook), inbox + sent for last 1–2 days
-- Calendar connector, today + tomorrow
+Email and calendar are the minimum for a full daily sync. Transcript coverage is optional only when the operator has explicitly chosen not to use it.
 
 ## Setup
 
-1. Invoke `crm` skill.
-2. Call `get_crm_guide` for live rules + state.
-3. Pull dashboard (recent activity, upcoming meetings, violations).
-4. Search inbox (received + sent) for threads touched in last 1–2 days — catches overnight replies without re-walking processed days.
-5. Pull calendar today + tomorrow. Cross-reference attendees to CRM contacts by email — 48h forward matches the briefing horizon.
+1. Call `get_crm_guide` for the authoritative data model, writing contract, live rules, enums, and state.
+2. Pull the CRM dashboard: recent activity, upcoming meetings, overdue tasks, and active violations.
+3. Search received and sent email for threads touched in the last 1-2 days. The overlap catches overnight replies and makes reruns safe.
+4. Pull calendar events for today and tomorrow. Match external attendees to CRM contacts by email.
+5. When transcript coverage is enabled, pull meetings from the last 1-2 days, including the transcript and any generated summary. Match counterparties using the calendar attendee list, email address, and organization.
 
 ## Read email
 
-Read every relevant thread in full, chronologically. Don't skim newest-only. Don't filter by sender.
+Read each relevant thread in full and in chronological order.
 
-- Include sent mail — the user's own replies are often the most important events.
-- Include forwarded threads — forwarding signals intent for the CRM to catch up.
-- Include CC/BCC — new stakeholders often surface there first.
+- Include sent mail; the operator's reply may be the material event.
+- Include forwarded threads; forwarding often signals intent or a new stakeholder.
+- Include CC and BCC context where the connector exposes it.
+- Summarize one real-world thread or event once, not once per message.
 
 ## Read calendar
 
-Match attendees to CRM contacts by email.
+- Match attendees to contacts by email. Flag unmatched external attendees; never auto-create them.
+- Apply the strategic-versus-operational filter below before adding anything to the CRM Meetings layer.
+- Use the calendar to corroborate email. A scheduling thread resolved by a calendar event is one event, not two interactions.
 
-- Apply the strategic-vs-operational filter (next section). Only strategic events enter the Meetings layer.
-- Flag events with no contact match. Don't auto-create.
-- Use calendar to corroborate or correct email signals (a scheduling thread resolved by a placed event).
+## Read meeting notes and transcripts
 
-## Strategic vs operational meetings
+Treat a completed conversation as a first-class source, not as secondary evidence to email.
 
-The Meetings layer is curated. Calendar holds every event; CRM holds only relationship-moving moments. Operational meetings never enter the CRM — they drown signal, pollute briefing-candidate logic, and force repetitive cleanup.
+- Read the transcript and summary for relationship movement, decisions, objections, advice, impact, plans, and commitments—not for a play-by-play recap.
+- Match counterparties to existing contacts. Use calendar attendees and email domains to corroborate identity. Flag unmatched counterparties.
+- Apply the same strategic-versus-operational meeting filter used for the calendar.
+- Route each piece of information to one destination: a discrete fact or dated commitment becomes a structured atom; advice, impact, and forward-looking context belong in the journal; pure logistics is dropped.
+- A recurring meeting may remain outside the Meetings layer while a material moment inside it becomes an interaction or journal entry.
+- Deduplicate across sources. A call found in a transcript, calendar event, and follow-up email is one real-world event.
 
-**Log as a Meeting (strategic):**
-- First meeting with a new contact or new stakeholder on an existing contact
-- First conversation on a new engagement, lane, or scope
-- First external proof point (demo, pitch, working session for an audience outside the day-to-day team)
-- Stage-shifting conversations (proposal walkthrough, renegotiation, signing, escalation)
-- One-off high-stakes events (board meetings, investor updates, incident reviews)
-- Anything the user explicitly wants briefed
+## Strategic versus operational meetings
 
-**Never log (operational — leave on calendar):**
-- Recurring 1:1 cadences (weekly client 1:1, monthly check-in)
-- Daily or weekly team standups and syncs
-- Ad-hoc internal alignment calls with a LIVE-stage client
-- Internal training, tactical working sessions with recurring collaborators
-- "Catch-up" / "check-in" meetings with no new agenda
-- Cadence meetings inherited from a recurring calendar series
+The Meetings layer is curated. The calendar holds every event; the CRM holds only relationship-moving moments.
 
-**Test:** "Will I prepare differently than last time, AND will what happens move the relationship?" Both yes → strategic. Either no → skip.
+**Log as a Meeting:**
 
-**Edge cases:**
-- Material moment inside a recurring 1:1 → log the moment as interaction; the 1:1 stays off the Meetings layer.
-- First instance of what will become a cadence IS strategic. Subsequent instances are not.
-- External-audience demo is strategic even if "just a demo" internally.
-- New-lane discovery is strategic. A working session two weeks in is not, unless it stage-shifts.
+- First meeting with a new contact or a new stakeholder on an existing relationship.
+- First conversation about a new engagement, lane, or scope.
+- First external proof point such as a demo, pitch, or working session for a new audience.
+- A stage-shifting conversation: proposal review, renegotiation, signing, escalation, or renewal.
+- A one-off high-stakes event such as a board meeting, investor update, or incident review.
+- Anything the operator explicitly wants briefed.
 
-**Cleanup:** Operational meetings found in the layer from prior runs → DELETE on sight. Don't verify whether they happened; they don't belong regardless. Surface count in summary (`CLEANUP: deleted N stale operational meetings on <contact>`).
+**Do not log as a Meeting:**
 
-## What to log
+- Recurring one-to-one meetings or routine client cadences.
+- Daily or weekly team standups and status syncs.
+- Internal alignment calls on an active engagement.
+- Tactical training or working sessions with recurring collaborators.
+- Catch-ups with no new agenda.
+- Later instances of a recurring calendar series.
 
-Anything that moves the relationship or deal:
+Test: **Will the operator prepare differently than last time, and can this conversation move the relationship?** Both must be yes.
 
-- New prospect replies, proposal responses, acknowledgments
-- Scheduling confirmed/changed/cancelled
-- Stage changes
-- Signals of interest, hesitation, delay
-- New stakeholders entering a deal
-- Forwarded client emails from the user
-- Confirmed strategic calendar meetings with CRM contacts in next 48h
+Edge cases:
 
-## What NOT to log (LIVE clients)
+- A material moment inside a recurring meeting becomes an interaction or journal entry; the recurring meeting stays out of the Meetings layer.
+- The first instance of what will become a cadence can be strategic. Later instances are not.
+- A session for a new external audience can be strategic even if the internal team calls it a routine demo.
+- New-scope discovery is strategic. Routine delivery work is not unless it changes the relationship or stage.
 
-LIVE clients generate high-volume operational traffic. The test is not "did something happen" but "will this matter in six months."
+Delete stale operational meetings previously added to the Meetings layer and report the count. This is taxonomy cleanup, not deletion of the calendar event.
 
-**Skip:**
-- Routine cadence attendance
-- Calendar logistics (time changes, declines, Calendly bookings for queued meetings, OOO unless itself the signal, reschedules)
-- One-line "thanks" / "got it"
-- Cadence invoice receipts and payment confirmations (first payment after a billing change IS signal)
-- Internal tooling / infra chatter (permissions changes, tooling renames, ticket opens, platform status, account upgrades, license provisioning) — unless the action itself is a strategic move
-- Cross-team coordination that doesn't shift strategy
-- Same-thread email volume: one interaction per thread, not per message
-- Forward action items not yet done: those are tasks, not interactions
-- Operational meetings (see prior section)
+## Three destinations
 
-**Log:**
-- Scope/pricing/compensation changes
-- New stakeholders entering the orbit (CoS hire, new VP, board changes)
-- Friction moments, stalls, escalations
-- Wins worth quoting (testimonials, survey results, internal endorsements)
-- Strategic shifts (new initiative, sunset, pivot)
-- First payment after a billing change
+Every distinct piece of information goes to exactly one primary destination. One real-world event may yield a factual atom and separate journal meaning, but the same sentence must never appear in both.
 
-## Dedup
+### Structured atom
 
-Before every write, check the same fact isn't already on the contact for the same date. Skip silently if so.
+Use an interaction, task, meeting, or stage change for discrete facts, dated commitments, and relationship-moving events:
 
-- **Interactions:** thread-level match. One interaction per thread per event.
-- **Never write `type: note` paraphrasing an `email`/`call`/`meeting` already on the same event.** One type per event.
-- **Tasks/meetings:** same contact + same date + substantively same content. Near-match with different date → update, don't create.
-- **Journal:** call `peek_last_journal_entry` first. Same-date entry exists → prefer `edit_journal` (H4 subhead) over sibling entry. Siblings are for orthogonal topics.
-- **Meetings on contact:** never duplicate from calendar.
+- A proposal response, decision, objection, or material acknowledgment.
+- A new stakeholder entering the relationship.
+- A completed material call or email exchange.
+- A committed next action with a real due date.
+- Scope, commercial, timeline, or stage movement.
+- A strategic meeting worth preparing for.
 
-## Tool discipline
+### Journal
 
-- **Interactions.** Past-tense facts, one sentence.
-- **Pre-write tense check.** Scan content for forward verbs (should, will, needs to, send, review, follow up, draft, prepare, schedule, check). If present → it's a task. Route to `create_task`.
-- **Tasks.** Prep or nudges with due dates. Check existing first.
-- **Meetings.** Strategic only. Default to NOT creating; calendar already captures the event. Delete operational ones from prior runs.
-- **Journal.** Interpretation and strategic reads. One entry per contact per day. Reference atoms by date; don't re-narrate.
-- **Stage.** Update when reality moved.
-- **Follow-ups.** Complete/delete stale. Operational meetings: delete on sight, no verification. Surface count in summary.
+The journal is the durable advisory and relationship narrative. Capture:
 
-Date belongs to the atom. Meaning belongs to the journal. Don't write the same sentence twice.
+- Advice or recommendations the operator gave and the context around them.
+- Actions the operator took and their effect on the other organization.
+- Decisions the operator influenced and what was at stake.
+- The counterparty's forward plans, timing, constraints, and the operator's expected role.
+- Evidence that could later support a case study, value retrospective, renewal, proposal, or expanded scope.
+
+Favor density over brevity. Every sentence should earn its place, but do not remove substantive context merely to keep the journal short.
+
+### Drop
+
+Drop pure logistics and low-value noise:
+
+- Routine reschedules, declines, booking confirmations, and out-of-office messages.
+- One-line acknowledgments such as "thanks" or "got it."
+- Routine invoice receipts or payment confirmations, unless they signal a commercial change.
+- Permissions, account setup, ticket status, platform chatter, and license provisioning unless the action is strategically meaningful.
+- Same-thread message volume after the real event is already represented.
+- Future actions that are not yet complete; route real commitments to tasks instead.
+
+For active clients, use the six-month test: **Will the operator want this later for a case study, value retrospective, renewal, proposal, or important message?** If not, drop it.
+
+## Deduplication
+
+Before every write, check whether the same fact already exists for the same contact and date.
+
+- **Interactions:** one per thread or real-world event. Never add a `note` that paraphrases an `email`, `call`, or `meeting` for the same event.
+- **Tasks and meetings:** same contact, date, and substantive content is a duplicate. A near-match on another date should be updated, not recreated.
+- **Journal:** call `peek_last_journal_entry` first. Extend a same-day entry with `edit_journal` and a distinct H4 subheading instead of creating overlapping sibling entries.
+- **Calendar:** never duplicate an existing contact meeting.
+- **Cross-source:** transcript, calendar, and email evidence about the same event produce one interaction.
+
+## Writing discipline
+
+- **Interactions:** one factual, past-tense sentence.
+- **Pre-write tense check:** content containing `should`, `will`, `needs to`, `send`, `review`, `follow up`, `draft`, `prepare`, `schedule`, or `check` is probably a task, not an interaction.
+- **Tasks:** verb-first, short, and attached to a real due date.
+- **Meetings:** strategic only. Default to not creating one because the calendar already contains the event.
+- **Journal:** interpretation, advice, impact, forward plans, and strategic meaning. One entry per contact per day by default.
+- **Stage:** update only when reality moved. If the CRM journal merely recommends a stage move, surface it for a decision instead of applying it automatically.
+- **Follow-ups:** complete or delete stale items. When completing one, log the outcome as an interaction.
+
+The date belongs to the atom. The meaning belongs to the journal. Do not write the same sentence twice.
 
 ## Contacts
 
-Do not create. Flag candidates with one line of context.
+Do not create contacts during a sync. Flag candidates with one line of context and the source that surfaced them.
 
 ## Briefings
 
-Build a briefing when **all** hold:
+Build or refresh a briefing only when all of these are true:
 
-- Contact has a pending **strategic** meeting in next 24h. Operational meetings never warrant briefings — and shouldn't be in the layer anyway.
-- Either no briefing exists, OR existing is stale (>7 days), OR existing was scoped to a different meeting than the next pending one.
+- The contact has a pending strategic meeting in the next 24 hours.
+- No briefing exists, the existing briefing is older than seven days, or it was written for a different meeting.
 
-The third condition is missed most often. If `previousBriefing.meetingId` differs from current next pending → refresh.
+If `previousBriefing.meetingId` differs from the current next meeting, refresh it even when it is less than seven days old.
 
-Source from email history, CRM interactions, calendar, light public research. Cover: who, role, history, why now, likely goals, open questions, talking points, risks. Save and verify.
+Use email history, CRM interactions, calendar context, the journal, and light public research. Cover who they are, why the meeting matters now, history, likely goals, open questions, talking points, offers or asks, and risks. Save the briefing with the current meeting ID and verify the write.
 
-Do not pre-build briefings without a pending meeting in 24h.
+Do not create a briefing without a strategic meeting in the next 24 hours.
 
 ## End-of-run scans
 
-Before composing the summary:
+Before reporting:
 
-1. **Stage-change scan.** Journal recommends a stage move? → `DECIDE: <contact> — journal recommends <NEW_STAGE>? Confirm.` Don't apply.
-2. **Conditional follow-up scan.** Journal says `"if silent by <date>"`, `"check back on <date>"`? → Create the task if date is unambiguous; else `TASK SUGGESTED:`.
-3. **Backdating sanity check.** Journal entry covers >7 days? → belongs in `## Engagement History`, not Entries.
-4. **Volume scan.** >3 interactions on one contact this run → review as a set. Collapse same-event pairs. Delete any failing the six-month test. Last line of defense against over-logging.
+1. **Stage scan:** if the journal recommends a move, report `DECIDE: <contact> — move to <stage>?` Do not apply it silently.
+2. **Conditional follow-up scan:** when the journal says "if silent by <date>" or "check back on <date>," create the task only when the date is unambiguous; otherwise report `TASK SUGGESTED:`.
+3. **Backdating scan:** narrative covering more than seven days belongs in `## Engagement History`, not a dated Entry.
+4. **Volume scan:** if the run creates more than three interactions for one contact, review them as a set, collapse same-event pairs, and remove anything that fails the six-month test.
 
-## Verify
+## Verify and report
 
-Every write confirmed. If failed/uncertain, surface in summary.
+Confirm every write. Surface any failure or uncertainty instead of silently continuing.
 
-## Report inline
+End with one concise review queue, not a full activity log. Start with:
 
-End every run with one summary — the user's review queue. Concrete action items and issues only. Not a full activity log.
+`Processed N threads, M calendar events, T transcripts, K CRM writes.`
 
-Include:
+Then include only items needing attention:
 
-- Anything needing user decision/action
-- Anyone who might warrant a new contact, with one line of context
-- Any LIVE deal at risk of slipping
-- Any failed/uncertain CRM write
-- Any material unmatched calendar attendee
-- Anything from end-of-run scans
-- Count of operational meetings deleted
+- `DECIDE: <contact> accepted the proposal. Move to NEGOTIATION?`
+- `REVIEW: <contact> confirmed the strategic meeting. Meeting logged and briefing refreshed.`
+- `FLAG: <email> appeared as a new stakeholder; no contact exists.`
+- `AT RISK: <contact> moved timing again; the active opportunity may slip.`
+- `TASK SUGGESTED: <contact> should be checked on <date>.`
+- `CLEANUP: Deleted N stale operational meetings for <contact>.`
 
-Format each item action-first:
-
-- `DECIDE: Proposal accepted by Acme. Move to NEGOTIATION? Follow-up drafted.`
-- `REVIEW: Jordan confirmed May 5, 9-11 AM. Meeting logged, briefing built.`
-- `FLAG: New stakeholder priya@acme.com cc'd on Acme thread, no contact exists.`
-- `AT RISK: Deal's pushed timing two weeks again. LIVE deal slipping.`
-- `STAGE: Acme — journal recommends NEGOTIATION? Confirm.`
-- `CLEANUP: Deleted 4 stale operational meetings on Acme.`
-
-Lead with: `Processed N threads, M calendar events, K writes to CRM.` If nothing needs attention, follow with `All clear.`
+If nothing needs attention, follow the first line with `All clear.`
 
 ## Tests
 
-1. **Happy path.** 3 threads (2 logged, 1 new proposal reply). 1 calendar event tomorrow with a known LEAD. Expected: 1 interaction, 1 stage move flagged, 1 meeting + 1 briefing.
-2. **Dedup re-run.** Twice in an hour, no new data. Expected: zero new writes on second run.
-3. **Same-day journal dedup.** Same-day entry exists. Expected: `edit_journal` extends, not sibling.
-4. **Unknown attendee.** Calendar attendee with no matching contact. Expected: not created; flagged.
-5. **LIVE noise filter.** Thread is "rescheduling Tuesday to Wednesday." Expected: skipped.
-6. **Briefing refresh on changed meeting.** 6-day briefing scoped to group call; next meeting is 1:1 lunch. Expected: refreshed for 1:1.
-7. **Connector down.** Calendar unavailable. Expected: stop, one-line message, no partial writes.
-8. **Thread-level dedup.** 4 messages on one thread over 2 days. Expected: one interaction.
-9. **Note-paraphrasing-email guard.** Agent writes `email`, then tries `note` for same thread. Expected: second rejected as dup.
-10. **Tense-check guard.** Inbox: "I should follow up with the prospect next week." Expected: routed to `create_task` with date.
-11. **Volume-scan trigger.** 5 interactions on one contact. Expected: scan fires, collapse before completing.
-12. **Strategic-vs-operational filter at write time.** Calendar has (a) weekly 1:1 with LIVE client, (b) first discovery on new lane. Expected: (b) logged + briefed; (a) skipped, no row created.
-13. **Operational meeting cleanup.** Prior run logged weekly cadence as Meeting; now overdue. Expected: deleted this run, count surfaced. NOT flagged for review.
-14. **Recurring series, first instance.** First-ever 1:1 with new collaborator. Expected: logged. Second instance: skipped.
-15. **Operational meeting with material moment.** Weekly 1:1 where client announces scope shift. Expected: scope shift as interaction; 1:1 NOT logged.
+Behavior and regression tests live in `references/tests.md`. They are for maintainers and should not be loaded during a normal sync.

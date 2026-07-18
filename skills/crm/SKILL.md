@@ -1,6 +1,6 @@
 ---
 name: crm
-description: Personal CRM for relationship management. Invoke when the user mentions contacts, pipeline, prospects, clients, leads, follow-ups, meeting prep, interactions, relationship journals, briefings, or case-study material — or when they describe a new person, event, or action that could map to a CRM entity ("I met Sarah today", "follow up with Jeff Friday", "update my notes on Acme", "prep for tomorrow's call"). Assumes the CRM MCP connector is already registered in the client.
+description: Personal CRM for relationship management. Invoke when the user mentions contacts, pipeline, prospects, clients, leads, follow-ups, meeting prep, interactions, relationship journals, briefings, or case-study material — or when they describe a person, event, or action that could map to a CRM entity ("I met a new prospect today", "follow up with this contact Friday", "update the relationship notes", "prep for tomorrow's call"). Assumes the CRM MCP connector is already registered in the client.
 ---
 
 # Personal CRM
@@ -39,7 +39,7 @@ If any answer is wrong or ambiguous, do not write.
 | **Interactions** | Past-tense atomic events — a call happened, an email went out | One sentence per row, dated |
 | **Tasks / Meetings** | Forward-looking action items with due dates | Short, verb-first, ≤10 words |
 | **Briefings** | Ephemeral prep for the **next specific** conversation | Bullets, upsert, overwritten each prep |
-| **Relationship journal** | Everlasting narrative per contact — interpretation, strategic reads, "what it means" | Long-form markdown; sections: Key People, Wins / Case Study Material, Entries |
+| **Relationship journal** | Everlasting narrative per contact — interpretation, strategic reads, "what it means" | Long-form markdown; sections: Key People, Wins / Case Study Material, Engagement History, Entries |
 
 Interactions and tasks stay SHORT. The journal is where detail and meaning live. The journal is NOT a log of events — it's the interpretive layer on top of them.
 
@@ -98,7 +98,7 @@ The Meetings layer is **curated**, not comprehensive. Your calendar already hold
 
 ## When to invoke this skill
 
-- User mentions any person by name in a relationship context ("Alex said", "met with Jordan", "check in with Priya")
+- The user mentions any person in a relationship context ("they replied", "met with this contact", "check in with the new stakeholder")
 - User describes a future action tied to a person ("follow up", "send", "schedule", "remind me about")
 - User asks about pipeline state, overdue items, upcoming meetings, prospect status
 - User asks to prep for a meeting or review notes on a client
@@ -108,7 +108,7 @@ The Meetings layer is **curated**, not comprehensive. Your calendar already hold
 
 The server enforces strict validation — absolute dates only, no relative phrases, dated entry headings, destructive-edit gates. Full contract in `get_crm_guide`. Call it once per session and operate from its output. Beyond the server contract, observe the following patterns to avoid the most common journal-hygiene issues:
 
-- **Do NOT prefix the title with the entry date.** The server prepends `### YYYY-MM-DD:` automatically. A title like `2026-05-10: Jordan split TPM` renders as `### 2026-05-10: 2026-05-10: Jordan split TPM`. Lead the title with a verb or noun, not a date.
+- **Do NOT prefix the title with the entry date.** The server prepends `### YYYY-MM-DD:` automatically. A title like `2026-05-10: Contact changed direction` renders with the date twice. Lead the title with a verb or noun, not a date.
 - **One entry per contact per day.** If two topics warrant capture on the same day, write one entry with H4 subheadings (`#### Topic A`, `#### Topic B`). Only create sibling entries for genuinely orthogonal subjects.
 - **Do not re-narrate the atom.** If an interaction already captures the fact, the journal entry references it by date and goes straight to the interpretation. "On 2026-05-10 the JD reply landed; the strategic read is..." not "They replied 2026-05-10 with minor changes; proposed using Friday for three things; the strategic read is..."
 - **Verbatim quotes go in markdown blockquotes** (lines starting with `>`). Blockquotes bypass the relative-date check; surrounding prose still has to use absolute dates. Use this when preserving someone else's exact words, especially if they used relative phrasing.
@@ -121,7 +121,7 @@ The server enforces strict validation — absolute dates only, no relative phras
 
 If the CRM tools don't appear in your tool list, or calls return "tool not found," tell the user in one line:
 
-> The CRM connector isn't registered in this Claude. Add it under Settings → Connectors using the MCP URL from your CRM deployment, then retry.
+> The CRM connector is not registered in this AI client. Add the MCP URL from the CRM deployment, then retry.
 
 Do not attempt to install or configure the connector yourself.
 
@@ -129,6 +129,6 @@ Do not attempt to install or configure the connector yourself.
 
 This is a notebook, not a deal tracker. The rules differ by layer.
 
-- **Pricing, dollar amounts, deal terms, fees, commission rates:** allowed in the journal only (Entries, Engagement History, Wins, Key People). The journal is the interpretive layer — compensation history, scope-and-cash reset narratives, and revenue-pattern reads belong there. **Forbidden** in tasks, interactions, briefings, contact fields (background, source, additionalContacts), and any other operational or atomic layer. Those surfaces show up in dashboards, exports, and meeting prep, and pricing leakage there is harder to contain. When a task or interaction needs to reference a payment or invoice, use date and scope only (`Acme paid invoice INV-2035 on 2026-05-11`), not the figure.
+- **Pricing, dollar amounts, deal terms, fees, commission rates:** allowed in the journal only (Entries, Engagement History, Wins, Key People). The journal is the interpretive layer—compensation history, scope-and-cash reset narratives, and revenue-pattern reads belong there. **Forbidden** in tasks, interactions, briefings, contact fields (background, source, additionalContacts), and any other operational or atomic layer. Those surfaces show up in dashboards, exports, and meeting prep, and pricing leakage there is harder to contain. When a task or interaction needs to reference a payment or invoice, use date and scope only (`Payment received for invoice <reference> on YYYY-MM-DD`), not the figure.
 - **Cross-client specifics:** never. Client A specifics do not appear on Client B's record; prospect specifics do not appear on another prospect's record. Generic patterns are fine; named-client details are not. This applies to all layers including the journal.
 - **Credentials, account numbers, secrets:** never, anywhere.
