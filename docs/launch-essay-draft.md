@@ -67,4 +67,4 @@ If you're building anything agents write to, the transferable lessons:
 4. **Curate, don't mirror.** An agent that copies a data source (calendar, inbox) into your system adds nothing but bulk.
 5. **Errors are prompts.** A rejected write with a precise, actionable message teaches the agent mid-session. The error channel is your best instruction channel.
 
-Claw CRM is open source (AGPL) — Express + React + Postgres, with a full MCP server, the rules engine, and the three skills (mental model, bulk import, scheduled sync) included: **github.com/MagneticStudio/claw-crm**. `docker compose up` and you're running in two minutes. Bring your own agent.
+Claw CRM is open source (AGPL) — Express + React + Postgres, with a full MCP server, the rules engine, and four skills (mental model, bulk import, scheduled sync, periodic cleanup) included: **github.com/MagneticStudio/claw-crm**. `docker compose up` and you're running in two minutes. Bring your own agent.

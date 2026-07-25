@@ -153,16 +153,17 @@ Rule of thumb: **the skill owns how; the prompt owns when and what to run.** If 
 
 ### Skills (install into your agent)
 
-Three portable skills ship with the repo, but most operators only need one:
+Four portable skills ship with the repo, but most operators only need one:
 
 - **Install `skills/crm-management/SKILL.md`** — the primary scheduled sync across received and sent email, calendar, and optional meeting transcripts. It calls `get_crm_guide` directly and does not depend on another skill.
 - **Optional: `skills/crm-migrate/SKILL.md`** — a standalone one-time bulk import for existing notes or contact data.
+- **Optional: `skills/crm-dreaming/SKILL.md`** — a proposal-first maintenance pass that consolidates journal sprawl, removes duplication, and surfaces stale records without stripping relationship signal.
 - **Optional: `skills/crm/SKILL.md`** — proactive intent routing for ad-hoc conversation. It helps the agent recognize “I met someone today” or “follow up Friday” as CRM work without an explicit CRM instruction. The MCP guide already owns the detailed writing contract.
 
 After cloning the repository, open it in Codex or Claude Code and ask:
 
 ```text
-Install the crm-management directory from this repository's skills folder into your personal skill setup on this device. Copy the complete directory, including references. If it already exists, show me the diff and ask before replacing it. Confirm where you installed it and whether I need to start a new task or session. Briefly explain the optional crm-migrate and crm skills, but do not install them unless I ask.
+Install the crm-management directory from this repository's skills folder into your personal skill setup on this device. Copy the complete directory, including references. If it already exists, show me the diff and ask before replacing it. Confirm where you installed it and whether I need to start a new task or session. Briefly explain the optional crm-migrate, crm-dreaming, and crm skills, but do not install them unless I ask.
 ```
 
 See the [skills installation guide](skills/README.md) for project-local installation, Claude Desktop/Claude.ai, updates, verification, and multi-device use. Register the Claw MCP connector separately; never embed its token in a skill.
