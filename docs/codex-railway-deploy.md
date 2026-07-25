@@ -100,10 +100,10 @@ If Codex cannot see the tool, run `codex mcp list`, confirm the URL is complete,
 With the repository open in Codex, ask:
 
 ```text
-Install the crm-management directory from this repository's skills folder into your personal skill setup on this device. Copy the complete directory, including references. If it already exists, show me the diff and ask before replacing it. Confirm where you installed it and whether I need to start a new task. Briefly explain the optional crm-migrate and crm skills, but do not install them unless I ask.
+Install the crm-management directory from this repository's skills folder into your personal skill setup on this device. Copy the complete directory, including references. If it already exists, show me the diff and ask before replacing it. Confirm where you installed it and whether I need to start a new task. Briefly explain the optional crm-migrate, crm-dreaming, and crm skills, but do not install them unless I ask.
 ```
 
-Start a new Codex task after installation. Add `crm-migrate` only for a reviewed one-time import, or `crm` when proactive ad-hoc capture is valuable. Repeat installation on each device that runs Codex; local skills are not synchronized by the CRM. Keep operator-specific edits in a private working copy, not the public fork.
+Start a new Codex task after installation. Add `crm-migrate` only for a reviewed one-time import, `crm-dreaming` for periodic proposal-first cleanup, or `crm` when proactive ad-hoc capture is valuable. Repeat installation on each device that runs Codex; local skills are not synchronized by the CRM. Keep operator-specific edits in a private working copy, not the public fork.
 
 ## 7. Security boundaries
 

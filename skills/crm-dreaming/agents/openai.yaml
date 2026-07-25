@@ -1,0 +1,4 @@
+interface:
+  display_name: "CRM Dreaming"
+  short_description: "Consolidate and clean CRM records safely"
+  default_prompt: "Use $crm-dreaming to review a small batch of CRM records and propose safe cleanup."

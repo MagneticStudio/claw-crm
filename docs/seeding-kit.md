@@ -26,7 +26,7 @@ Sequence: **1 → 2 → stagger the rest.** The one-click deploy comes first bec
 >
 > The interesting part wasn't the app — it was 90 days of agent-hygiene lessons: agents over-log relentlessly; every prompt rule decays until you move it into a server-side validator; cheap writing means agents backfill retrospectives that silently corrupt timelines; "dedup" is a layer-partition problem, not string matching. All of it is encoded as rejection-with-actionable-error in the write path, so any agent on any harness writes clean data.
 >
-> AGPL. One-click deploy on Railway or `docker compose up`. MCP server + three skills (mental model, bulk import from your existing notes, daily sync) included. Happy to answer anything.
+> AGPL. One-click deploy on Railway or `docker compose up`. MCP server + four skills (mental model, bulk import from your existing notes, daily sync, periodic cleanup) included. Happy to answer anything.
 
 First comment: link the essay + the Railway button.
 

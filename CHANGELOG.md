@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-07-25
+
+### New skill: `crm-dreaming` — safe periodic CRM cleanup
+
+Adds a generalized, proposal-first maintenance skill derived from production CRM cleanup practice. It reviews small contact batches for journal sprawl, cross-layer duplication, misplaced content, stale records, and violations of the live `get_crm_guide` contract. Every contact is proposed and approved independently; destructive previews, optimistic-concurrency hashes, additive-before-destructive moves, write verification, and explicit partial-coverage reporting protect relationship signal.
+
+The public version removes private dependencies, named examples, hard-coded operator policy, and synthetic cleanup-marker interactions. Maintainer behavior cases cover approval gates, live confidentiality rules, stale tasks, hash conflicts, scheduled runs, and incomplete contact discovery. The skills documentation and contributor guidance now include the new optional workflow.
+
 ## 2026-07-17
 
 ### Codex + Railway onboarding and safe first-boot schema initialization

@@ -44,6 +44,13 @@ npm run test -- tests/auth.spec.ts  # Single test file
 - CI runs `--max-warnings 0` — fix all warnings before pushing.
 - Prefer `unknown` with type narrowing over `any` for new code. Prefix unused params with `_`.
 
+## Shipped skills
+
+- Portable agent skills live in `skills/`. Keep them operator-agnostic and MCP-client-agnostic.
+- Workflow skills call `get_crm_guide` directly for the live contract; do not depend on another local skill for core rules.
+- Never embed MCP URLs, tokens, credentials, named-client examples, or private operator policy in a shipped skill.
+- Put maintainer-only behavior cases in `references/tests.md` and link them from `SKILL.md` so normal runs do not load them.
+
 ## Before submitting a PR
 
 1. **If the PR adds a major feature, add new E2E steps to `.claude/skills/e2e-test/SKILL.md` covering key flows BEFORE running tests.** This is not optional — every user-facing feature must have E2E coverage.

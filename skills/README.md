@@ -8,6 +8,7 @@ The skills contain operating instructions only. They do not contain CRM data, MC
 
 - **Install `crm-management` for the normal Claw workflow.** It is standalone: it calls `get_crm_guide` for the authoritative CRM contract, then reconciles email, calendar, and configured meeting transcripts.
 - **Add `crm-migrate` only for an initial bulk import.** It is also standalone and calls `get_crm_guide` before planning writes.
+- **Add `crm-dreaming` for periodic hygiene.** It proposes small, per-contact cleanups for journal sprawl, duplication, stale records, and live policy violations, then writes only after explicit approval.
 - **Add `crm` only if you want proactive ad-hoc capture.** It teaches the agent to recognize conversational cues such as “I met someone today” or “follow up Friday” as CRM work even when the user did not explicitly name the CRM or a tool. The MCP guide already contains its substantive writing contract, so `crm` is not required by either workflow skill.
 
 The agent must install each complete directory, not only `SKILL.md`; supporting `references/` files are part of the skill.
@@ -21,7 +22,7 @@ Install the crm-management directory from this repository's skills folder into y
 
 Copy the complete directory, including references and other supporting files. Do not modify the source copy. If a skill with the same name is already installed, show me the differences and ask before replacing it. When finished, tell me where you installed it and whether I need to start a new task or session for discovery.
 
-Also explain the optional crm-migrate and crm skills in one sentence each, but do not install them unless I ask.
+Also explain the optional crm-migrate, crm-dreaming, and crm skills in one sentence each, but do not install them unless I ask.
 ```
 
 For a project-local installation instead, replace “personal skill setup” with “this project's local skill setup.” Personal installation makes the CRM workflows available across tasks; project-local installation limits them to one working directory.
@@ -30,7 +31,7 @@ Repeat this step on every device that hosts a local agent. Claw CRM does not syn
 
 ## Claude Desktop or Claude.ai
 
-Create a private Claude Project and ask Claude to add `crm-management` to the project's instructions or knowledge. Add `crm-migrate` for an initial import or `crm` for proactive ad-hoc capture only when wanted.
+Create a private Claude Project and ask Claude to add `crm-management` to the project's instructions or knowledge. Add `crm-migrate` for an initial import, `crm-dreaming` for periodic hygiene, or `crm` for proactive ad-hoc capture only when wanted.
 
 Never paste the tokenized Claw MCP URL into skill text. Register the deployed CRM as a connector separately.
 
