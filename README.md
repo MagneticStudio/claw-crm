@@ -168,11 +168,38 @@ Install the crm-management directory from this repository's skills folder into y
 
 See the [skills installation guide](skills/README.md) for project-local installation, Claude Desktop/Claude.ai, updates, verification, and multi-device use. Register the Claw MCP connector separately; never embed its token in a skill.
 
+### Periodic CRM cleanup
+
+`crm-dreaming` is the maintenance counterpart to the daily sync. It reviews a small batch of contacts for journal sprawl, same-day entry duplication, misplaced information, stale tasks or briefings, and violations of the live CRM contract. It preserves relationship signal, does not ingest inbox or calendar data, and never changes pipeline stages.
+
+Run it weekly, after a high-volume period, or whenever journals have become noisy. Start with a manual pass:
+
+```text
+Run CRM dreaming.
+```
+
+To focus the pass:
+
+```text
+Run CRM dreaming on <contact name or ID>.
+```
+
+The agent calls `get_crm_guide`, selects three to five risk-prioritized contacts when none are named, and returns one cleanup proposal per contact. **The proposal phase makes no changes.** Review the previews, then approve only the contacts you want changed:
+
+```text
+approve 42
+```
+
+The agent rereads the record, applies only the approved proposal, and verifies every write. Unapproved contacts remain unchanged. Scheduled runs are also proposal-only unless the operator returns to approve specific contacts.
+
+Install the complete `skills/crm-dreaming/` directory before using it. For a recurring setup, use the copy-ready [Weekly CRM Dreaming prompt](docs/agent-prompts/weekly-crm-dreaming.md).
+
 ### Agent prompts (schedule or paste these)
 
 Reference prompts for scheduled or one-off runs live in [`docs/agent-prompts/`](docs/agent-prompts/). They assume the corresponding skill is installed. Point the agent at the communication connectors plus Claw's MCP connector; keep tokens out of the prompt itself.
 
 - [**Daily CRM Sync**](docs/agent-prompts/daily-crm-sync.md) — a thin scheduler assignment that invokes the canonical `crm-management` skill without restating its operating procedure.
+- [**Weekly CRM Dreaming**](docs/agent-prompts/weekly-crm-dreaming.md) — a proposal-only maintenance pass that invokes `crm-dreaming` against a small, risk-prioritized contact batch.
 
 ### MCP Tools
 

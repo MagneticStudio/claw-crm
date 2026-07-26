@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-07-26
+
+### Document CRM dreaming installation and weekly use
+
+The README now explains what CRM dreaming reviews, when to run it, how its proposal-and-approval loop works, and how to invoke a full or contact-specific pass. The skills guide adds a copy-ready installation prompt, and a new weekly scheduler prompt keeps unattended runs proposal-only until the operator approves individual contacts.
+
 ## 2026-07-25
 
 ### New skill: `crm-dreaming` — safe periodic CRM cleanup

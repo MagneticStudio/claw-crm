@@ -31,3 +31,4 @@ Do not install files from this directory as skills. Do not add skill-style YAML 
 ## Available prompts
 
 - [`daily-crm-sync.md`](daily-crm-sync.md) invokes `crm-management` for a daily reconciliation of email, calendar, and configured meeting-transcript sources.
+- [`weekly-crm-dreaming.md`](weekly-crm-dreaming.md) invokes `crm-dreaming` for a proposal-only weekly maintenance pass over a small contact batch.
