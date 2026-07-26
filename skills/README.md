@@ -29,6 +29,20 @@ For a project-local installation instead, replace “personal skill setup” wit
 
 Repeat this step on every device that hosts a local agent. Claw CRM does not synchronize local agent skills.
 
+## Install and run CRM dreaming
+
+Ask the local agent:
+
+```text
+Install the crm-dreaming directory from this repository's skills folder into my personal skill setup on this device.
+
+Copy the complete directory, including references and agent metadata. Do not modify the source copy. If a skill with the same name is already installed, show me the differences and ask before replacing it. When finished, tell me where you installed it and whether I need to start a new task or session for discovery.
+```
+
+After restarting if required, run `Run CRM dreaming` for a three-to-five-contact maintenance batch or `Run CRM dreaming on <contact name or ID>` for a focused pass. The first response is proposal-only. Reply `approve <contact ID>` to apply one proposal; everything else remains unchanged.
+
+For weekly scheduling, use [`docs/agent-prompts/weekly-crm-dreaming.md`](../docs/agent-prompts/weekly-crm-dreaming.md). Scheduled runs surface proposals but do not authorize writes.
+
 ## Claude Desktop or Claude.ai
 
 Create a private Claude Project and ask Claude to add `crm-management` to the project's instructions or knowledge. Add `crm-migrate` for an initial import, `crm-dreaming` for periodic hygiene, or `crm` for proactive ad-hoc capture only when wanted.
