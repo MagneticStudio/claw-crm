@@ -62,7 +62,8 @@ app.use((req, res, next) => {
   startRulesScheduler();
 
   const port = process.env.PORT || 3000;
-  server.listen({ port, host: "0.0.0.0" }, () => {
+  const host = process.env.HOST || "127.0.0.1";
+  server.listen({ port, host }, () => {
     log(`serving on port ${port}`);
   });
 })();
