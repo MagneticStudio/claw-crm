@@ -66,7 +66,9 @@ app.use((req, res, next) => {
   startBriefingCleanupScheduler();
 
   const port = process.env.PORT || 3000;
-  server.listen({ port, host: "0.0.0.0" }, () => {
-    log(`serving on port ${port}`);
+  // Direct local runs stay private. Container deployments explicitly set HOST.
+  const host = process.env.HOST || "127.0.0.1";
+  server.listen({ port, host }, () => {
+    log(`serving on ${host}:${port}`);
   });
 })();

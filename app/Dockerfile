@@ -12,6 +12,8 @@ COPY . .
 RUN npm run build
 
 ENV NODE_ENV=production
+# Container ingress needs a non-loopback listener. Compose restricts the host port.
+ENV HOST=0.0.0.0
 EXPOSE 3000
 
 CMD ["npm", "start"]
