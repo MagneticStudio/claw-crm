@@ -52,12 +52,14 @@ Desired outcome:
 - SESSION_SECRET must be a newly generated high-entropy value. Do not print it in chat or write it to the repository.
 - A Railway-provided public domain for the app service.
 - A successful deployment whose GET /api/config returns HTTP 200.
+- Preserve app/railway.json's HOST=0.0.0.0 start command so Railway's proxy and health checks can reach the app.
 
 Safety and data rules:
 - Do not run npm run db:seed. This must start as an empty private CRM.
 - Do not set MCP_TOKEN. The app creates a per-instance token during first-time setup.
 - Do not expose database credentials, SESSION_SECRET, or tokens in chat.
 - Do not modify or delete any existing Railway project or service.
+- Restrict public access until the operator completes PIN setup; an uninitialized instance lets the first caller to /api/setup claim it.
 - If a requested project or service name already exists, stop and ask before reusing it.
 
 Execution:

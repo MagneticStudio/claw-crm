@@ -209,6 +209,13 @@ curl -s http://localhost:3000/api/user  # should return 401 (not authenticated)
 - Write `e2e-screenshots/run.json` manifest with branch, timestamp, and per-step results
 - Report: PASS or FAIL with details of any failures
 
+### 12. Deployment network boundary (Docker required)
+- From `app/`, run `npm run test:network`. It uses an isolated Compose project and disposable database volume.
+- Verify absent and empty `CLAW_HTTP_BIND` publish only on `127.0.0.1`, while explicit wildcard and specific-address overrides resolve correctly.
+- Verify the built image is reachable through its published local port, first-time PIN setup succeeds, HTTP login creates a usable session, and repeated setup is rejected.
+- Verify the actual server with absent/empty `HOST` rejects non-loopback traffic, an explicit wildcard listener accepts it, and the exact Railway start command preserves container ingress.
+- The test must clean up its containers and database volume. Do not point these tests at a real CRM database.
+
 ## Success Criteria
 All 11 steps (including 10b–10d) pass. Screenshots captured for visual verification. If any step fails, fix the issue before creating the PR.
 

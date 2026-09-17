@@ -16,6 +16,7 @@
     "format": "prettier --write \"client/src/**/*.{ts,tsx}\" \"server/**/*.ts\" \"shared/**/*.ts\"",
     "format:check": "prettier --check \"client/src/**/*.{ts,tsx}\" \"server/**/*.ts\" \"shared/**/*.ts\"",
     "test": "playwright test",
+    "test:network": "tsx scripts/network-smoke.ts",
     "test:ui": "playwright test --ui"
   },
   "dependencies": {

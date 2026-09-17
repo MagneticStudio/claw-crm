@@ -34,6 +34,10 @@ docker compose up
 
 Open [http://localhost:3000](http://localhost:3000) — the first visit walks you through choosing a PIN and hands you your API key + MCP token. No env files, no manual schema push; the schema is applied automatically on first boot. Data persists in a Docker volume across restarts.
 
+Compose publishes port 3000 on the host's `127.0.0.1` by default. Use Docker Engine 28 or newer: older releases have a [known localhost-publication LAN exposure issue](https://docs.docker.com/engine/network/port-publishing/). The app listens on `0.0.0.0` **inside the container** so the host can reach it; this is separate from the host port's exposure.
+
+For remote access, complete PIN setup locally first, set a strong `SESSION_SECRET`, and configure HTTPS and access restrictions through a reverse proxy or firewall. A proxy on the same host can use `127.0.0.1:3000`. If you need a published network port, explicitly set `CLAW_HTTP_BIND` to the intended host IP (or `0.0.0.0` for all IPv4 interfaces) and recreate the app container. Other containers on the same Docker network can still reach the app directly. When using `docker run` instead of Compose, publish with `-p 127.0.0.1:3000:3000` to retain the local-only default.
+
 To connect your AI agent, grab the MCP URL from **Settings**, then follow [AI Agent Integration](#ai-agent-integration) to register the connector and add the shipped skills to the agent's local setup.
 
 ### Railway with Codex (recommended hosted path, ~10 minutes)
@@ -84,6 +88,8 @@ Railway documents both [local and hosted MCP options](https://docs.railway.com/a
    - `SESSION_SECRET` → a long random value
 5. Generate a public domain, wait for the health check to pass, open the domain, and choose your PIN. Pushes to your fork's configured branch will auto-deploy.
 
+Railway's checked-in start command explicitly binds to `0.0.0.0` for proxy and health-check access. A custom start command must preserve `HOST=0.0.0.0`. Hosted deployment intentionally exposes the app: restrict access while completing first-time setup. Before a PIN exists, whoever reaches `/api/setup` first can initialize the instance; network defaults do not add setup authentication.
+
 ### Local development
 
 ```bash
@@ -94,6 +100,8 @@ npm run db:push        # push schema to Postgres
 npm run db:seed        # seed with demo data (PIN: 1234)
 npm run dev            # http://localhost:3000
 ```
+
+Direct `npm run dev` and `npm start` runs default to `127.0.0.1`. Set `HOST` only when you intentionally need another interface. `HOST` controls the app listener; `CLAW_HTTP_BIND` controls Docker Compose's published host port. To verify both defaults and container ingress, run `npm run test:network` from `app/` with Docker running. It builds a disposable Compose project, uses a random local port, and removes its test containers and database volume afterward.
 
 ## AI Agent Integration
 

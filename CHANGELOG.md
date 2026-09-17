@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-17
+
+### Restrict default network exposure without breaking container deployments
+
+Direct local runs now bind to `127.0.0.1`, with `HOST` available for deliberate network access. Docker Compose publishes only on host loopback unless `CLAW_HTTP_BIND` is set. The Docker image and Railway start command explicitly retain `0.0.0.0` inside the container so published ports, reverse proxies, and health checks remain reachable. Deployment instructions distinguish the two binding layers and explain first-run setup exposure and the Docker 28 minimum for localhost publication isolation.
+
+A Docker network smoke test verifies local-only publication, direct-run loopback defaults, explicit listener overrides, container ingress, and Railway startup. CI runs it alongside the existing application checks.
+
 ## 2026-07-26
 
 ### Document CRM dreaming installation and weekly use
