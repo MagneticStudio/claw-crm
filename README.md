@@ -34,6 +34,8 @@ docker compose up
 
 Open [http://localhost:3000](http://localhost:3000) — the first visit walks you through choosing a PIN and hands you your API key + MCP token. No env files, no manual schema push; the schema is applied automatically on first boot. Data persists in a Docker volume across restarts.
 
+For safety, the Compose file publishes the app on `127.0.0.1:3000` by default so the unauthenticated first-run setup is not reachable from your LAN or the public internet. If you intentionally need remote access, initialize the app locally first, set a strong `SESSION_SECRET`, and expose it through a firewall or reverse proxy; alternatively set `CLAW_HTTP_BIND=0.0.0.0` when you understand the first-run setup risk.
+
 To connect your AI agent, grab the MCP URL from **Settings** inside the app (see [AI Agent Integration](#ai-agent-integration) below).
 
 ### Railway (hosted, ~5 minutes)

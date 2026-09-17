@@ -1,5 +1,8 @@
 # Claw CRM — one-command self-host: `docker compose up`
 # App on http://localhost:3000 — first visit walks you through PIN setup.
+# The app port binds to localhost by default so first-run setup is not exposed
+# on LAN/public interfaces. Set CLAW_HTTP_BIND=0.0.0.0 only behind a firewall
+# or reverse proxy after initialization.
 # Set SESSION_SECRET in your environment (or a .env file next to this compose file)
 # before exposing this to a network.
 services:
@@ -20,7 +23,7 @@ services:
   app:
     build: ./app
     ports:
-      - "3000:3000"
+      - "${CLAW_HTTP_BIND:-127.0.0.1}:3000:3000"
     environment:
       DATABASE_URL: postgresql://claw:claw@db:5432/claw_crm
       SESSION_SECRET: ${SESSION_SECRET:-dev-only-change-me}
